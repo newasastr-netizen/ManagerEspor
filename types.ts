@@ -45,7 +45,10 @@ export interface PlayerCard {
   rarity: Rarity;
   imageParams?: string; // For placeholder generation
   events?: PlayerEvent[]; // Active random events
+  signatureChampions?: string[]; // İmza şampiyonlar
   imageUrl?: string;
+  status?: 'active' | 'retired';
+  morale?: number; // 0-100 arası moral değeri
 }
 
 export interface MatchResult {
@@ -76,7 +79,7 @@ export interface Standing {
   gameWins: number; // Individual Game Wins
   gameLosses: number; // Individual Game Losses
   streak: number; // Positive for win streak, negative for loss streak
-  group: 'A' | 'B';
+  group: 'A' | 'B' | null;
 }
 
 export interface ScheduledMatch {
@@ -107,7 +110,7 @@ export interface PlayoffMatch {
   isBo5: boolean;
 }
 
-export type GameStage = 'PRE_SEASON' | 'GROUP_STAGE' | 'PLAY_IN' | 'PLAYOFFS' | 'OFF_SEASON';
+export type GameStage = 'PRE_SEASON' | 'GROUP_STAGE' | 'PLAY_IN' | 'PLAYOFFS' | 'OFF_SEASON' | 'LEC_GROUP_STAGE' | 'LEC_PLAYOFFS';
 
 export interface GameState {
   managerName: string;

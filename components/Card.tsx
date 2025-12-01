@@ -1,19 +1,18 @@
 import React from 'react';
 import { PlayerCard, Role, Rarity, TeamData } from '../types';
-import { Shield, Sword, Brain, Zap, Crown, Users, Clock, TrendingUp, TrendingDown, Bandage, Frown, MessageSquare, AlertTriangle } from 'lucide-react';
-import { TeamLogo } from './TeamLogo'; // TeamLogo bileşenini import ediyoruz
+import { Shield, Sword, Brain, Zap, Crown, Users, Clock, TrendingUp, TrendingDown, Bandage, Frown, MessageSquare, AlertTriangle, Smile, Meh } from 'lucide-react';
+import { TeamLogo } from './TeamLogo';
 
 interface CardProps {
   player: PlayerCard;
-  team?: TeamData | null; // Takım verisini prop olarak ekliyoruz
+  team?: TeamData | null;
   onClick?: () => void;
   actionLabel?: string;
   disabled?: boolean;
   compact?: boolean;
-  isOwned?: boolean; // To change display of price vs salary
+  isOwned?: boolean;
 }
 
-// Helper component for Stat Rows with Tooltips
 const StatRow = ({ label, value, description }: { label: string, value: number, description: string }) => (
   <div className="group/stat relative flex justify-between items-center text-xs border-b border-white/5 pb-1 cursor-help hover:bg-white/5 px-1 -mx-1 rounded transition-colors z-20">
     <span className="text-gray-500 font-semibold border-b border-dotted border-gray-600/50">{label}</span>
@@ -22,7 +21,6 @@ const StatRow = ({ label, value, description }: { label: string, value: number, 
     {/* Tooltip */}
     <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-dark-950/95 backdrop-blur-md border border-white/10 text-gray-200 text-[10px] leading-relaxed p-2.5 rounded-lg shadow-xl text-center opacity-0 translate-y-2 group-hover/stat:opacity-100 group-hover/stat:translate-y-0 transition-all duration-200 pointer-events-none z-50">
       {description}
-      {/* Tooltip Arrow */}
       <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-dark-950 border-r border-b border-white/10 rotate-45"></div>
     </div>
   </div>
@@ -30,7 +28,6 @@ const StatRow = ({ label, value, description }: { label: string, value: number, 
 
 export const Card: React.FC<CardProps> = ({ player, team, onClick, actionLabel, disabled, compact, isOwned }) => {
   
-  // Style configurations based on Rarity for the "Premium" look
   const getRarityStyles = (r: Rarity) => {
     switch (r) {
       case Rarity.LEGENDARY: 
@@ -87,6 +84,13 @@ export const Card: React.FC<CardProps> = ({ player, team, onClick, actionLabel, 
     return null;
   };
 
+  const getMoraleIcon = (morale: number | undefined) => {
+    const m = morale ?? 50;
+    if (m > 75) return <Smile size={12} className="text-green-400" />;
+    if (m < 25) return <Frown size={12} className="text-red-500" />;
+    return <Meh size={12} className="text-gray-500" />;
+  };
+
   const getEventIcon = (type: string) => {
     switch (type) {
       case 'INJURY': return <Bandage size={12} className="text-red-500" />;
@@ -120,13 +124,19 @@ export const Card: React.FC<CardProps> = ({ player, team, onClick, actionLabel, 
             transition-all duration-200 cursor-pointer group overflow-hidden 
             ${disabled ? 'opacity-50 cursor-not-allowed hover:translate-x-0 active:scale-100' : ''}`}
         >
-          {/* Left Color Bar */}
           <div className={`absolute left-0 top-0 bottom-0 w-1 ${rarityStyles.bg.replace('bg-gradient-to-br', '')} ${rarityStyles.glow.replace('after:bg-', 'bg-')}`}></div>
 
           <div className="flex items-center gap-3 pl-2">
             <div className="w-8 h-8 rounded-full bg-black/40 flex items-center justify-center text-gray-300 border border-white/10 group-hover:scale-110 transition-transform">
                {getRoleIcon(player.role)}
             </div>
+            {player.nationality && (
+              <img
+                src={`/flags/${player.nationality.toLowerCase()}.svg`}
+                alt={player.nationality.toLowerCase()}
+                className="absolute top-2 left-2 w-4 h-auto rounded-sm shadow-md"
+              />
+            )}
             <div>
               <div className="flex items-center gap-2">
                 <h4 className="font-display font-bold text-white group-hover:text-hextech-400 transition-colors">{player.name}</h4>
@@ -135,7 +145,14 @@ export const Card: React.FC<CardProps> = ({ player, team, onClick, actionLabel, 
                     {player.overall > player.previousOverall ? '+' : ''}{player.overall - player.previousOverall}
                   </span>
                 )}
-                {/* Status Icons */}
+                {player.status === 'retired' && (
+                  <span className={`text-[9px] font-bold px-1 rounded ${player.overall > player.previousOverall ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                    {player.overall > player.previousOverall ? '+' : ''}{player.overall - player.previousOverall}
+                  </span>
+                )}
+                <div className="relative group/morale">
+                  {getMoraleIcon(player.morale)}
+                </div>
                 {player.events && player.events.length > 0 && (
                   <div className="flex gap-1">
                     {player.events.map(ev => (
@@ -165,6 +182,15 @@ export const Card: React.FC<CardProps> = ({ player, team, onClick, actionLabel, 
                   </>
                 )}
               </div>
+              {player.signatureChampions && player.signatureChampions.length > 0 && (
+                <div className="flex items-center gap-1 mt-1.5">
+                  {player.signatureChampions.slice(0, 3).map(champ => (
+                    <span key={champ} className="text-[9px] font-bold bg-dark-700/60 text-gray-300 px-1.5 py-0.5 rounded">
+                      {champ}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
           <div className="text-right">
@@ -175,7 +201,6 @@ export const Card: React.FC<CardProps> = ({ player, team, onClick, actionLabel, 
     )
   }
 
-  // Full Card View
   return (
     <>
       <style>
@@ -190,24 +215,17 @@ export const Card: React.FC<CardProps> = ({ player, team, onClick, actionLabel, 
         style={{ animation: 'popIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards' }}
         className={`relative w-full aspect-[2/3] rounded-2xl p-[2px] transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl active:scale-[0.98] group`}
       >
-        {/* Glow Effect Layer */}
         <div className={`absolute inset-0 rounded-2xl opacity-50 blur-md transition-opacity duration-500 group-hover:opacity-100 ${rarityStyles.shadow} bg-current text-${rarityStyles.text.split('-')[1]}-500`}></div>
         
-        {/* Main Card Container */}
-        {/* NOTE: overflow-hidden removed from here to allow tooltips to pop out. 
-            We apply overflow-hidden to the header and footer specifically. */}
         <div className={`relative w-full h-full rounded-2xl flex flex-col ${rarityStyles.bg} border-2 ${rarityStyles.border} group-hover:border-opacity-100 transition-colors`}>
           
-          {/* Top Header */}
           <div className="relative h-1/2 w-full overflow-hidden bg-black/50 rounded-t-[14px]">
-             {/* Placeholder Portrait */}
              <div className={`absolute inset-0 bg-cover bg-center grayscale group-hover:grayscale-0 transition-all duration-700 ease-out group-hover:scale-110`} 
                   style={{backgroundImage: `url('${player.imageUrl}')`}}>
              </div>
              
              <div className="absolute inset-0 bg-gradient-to-t from-gray-900 via-transparent to-transparent"></div>
              
-             {/* Active Events Overlay */}
              {player.events && player.events.length > 0 && (
                 <div className="absolute top-2 left-0 right-0 flex justify-center gap-2 z-20">
                     {player.events.map(ev => (
@@ -228,7 +246,6 @@ export const Card: React.FC<CardProps> = ({ player, team, onClick, actionLabel, 
                 </div>
              )}
 
-             {/* Top Left OVR */}
              <div className="absolute top-3 left-3 flex flex-col items-center z-10">
                <div className={`text-4xl font-display font-bold leading-none ${rarityStyles.text} drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] group-hover:scale-110 transition-transform`}>
                   {player.overall}
@@ -237,12 +254,16 @@ export const Card: React.FC<CardProps> = ({ player, team, onClick, actionLabel, 
                <div className="text-[9px] font-bold text-white/60 tracking-widest uppercase mt-1">OVR</div>
              </div>
 
-             {/* Top Right Role Icon */}
              <div className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/60 backdrop-blur border border-white/10 flex items-center justify-center text-white drop-shadow-md z-10 group-hover:rotate-12 transition-transform duration-300">
                 {getRoleIcon(player.role)}
              </div>
+             
+             {player.status === 'retired' && (
+                <div className="absolute top-14 right-2 bg-gold-500/80 text-black text-[9px] font-bold uppercase px-2 py-0.5 rounded-full shadow-lg transform -rotate-12">
+                    RETIRED
+                </div>
+             )}
 
-             {/* Contract & Age Badge */}
              <div className="absolute bottom-2 left-2 right-2 flex justify-between items-end">
                 {player.contractDuration > 0 ? (
                     <div className="flex items-center gap-1 bg-black/70 backdrop-blur px-2 py-1 rounded text-[10px] font-bold text-white border border-white/10">
@@ -257,24 +278,26 @@ export const Card: React.FC<CardProps> = ({ player, team, onClick, actionLabel, 
              </div>
           </div>
 
-          {/* Bottom Body */}
           <div className="flex-1 relative p-4 flex flex-col justify-between bg-gradient-to-b from-transparent to-black/80 rounded-b-[14px]">
              
-             {/* Player Info */}
              <div className="text-right mb-2">
                <div className="flex justify-end items-center gap-2 text-xs font-bold text-white/50 uppercase tracking-widest mb-1">
                   <span>{player.role}</span> | <TeamLogo team={team} size="w-4 h-4" /> <span>{player.team}</span>
                </div>
                <h3 className="font-display font-black text-2xl text-white uppercase tracking-tight leading-none truncate group-hover:text-white transition-colors">{player.name}</h3>
+               {player.nationality && (
+                  <img
+                    src={`/flags/${player.nationality.toLowerCase()}.svg`}
+                    alt={player.nationality.toLowerCase()}
+                    className="absolute top-3 left-3 w-6 h-auto rounded-sm shadow-md z-20"
+                  />
+               )}
                
-               {/* Financials Info */}
                <div className="flex justify-end items-center gap-3 mt-1">
-                 {/* Salary */}
                  <div className="flex items-center gap-1 text-[10px] text-gray-400">
                     <span>Salary:</span>
                     <span className="font-mono text-white">{player.salary}G</span>
                  </div>
-                 {/* Transfer Fee (Only show if not owned and not FA) */}
                  {!isOwned && !isFA && (
                     <div className="flex items-center gap-1 text-[10px] text-orange-400">
                       <span>Fee:</span>
@@ -284,8 +307,19 @@ export const Card: React.FC<CardProps> = ({ player, team, onClick, actionLabel, 
                </div>
              </div>
 
-             {/* Stats Grid */}
-             <div className="grid grid-cols-2 gap-x-4 gap-y-1 mb-4 opacity-80 group-hover:opacity-100 transition-opacity">
+             {player.signatureChampions && player.signatureChampions.length > 0 && (
+                <div className="mb-3 text-center">
+                    <div className="flex items-center justify-center gap-2 mt-1">
+                        {player.signatureChampions.map(champ => (
+                            <span key={champ} className="text-xs font-bold bg-black/40 text-gray-300 px-2.5 py-1 rounded-full border border-white/10 shadow-inner">
+                                {champ}
+                            </span>
+                        ))}
+                    </div>
+                </div>
+             )}
+
+             <div className="grid grid-cols-2 gap-x-4 gap-y-1 mb-4 opacity-80 group-hover:opacity-100 transition-opacity z-10">
                 <StatRow 
                   label="MECH" 
                   value={player.stats.mechanics} 
@@ -308,7 +342,6 @@ export const Card: React.FC<CardProps> = ({ player, team, onClick, actionLabel, 
                 />
              </div>
 
-             {/* Action Button */}
              {actionLabel && (
                <button 
                  onClick={(e) => {

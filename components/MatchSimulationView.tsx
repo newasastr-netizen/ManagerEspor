@@ -12,7 +12,6 @@ interface MatchSimulationViewProps {
   onComplete: () => void;
 }
 
-// Structure Definitions
 type StructureType = 'outer' | 'inner' | 'inhib_turret' | 'inhibitor' | 'nexus_turret' | 'nexus';
 type Lane = 'TOP' | 'MID' | 'BOT' | 'BASE' | 'JUNGLE';
 
@@ -26,7 +25,7 @@ interface StructureEntity {
   alive: boolean;
   hp: number;
   maxHp: number;
-  lastAttackedTime: number; // Game minute timestamp of last damage
+  lastAttackedTime: number;
 }
 
 interface MapEntity {
@@ -37,15 +36,15 @@ interface MapEntity {
   x: number;
   y: number;
   isDead: boolean;
-  respawnTimer: number; // In game minutes
+  respawnTimer: number;
   hp: number;
   maxHp: number;
-  damage: number; // Derived from stats
+  damage: number;
   stats: PlayerStats;
   targetId: string | null;
-  currentStamina: number; // 0-100. Low stamina affects speed/dmg.
-  isClutching: boolean; // Is currently in clutch mode
-  contributionScore: number; // Score for kills, objectives
+  currentStamina: number;
+  isClutching: boolean;
+  contributionScore: number;
 }
 
 interface MinionEntity {
@@ -58,14 +57,14 @@ interface MinionEntity {
   maxHp: number;
   damage: number;
   targetId: string | null;
-  spawnTime: number; // Game minute when this minion becomes active
+  spawnTime: number;
 }
 
 interface JungleCampEntity {
     id: string;
     type: 'buff' | 'camp' | 'scuttle';
     name: string;
-    teamOwner: 'blue' | 'red' | 'neutral'; // Whose side of the map
+    teamOwner: 'blue' | 'red' | 'neutral';
     x: number;
     y: number;
     hp: number;
@@ -76,7 +75,7 @@ interface JungleCampEntity {
 
 interface ObjectiveState {
   alive: boolean;
-  nextSpawnTime: number; // Game Minutes
+  nextSpawnTime: number;
 }
 
 const TOWER_HP = 5000;
@@ -86,61 +85,48 @@ const NEXUS_HP = 10000;
 const BASE_CHAMP_SPEED = 37.5;
 const MINION_SPEED = 60; 
 
-// Updated Structures Configuration for Square Map
 const INITIAL_STRUCTURES: StructureEntity[] = [
-  // --- BLUE TEAM (Base: 5, 95) ---
-  
-  // Top Lane (Vertical Leg x=5)
+
   { id: 'b-top-inhib', team: 'blue', type: 'inhibitor', lane: 'TOP', x: 5, y: 88, alive: true, hp: INHIB_HP, maxHp: INHIB_HP, lastAttackedTime: -1 },
   { id: 'b-top-inhibt', team: 'blue', type: 'inhib_turret', lane: 'TOP', x: 5, y: 80, alive: true, hp: TOWER_HP, maxHp: TOWER_HP, lastAttackedTime: -1 },
   { id: 'b-top-inner', team: 'blue', type: 'inner', lane: 'TOP', x: 5, y: 55, alive: true, hp: TOWER_HP, maxHp: TOWER_HP, lastAttackedTime: -1 },
   { id: 'b-top-outer', team: 'blue', type: 'outer', lane: 'TOP', x: 5, y: 30, alive: true, hp: TOWER_HP, maxHp: TOWER_HP, lastAttackedTime: -1 },
 
-  // Mid Lane (Diagonal)
   { id: 'b-mid-inhib', team: 'blue', type: 'inhibitor', lane: 'MID', x: 12, y: 88, alive: true, hp: INHIB_HP, maxHp: INHIB_HP, lastAttackedTime: -1 },
   { id: 'b-mid-inhibt', team: 'blue', type: 'inhib_turret', lane: 'MID', x: 18, y: 82, alive: true, hp: TOWER_HP, maxHp: TOWER_HP, lastAttackedTime: -1 },
   { id: 'b-mid-inner', team: 'blue', type: 'inner', lane: 'MID', x: 28, y: 72, alive: true, hp: TOWER_HP, maxHp: TOWER_HP, lastAttackedTime: -1 },
   { id: 'b-mid-outer', team: 'blue', type: 'outer', lane: 'MID', x: 38, y: 62, alive: true, hp: TOWER_HP, maxHp: TOWER_HP, lastAttackedTime: -1 },
 
-  // Bot Lane (Horizontal Leg y=95)
   { id: 'b-bot-inhib', team: 'blue', type: 'inhibitor', lane: 'BOT', x: 12, y: 95, alive: true, hp: INHIB_HP, maxHp: INHIB_HP, lastAttackedTime: -1 },
   { id: 'b-bot-inhibt', team: 'blue', type: 'inhib_turret', lane: 'BOT', x: 20, y: 95, alive: true, hp: TOWER_HP, maxHp: TOWER_HP, lastAttackedTime: -1 },
   { id: 'b-bot-inner', team: 'blue', type: 'inner', lane: 'BOT', x: 45, y: 95, alive: true, hp: TOWER_HP, maxHp: TOWER_HP, lastAttackedTime: -1 },
   { id: 'b-bot-outer', team: 'blue', type: 'outer', lane: 'BOT', x: 70, y: 95, alive: true, hp: TOWER_HP, maxHp: TOWER_HP, lastAttackedTime: -1 },
 
-  // Base
   { id: 'b-nexus-t1', team: 'blue', type: 'nexus_turret', lane: 'BASE', x: 10, y: 90, alive: true, hp: NEXUS_TURRET_HP, maxHp: NEXUS_TURRET_HP, lastAttackedTime: -1 },
   { id: 'b-nexus-t2', team: 'blue', type: 'nexus_turret', lane: 'BASE', x: 8, y: 92, alive: true, hp: NEXUS_TURRET_HP, maxHp: NEXUS_TURRET_HP, lastAttackedTime: -1 },
   { id: 'b-nexus', team: 'blue', type: 'nexus', lane: 'BASE', x: 5, y: 95, alive: true, hp: NEXUS_HP, maxHp: NEXUS_HP, lastAttackedTime: -1 },
 
-  // --- RED TEAM (Base: 95, 5) ---
-
-  // Top Lane (Horizontal Leg y=5)
   { id: 'r-top-inhib', team: 'red', type: 'inhibitor', lane: 'TOP', x: 88, y: 5, alive: true, hp: INHIB_HP, maxHp: INHIB_HP, lastAttackedTime: -1 },
   { id: 'r-top-inhibt', team: 'red', type: 'inhib_turret', lane: 'TOP', x: 80, y: 5, alive: true, hp: TOWER_HP, maxHp: TOWER_HP, lastAttackedTime: -1 },
   { id: 'r-top-inner', team: 'red', type: 'inner', lane: 'TOP', x: 55, y: 5, alive: true, hp: TOWER_HP, maxHp: TOWER_HP, lastAttackedTime: -1 },
   { id: 'r-top-outer', team: 'red', type: 'outer', lane: 'TOP', x: 30, y: 5, alive: true, hp: TOWER_HP, maxHp: TOWER_HP, lastAttackedTime: -1 },
 
-  // Mid Lane (Diagonal)
   { id: 'r-mid-inhib', team: 'red', type: 'inhibitor', lane: 'MID', x: 88, y: 12, alive: true, hp: INHIB_HP, maxHp: INHIB_HP, lastAttackedTime: -1 },
   { id: 'r-mid-inhibt', team: 'red', type: 'inhib_turret', lane: 'MID', x: 82, y: 18, alive: true, hp: TOWER_HP, maxHp: TOWER_HP, lastAttackedTime: -1 },
   { id: 'r-mid-inner', team: 'red', type: 'inner', lane: 'MID', x: 72, y: 28, alive: true, hp: TOWER_HP, maxHp: TOWER_HP, lastAttackedTime: -1 },
   { id: 'r-mid-outer', team: 'red', type: 'outer', lane: 'MID', x: 62, y: 38, alive: true, hp: TOWER_HP, maxHp: TOWER_HP, lastAttackedTime: -1 },
 
-  // Bot Lane (Vertical Leg x=95)
   { id: 'r-bot-inhib', team: 'red', type: 'inhibitor', lane: 'BOT', x: 95, y: 12, alive: true, hp: INHIB_HP, maxHp: INHIB_HP, lastAttackedTime: -1 },
   { id: 'r-bot-inhibt', team: 'red', type: 'inhib_turret', lane: 'BOT', x: 95, y: 20, alive: true, hp: TOWER_HP, maxHp: TOWER_HP, lastAttackedTime: -1 },
   { id: 'r-bot-inner', team: 'red', type: 'inner', lane: 'BOT', x: 95, y: 45, alive: true, hp: TOWER_HP, maxHp: TOWER_HP, lastAttackedTime: -1 },
   { id: 'r-bot-outer', team: 'red', type: 'outer', lane: 'BOT', x: 95, y: 70, alive: true, hp: TOWER_HP, maxHp: TOWER_HP, lastAttackedTime: -1 },
 
-  // Base
   { id: 'r-nexus-t1', team: 'red', type: 'nexus_turret', lane: 'BASE', x: 90, y: 10, alive: true, hp: NEXUS_TURRET_HP, maxHp: NEXUS_TURRET_HP, lastAttackedTime: -1 },
   { id: 'r-nexus-t2', team: 'red', type: 'nexus_turret', lane: 'BASE', x: 92, y: 8, alive: true, hp: NEXUS_TURRET_HP, maxHp: NEXUS_TURRET_HP, lastAttackedTime: -1 },
   { id: 'r-nexus', team: 'red', type: 'nexus', lane: 'BASE', x: 95, y: 5, alive: true, hp: NEXUS_HP, maxHp: NEXUS_HP, lastAttackedTime: -1 },
 ];
 
 const INITIAL_JUNGLE_CAMPS: JungleCampEntity[] = [
-    // BLUE SIDE JUNGLE
     { id: 'b-gromp', type: 'camp', name: 'Gromp', teamOwner: 'blue', x: 10, y: 60, hp: 1800, maxHp: 1800, alive: false, respawnTime: 1.75 },
     { id: 'b-blue', type: 'buff', name: 'Blue Sentinel', teamOwner: 'blue', x: 20, y: 55, hp: 2500, maxHp: 2500, alive: false, respawnTime: 1.75 },
     { id: 'b-wolves', type: 'camp', name: 'Wolves', teamOwner: 'blue', x: 22, y: 68, hp: 1500, maxHp: 1500, alive: false, respawnTime: 1.75 },
@@ -148,7 +134,6 @@ const INITIAL_JUNGLE_CAMPS: JungleCampEntity[] = [
     { id: 'b-red', type: 'buff', name: 'Red Brambleback', teamOwner: 'blue', x: 58, y: 78, hp: 2500, maxHp: 2500, alive: false, respawnTime: 1.75 },
     { id: 'b-krugs', type: 'camp', name: 'Krugs', teamOwner: 'blue', x: 75, y: 92, hp: 1600, maxHp: 1600, alive: false, respawnTime: 1.75 },
 
-    // RED SIDE JUNGLE (Mirrored)
     { id: 'r-gromp', type: 'camp', name: 'Gromp', teamOwner: 'red', x: 90, y: 40, hp: 1800, maxHp: 1800, alive: false, respawnTime: 1.75 },
     { id: 'r-blue', type: 'buff', name: 'Blue Sentinel', teamOwner: 'red', x: 80, y: 45, hp: 2500, maxHp: 2500, alive: false, respawnTime: 1.75 },
     { id: 'r-wolves', type: 'camp', name: 'Wolves', teamOwner: 'red', x: 78, y: 32, hp: 1500, maxHp: 1500, alive: false, respawnTime: 1.75 },
@@ -156,7 +141,6 @@ const INITIAL_JUNGLE_CAMPS: JungleCampEntity[] = [
     { id: 'r-red', type: 'buff', name: 'Red Brambleback', teamOwner: 'red', x: 42, y: 22, hp: 2500, maxHp: 2500, alive: false, respawnTime: 1.75 },
     { id: 'r-krugs', type: 'camp', name: 'Krugs', teamOwner: 'red', x: 25, y: 8, hp: 1600, maxHp: 1600, alive: false, respawnTime: 1.75 },
 
-    // NEUTRAL (River)
     { id: 'scuttle-top', type: 'scuttle', name: 'Scuttle Crab', teamOwner: 'neutral', x: 20, y: 20, hp: 1200, maxHp: 1200, alive: false, respawnTime: 3.5 },
     { id: 'scuttle-bot', type: 'scuttle', name: 'Scuttle Crab', teamOwner: 'neutral', x: 80, y: 80, hp: 1200, maxHp: 1200, alive: false, respawnTime: 3.5 },
 ];
@@ -166,7 +150,6 @@ const POSITIONS = {
   RED_BASE: { x: 95, y: 5 },
   BARON: { x: 30, y: 30 }, 
   DRAGON: { x: 70, y: 70 }, 
-  // Corners for waypoints
   TOP_LEFT_CORNER: { x: 5, y: 5 },
   BOT_RIGHT_CORNER: { x: 95, y: 95 }
 };
@@ -175,10 +158,9 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
   userTeam, enemyTeam, userRoster, enemyRoster, result, onComplete 
 }) => {
   
-  // State
   const [gameMinutes, setGameMinutes] = useState(0); 
-  const [structures, setStructures] = useState<StructureEntity[]>(INITIAL_STRUCTURES);
-  const [jungleCamps, setJungleCamps] = useState<JungleCampEntity[]>(INITIAL_JUNGLE_CAMPS);
+  const [structures, setStructures] = useState<StructureEntity[]>(() => INITIAL_STRUCTURES.map(s => ({ ...s })));
+  const [jungleCamps, setJungleCamps] = useState<JungleCampEntity[]>(() => INITIAL_JUNGLE_CAMPS.map(c => ({ ...c })));
   const [entities, setEntities] = useState<MapEntity[]>([]);
   const [minions, setMinions] = useState<MinionEntity[]>([]);
   const [logs, setLogs] = useState<{time: string, msg: string, type: 'kill'|'obj'|'normal'|'turret'}[]>([]);
@@ -189,20 +171,16 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
   const [baron, setBaron] = useState<ObjectiveState>({ alive: false, nextSpawnTime: 20 });
   const [gameOver, setGameOver] = useState(false);
   const [nextMinionSpawn, setNextMinionSpawn] = useState(1.08); // First spawn at 1:05 (1m 5s = 1.083m)
-  
-  // Stats Integration: Calculate Team Power Difference once
   const [teamPowerDiff, setTeamPowerDiff] = useState(0);
 
   const logContainerRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll logs
   useEffect(() => {
     if (logContainerRef.current) {
       logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
     }
   }, [logs]);
 
-  // Initialize Players
   useEffect(() => {
     const createEntities = (team: 'blue' | 'red'): MapEntity[] => {
       const base = team === 'blue' ? POSITIONS.BLUE_BASE : POSITIONS.RED_BASE;
@@ -217,12 +195,10 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
              name = card?.name || role;
         }
         
-        // Base stats from Card OVR
         const baseHp = 2500 + ((card?.overall || 70) * 20);
         const baseDmg = 150 + ((card?.overall || 70) * 3);
         const playerStats = card?.stats || { mechanics: 70, macro: 70, lane: 70, teamfight: 70 };
 
-        // Random starting stamina to simulate previous game fatigue
         const startStamina = 80 + Math.floor(Math.random() * 21);
 
         return {
@@ -250,24 +226,19 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
     const redEntities = createEntities('red');
     setEntities([...blueEntities, ...redEntities]);
 
-    // Calculate Average OVR Difference
-    const getAvgOvr = (ent: MapEntity[]) => ent.reduce((acc, e) => acc + ((e.damage - 150)/3), 0) / ent.length; // Reverse engineer OVR from dmg for simplicity or just pass it down
+    const getAvgOvr = (ent: MapEntity[]) => ent.reduce((acc, e) => acc + ((e.damage - 150)/3), 0) / ent.length;
     const blueOvr = getAvgOvr(blueEntities);
     const redOvr = getAvgOvr(redEntities);
-    setTeamPowerDiff(blueOvr - redOvr); // Positive means Blue is stronger
+    setTeamPowerDiff(blueOvr - redOvr);
 
     addLog("Welcome to Summoner's Rift!", 'normal');
     addLog("Minions will spawn at 1:05, Jungle Camps at 1:45.", 'normal');
   }, []);
 
-  // Main Loop
   useEffect(() => {
     if (gameOver) return;
 
-    // Simulation Tick Speed
     const interval = setInterval(() => {
-      // SLOW DOWN CLOCK: 0.10 minutes per tick
-      // This means "Game Minutes" pass slower relative to action, effectively making players "faster"
       setGameMinutes(prev => prev + 0.10); 
       updateGameLogic();
     }, 100); 
@@ -275,7 +246,6 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
     return () => clearInterval(interval);
   }, [gameMinutes, dragon, baron, structures, entities, minions, gameOver, nextMinionSpawn, jungleCamps]);
 
-  // Helpers
   const getCurrentGameTimeStr = () => {
     const mins = Math.floor(gameMinutes);
     const secs = Math.floor((gameMinutes - mins) * 60);
@@ -289,7 +259,6 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
   const isStructureVulnerable = (s: StructureEntity, currentStructures: StructureEntity[]): boolean => {
     if (!s.alive) return false;
 
-    // Filter structures in same lane and team
     const laneStructures = currentStructures.filter(os => os.team === s.team && os.lane === s.lane);
 
     if (s.type === 'outer') return true;
@@ -310,14 +279,13 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
     }
 
     if (s.type === 'nexus_turret') {
-        // Attackable if ANY inhibitor is dead
         const teamInhibs = currentStructures.filter(os => os.team === s.team && os.type === 'inhibitor');
         const anyDead = teamInhibs.some(i => !i.alive);
         return anyDead;
     }
 
     if (s.type === 'nexus') {
-        // Attackable if BOTH nexus turrets are dead
+
         const nTurrets = currentStructures.filter(os => os.team === s.team && os.type === 'nexus_turret');
         return nTurrets.every(t => !t.alive);
     }
@@ -325,20 +293,16 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
     return false;
   };
 
-  // Determines the intermediate target to reach final target cleanly through lane waypoints
   const getWaypointPath = (currX: number, currY: number, destX: number, destY: number): { x: number, y: number } => {
-      // Check if path is diagonal across map (e.g. 5,95 to 30,5)
       // Top Lane logic: x=5 or y=5
       const onLeftEdge = currX < 15;
       const onTopEdge = currY < 15;
       const destOnTop = destY < 15;
       const destOnLeft = destX < 15;
 
-      // If I'm on Left Edge (Base) and need to go to Top Edge, go via Top-Left Corner
       if (onLeftEdge && destOnTop && !onTopEdge) {
           return POSITIONS.TOP_LEFT_CORNER;
       }
-      // If I'm on Top Edge and need to go to Left Edge (Base), go via Top-Left Corner
       if (onTopEdge && destOnLeft && !onLeftEdge) {
           return POSITIONS.TOP_LEFT_CORNER;
       }
@@ -349,11 +313,9 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
       const destOnBottom = destY > 85;
       const destOnRight = destX > 85;
 
-      // If I'm on Bottom Edge (Base) and need to go to Right Edge, go via Bot-Right Corner
       if (onBottomEdge && destOnRight && !onRightEdge) {
           return POSITIONS.BOT_RIGHT_CORNER;
       }
-      // If I'm on Right Edge and need to go to Bottom Edge, go via Bot-Right Corner
       if (onRightEdge && destOnBottom && !onBottomEdge) {
           return POSITIONS.BOT_RIGHT_CORNER;
       }
@@ -371,13 +333,11 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
 
     const winningTeam = result.victory ? 'blue' : 'red';
     
-    // Scaling Factor
     let timeScaling = 1.0;
-    if (gameMinutes > 30) timeScaling = 6.0; // Sudden Death scaling
+    if (gameMinutes > 30) timeScaling = 6.0;
     else if (gameMinutes > 20) timeScaling = 3.5; 
     else if (gameMinutes > 10) timeScaling = 1.5;
 
-    // --- JUNGLE CAMP SPAWNING ---
     newJungleCamps = newJungleCamps.map(camp => {
         if (!camp.alive && gameMinutes >= camp.respawnTime) {
             return { ...camp, alive: true, hp: camp.maxHp };
@@ -385,20 +345,16 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
         return camp;
     });
 
-    // --- MINION SPAWNING ---
     if (gameMinutes >= nextMinionSpawn) {
        setNextMinionSpawn(prev => prev + 1.5); // Spawn every 90s (1.5 mins)
        
        const spawnMinion = (team: 'blue' | 'red', lane: Lane, offsetSeconds: number) => {
           const base = team === 'blue' ? POSITIONS.BLUE_BASE : POSITIONS.RED_BASE;
-          // Spawn minion
           const champBaseDmg = 150 + (gameMinutes * 3);
-          const minionDmg = champBaseDmg * 0.55; // 55% of Champ Damage
+          const minionDmg = champBaseDmg * 0.55;
 
-          // Calculate spawn time in minutes: Current + (offset in seconds / 60)
           const spawnTime = gameMinutes + (offsetSeconds / 60);
 
-          // HP Reduciton: Minions have much less HP than players (~80% less)
           const minionHP = 500 + (gameMinutes * 25);
 
           newMinions.push({
@@ -415,16 +371,14 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
           });
        };
 
-       // Spawn 6 minions per lane, 1 second apart
        (['TOP', 'MID', 'BOT'] as Lane[]).forEach(lane => {
           for (let i = 0; i < 6; i++) {
-             spawnMinion('blue', lane, i); // i = 0s, 1s, 2s...
+             spawnMinion('blue', lane, i);
              spawnMinion('red', lane, i);
           }
        });
     }
 
-    // 1. Objectives Spawn Check
     if (!dragon.alive && gameMinutes >= dragon.nextSpawnTime) {
       setDragon(prev => ({ ...prev, alive: true }));
       addLog(nextIsElder ? "ELDER DRAGON has spawned!" : "Elemental Drake has spawned", 'obj');
@@ -434,9 +388,7 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
       addLog("Baron Nashor has spawned", 'obj');
     }
 
-    // --- MINION LOGIC ---
     newMinions = newMinions.map(minion => {
-       // Only process active minions
        if (gameMinutes < minion.spawnTime) return minion;
        if (minion.hp <= 0) return null;
 
@@ -445,7 +397,6 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
 
        const enemyBase = minion.team === 'blue' ? POSITIONS.RED_BASE : POSITIONS.BLUE_BASE;
 
-       // 1. Check for structures in range
        const nearbyEnemyStruct = newStructures.find(s => 
           s.team !== minion.team && 
           s.alive && 
@@ -454,7 +405,6 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
           Math.hypot(s.x - minion.x, s.y - minion.y) < 8
        );
 
-       // 2. Check for enemy minions in range (Active ones only)
        const nearbyEnemyMinion = newMinions.find(m => 
           m && m.team !== minion.team &&
           m.hp > 0 &&
@@ -462,15 +412,11 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
           Math.hypot(m.x - minion.x, m.y - minion.y) < 6
        );
 
-       // UPDATED TARGETING: Ignore champions unless necessary
-       // Combat Priority: Structure > Minion
        if (nearbyEnemyStruct) {
-          // Attack Structure
           const sIndex = newStructures.findIndex(s => s.id === nearbyEnemyStruct.id);
-          // REDUCED DAMAGE TO 2% (was 5%) - Structures are tanky
           const dmg = minion.damage * 0.02 * timeScaling;
           newStructures[sIndex].hp -= dmg;
-          newStructures[sIndex].lastAttackedTime = gameMinutes; // Update attacked timestamp
+          newStructures[sIndex].lastAttackedTime = gameMinutes;
 
           if (newStructures[sIndex].hp <= 0) {
              newStructures[sIndex].alive = false;
@@ -482,41 +428,32 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
              }
           }
        } else if (nearbyEnemyMinion) {
-          // Attack Minion
-          // STRICT 50/50 Chance for bonus damage to ensure equality
+
           const roll = Math.random();
           const dmgMod = roll < 0.5 ? 1.2 : 0.8;
           nearbyEnemyMinion.hp -= minion.damage * dmgMod;
        } else {
-          // Move towards Enemy Nexus via Lane (Strict Pathing)
           let targetX = minion.x;
           let targetY = minion.y;
 
           if (minion.lane === 'MID') {
-             // Straight diagonal
              targetX = enemyBase.x;
              targetY = enemyBase.y;
           } else if (minion.lane === 'TOP') {
-              // Top Lane Logic: Corner at 5,5
               const corner = POSITIONS.TOP_LEFT_CORNER;
               if (minion.team === 'blue') {
-                  // Blue starts 5,95. Must go Up to 5,5 then Right to 95,5
                   if (minion.y > corner.y + 1) { targetX = corner.x; targetY = corner.y; }
                   else { targetX = enemyBase.x; targetY = enemyBase.y; }
               } else {
-                  // Red starts 95,5. Must go Left to 5,5 then Down to 5,95
                   if (minion.x > corner.x + 1) { targetX = corner.x; targetY = corner.y; }
                   else { targetX = enemyBase.x; targetY = enemyBase.y; }
               }
           } else if (minion.lane === 'BOT') {
-              // Bot Lane Logic: Corner at 95,95
               const corner = POSITIONS.BOT_RIGHT_CORNER;
               if (minion.team === 'blue') {
-                  // Blue starts 5,95. Must go Right to 95,95 then Up to 95,5
                   if (minion.x < corner.x - 1) { targetX = corner.x; targetY = corner.y; }
                   else { targetX = enemyBase.x; targetY = enemyBase.y; }
               } else {
-                  // Red starts 95,5. Must go Down to 95,95 then Left to 5,95
                   if (minion.y < corner.y - 1) { targetX = corner.x; targetY = corner.y; }
                   else { targetX = enemyBase.x; targetY = enemyBase.y; }
               }
@@ -538,14 +475,11 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
 
     setMinions(newMinions);
 
-    // 2. Entities Logic
     const newEntities = entities.map(entity => {
-      // --- RESPAWN LOGIC ---
       if (entity.isDead) {
         if (entity.respawnTimer > 0) {
           return { ...entity, respawnTimer: entity.respawnTimer - 0.10 }; 
         } else {
-          // Respawn
           const base = entity.team === 'blue' ? POSITIONS.BLUE_BASE : POSITIONS.RED_BASE;
           return { 
             ...entity, 
@@ -572,15 +506,12 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
       let newStamina = entity.currentStamina;
       let currentContribution = entity.contributionScore;
 
-      // HEALING AT FOUNTAIN & STAMINA REGEN
-      if (distToBase < 6) { 
-          newHp = Math.min(entity.maxHp, entity.hp + (entity.maxHp * 0.1)); // 10% regen per tick
-          newStamina = Math.min(100, entity.currentStamina + 8); // Faster stamina regen (was 5)
+      if (distToBase < 6) {
+          newHp = Math.min(entity.maxHp, entity.hp + (entity.maxHp * 0.1));
+          newStamina = Math.min(100, entity.currentStamina + 8);
       }
 
-      // CLUTCH FACTOR LOGIC
       let isClutch = false;
-      // Use TEAMFIGHT and MACRO Stats to trigger clutch
       if (entity.stats.teamfight > 80 || entity.stats.macro > 80) {
           const distBaron = Math.hypot(entity.x - POSITIONS.BARON.x, entity.y - POSITIONS.BARON.y);
           const distDragon = Math.hypot(entity.x - POSITIONS.DRAGON.x, entity.y - POSITIONS.DRAGON.y);
@@ -590,8 +521,6 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
              isClutch = true;
           }
       }
-
-      // --- DECISION MAKING ---
       
       let targetX = entity.x;
       let targetY = entity.y;
@@ -600,29 +529,22 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
       
       const hpPercentage = newHp / entity.maxHp;
 
-      // Determine if in a critical fight for objective
       const distDragonEntity = Math.hypot(entity.x - POSITIONS.DRAGON.x, entity.y - POSITIONS.DRAGON.y);
       const distBaronEntity = Math.hypot(entity.x - POSITIONS.BARON.x, entity.y - POSITIONS.BARON.y);
       const isFightingForObjective = (dragon.alive && distDragonEntity < 20) || (baron.alive && distBaronEntity < 20);
       
       const enemiesInBase = enemies.some(e => Math.hypot(e.x - myBase.x, e.y - myBase.y) < 25);
       
-      // Check for Critical Minion Waves (Super Minions near base)
       const criticalWaveMinion = newMinions.find(m => 
         m.team !== entity.team && 
-        Math.hypot(m.x - myBase.x, m.y - myBase.y) < 30 && // Near base
+        Math.hypot(m.x - myBase.x, m.y - myBase.y) < 30 &&
         m.hp > 0
       );
       
       const isBaseSiege = enemiesInBase || !!criticalWaveMinion;
 
-      // 1. FLEE Priority
-      // If fighting for objective, BE BRAVE (Flee only at < 10% HP)
-      // Otherwise flee at < 25% HP
       const fleeThreshold = isFightingForObjective ? 0.10 : 0.25;
       
-      // Strict Healing Rule: If at fountain and not full HP, STAY (flee to base coordinates)
-      // BUT if base is being seized (enemies inside), IGNORE healing rule and fight
       const atFountain = distToBase < 8;
       const needsHealing = hpPercentage < 0.99 && !isBaseSiege; // Only stay to heal if base isn't burning
 
@@ -632,7 +554,6 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
           targetY = myBase.y;
       } 
       else {
-          // Check for immediate threats
           const nearbyEnemies = enemies
               .map(e => ({ ...e, dist: Math.hypot(e.x - entity.x, e.y - entity.y) }))
               .filter(e => e.dist < 15)
@@ -640,14 +561,12 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
 
           const closestEnemy = nearbyEnemies[0];
           
-          // WAVE CLEAR LOGIC: Check for nearby enemy minions
           const nearbyEnemyMinions = newMinions
              .filter(m => m.team !== entity.team && gameMinutes >= m.spawnTime)
              .map(m => ({ ...m, dist: Math.hypot(m.x - entity.x, m.y - entity.y) }))
              .filter(m => m.dist < 8)
              .sort((a,b) => a.dist - b.dist);
 
-          // 2. FIGHT Priority (Close quarters)
           if (closestEnemy && closestEnemy.dist < 8) {
               action = 'fight';
               targetX = closestEnemy.x;
@@ -655,21 +574,15 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
               targetEnemyId = closestEnemy.id;
           } 
           else if (nearbyEnemyMinions.length > 0) {
-             // 2.5 WAVE CLEAR PRIORITY
-             // If no immediate champion threat, kill minions
              action = 'fight';
              targetX = nearbyEnemyMinions[0].x;
              targetY = nearbyEnemyMinions[0].y;
           }
           else {
-              // 3. DEFEND Priority (Base Threat)
-              
               if (isBaseSiege && !isClutch && !isFightingForObjective) {
                   action = 'defend';
                   
-                  // STUCK FIX: Target the ACTUAL THREAT, not the base coordinate
                   if (enemiesInBase) {
-                     // Target nearest enemy in base
                      const threat = enemies.find(e => Math.hypot(e.x - myBase.x, e.y - myBase.y) < 25);
                      if (threat) {
                          targetX = threat.x;
@@ -678,7 +591,6 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
                          targetX = myBase.x; targetY = myBase.y;
                      }
                   } else if (criticalWaveMinion) {
-                      // Target the minion wave
                       targetX = criticalWaveMinion.x;
                       targetY = criticalWaveMinion.y;
                   } else {
@@ -686,22 +598,16 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
                       targetY = myBase.y;
                   }
               }
-              // 4. OBJECTIVE Priority
               else {
-                  // Baron Logic: STRICT 4-man requirement
                   const aliveAllies = entities.filter(e => e.team === entity.team && !e.isDead).length;
                   const wantBaron = baron.alive && gameMinutes > 20 && aliveAllies >= 4 && Math.random() > 0.4;
                   
-                  // Dragon Logic: Higher Priority
                   const wantDragon = dragon.alive && !wantBaron && Math.random() > 0.4;
 
-                  // JUNGLE FARMING LOGIC
-                  // STRICT PRIORITY: Junglers farm until cleared
                   const aliveCamps = newJungleCamps.filter(c => c.alive && (c.teamOwner === entity.team || c.teamOwner === 'neutral'));
                   const shouldFarm = entity.role === Role.JUNGLE && aliveCamps.length > 0 && !wantBaron && !wantDragon && !isBaseSiege;
 
                   if (shouldFarm) {
-                     // Find nearest camp
                      const nearestCamp = aliveCamps.sort((a,b) => Math.hypot(a.x - entity.x, a.y - entity.y) - Math.hypot(b.x - entity.x, b.y - entity.y))[0];
                      if (nearestCamp) {
                          action = 'farm';
@@ -712,7 +618,6 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
                   else if (wantBaron && (entity.role === Role.JUNGLE || gameMinutes > 25)) {
                      targetX = POSITIONS.BARON.x;
                      targetY = POSITIONS.BARON.y;
-                     // If enemies are near Baron, fight them first!
                      if (closestEnemy && closestEnemy.dist < 15) {
                          action = 'fight';
                          targetX = closestEnemy.x;
@@ -721,7 +626,6 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
                   } else if (wantDragon) {
                      targetX = POSITIONS.DRAGON.x;
                      targetY = POSITIONS.DRAGON.y;
-                     // If enemies are near Dragon, fight them first!
                      if (closestEnemy && closestEnemy.dist < 15) {
                          action = 'fight';
                          targetX = closestEnemy.x;
@@ -729,19 +633,15 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
                      }
                   } 
                   else {
-                     // 5. PUSH / LANE / GANK Logic
                      let laneTarget: StructureEntity | undefined;
                      let targetLane: Lane = 'MID';
 
                      if (gameMinutes < 10) {
-                         // Laning Phase strict assignment
                          if (entity.role === Role.TOP) targetLane = 'TOP';
                          else if (entity.role === Role.ADC || entity.role === Role.SUPPORT) targetLane = 'BOT';
                          else targetLane = 'MID';
                      } 
                      else {
-                         // Roaming / Macro Phase
-                         // Find weakest enemy lane
                          const topHp = enemyStructures.filter(s => s.lane === 'TOP').length;
                          const midHp = enemyStructures.filter(s => s.lane === 'MID').length;
                          const botHp = enemyStructures.filter(s => s.lane === 'BOT').length;
@@ -751,26 +651,20 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
                          else targetLane = 'MID';
                      }
 
-                     // GANK OVERRIDE for Jungler
                      if (entity.role === Role.JUNGLE) {
-                         // Jungler targets nearest lane with enemy
-                         // Or just helps push a lane
                          const lanes: Lane[] = ['TOP', 'MID', 'BOT'];
                          targetLane = lanes[Math.floor(Math.random() * lanes.length)];
                          action = 'gank';
                      }
 
-                     // Find specific structure in target lane
                      const laneStructs = enemyStructures.filter(s => s.lane === targetLane);
                      laneTarget = laneStructs.find(s => isStructureVulnerable(s, newStructures));
 
-                     // If lane cleared, target base
                      if (!laneTarget) {
                          const baseStructs = enemyStructures.filter(s => s.lane === 'BASE');
                          laneTarget = baseStructs.find(s => isStructureVulnerable(s, newStructures));
                      }
                      
-                     // Fallback: nearest vulnerable if assigned lane is confused
                      if (!laneTarget) {
                          const vulnerable = enemyStructures.filter(s => isStructureVulnerable(s, newStructures));
                          laneTarget = vulnerable.sort((a,b) => Math.hypot(a.x - entity.x, a.y - entity.y) - Math.hypot(b.x - entity.x, b.y - entity.y))[0];
@@ -781,7 +675,6 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
                         targetY = laneTarget.y;
                         action = 'push';
                      } else {
-                         // All dead, go to enemy nexus pos
                          targetX = enemyBase.x;
                          targetY = enemyBase.y;
                          action = 'push';
@@ -791,10 +684,8 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
           }
       }
 
-      // --- WAYPOINT NAVIGATION ---
       let finalDest = { x: targetX, y: targetY };
       
-      // If Fleeing, ignore waypoints and go straight to base (shortest path through jungle)
       if (action !== 'flee' && action !== 'farm') {
          finalDest = getWaypointPath(entity.x, entity.y, targetX, targetY);
       }
@@ -802,9 +693,7 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
       targetX = finalDest.x;
       targetY = finalDest.y;
 
-      // --- MOVEMENT ---
       let moveSpeedBase = action === 'flee' ? BASE_CHAMP_SPEED * 1.1 : BASE_CHAMP_SPEED;
-      // MACRO Stat increases movement speed rotation
       moveSpeedBase *= (1 + (entity.stats.macro / 200)); 
 
       if (newStamina < 20) moveSpeedBase *= 0.7;
@@ -816,20 +705,15 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
       let moveX = entity.x;
       let moveY = entity.y;
 
-      // STOP LOGIC & COLLISION
       let stopDist = 1;
-      if (action === 'push') stopDist = 8; // Stop before hitting structure
-      if (action === 'fight') stopDist = 6; // Stop at attack range
-      if (action === 'farm') stopDist = 2; // Farm melee range
+      if (action === 'push') stopDist = 8;
+      if (action === 'fight') stopDist = 6;
+      if (action === 'farm') stopDist = 2;
       
-      // Only move if we are far enough away from target
       if (dist > stopDist) {
-         // Potential next position
          const nextX = entity.x + (dx / dist) * moveSpeedBase * 0.10;
          const nextY = entity.y + (dy / dist) * moveSpeedBase * 0.10;
 
-         // STRUCTURE COLLISION CHECK
-         // Don't walk into ALIVE structures (radius ~4), but ignore ALLIED structures so we don't get stuck at spawn
          const structureCollision = newStructures.some(s => 
              s.alive && s.team !== entity.team && Math.hypot(s.x - nextX, s.y - nextY) < 4
          );
@@ -840,80 +724,63 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
             newStamina = Math.max(0, newStamina - 0.05);
          }
       } else {
-         // We are stopped. Maybe jitter a bit if fighting?
-         // Optional: Jitter to look alive
          if (action === 'fight') {
              moveX += (Math.random() - 0.5) * 0.5;
              moveY += (Math.random() - 0.5) * 0.5;
          }
       }
 
-      // --- COMBAT & DAMAGE ---
-
-      // GLOBAL TEAM DIFF MODIFIER (Visual balance)
       let dmgMultiplier = 1.0;
-      if (entity.team === 'blue' && teamPowerDiff > 0) dmgMultiplier = 1 + (teamPowerDiff / 50); // E.g. +10 diff = 1.2x dmg
+      if (entity.team === 'blue' && teamPowerDiff > 0) dmgMultiplier = 1 + (teamPowerDiff / 50);
       if (entity.team === 'red' && teamPowerDiff < 0) dmgMultiplier = 1 + (Math.abs(teamPowerDiff) / 50);
 
-      // 0. JUNGLE CAMP FARMING
       if (action === 'farm') {
           const campIndex = newJungleCamps.findIndex(c => c.alive && Math.hypot(c.x - moveX, c.y - moveY) < 4);
           if (campIndex !== -1) {
-              // Deal damage to camp
               let farmDmg = entity.damage * 0.8 * timeScaling;
-              // JUNGLER BONUS: 2.5x dmg to camps
               if (entity.role === Role.JUNGLE) farmDmg *= 2.5;
 
               newJungleCamps[campIndex].hp -= farmDmg;
               if (newJungleCamps[campIndex].hp <= 0) {
                   newJungleCamps[campIndex].alive = false;
-                  // Respawn timers: Scuttle (3.5m), Buff (5m), Camp (2.5m)
                   let respawnDuration = 2.5;
                   if (newJungleCamps[campIndex].type === 'buff') respawnDuration = 5;
                   if (newJungleCamps[campIndex].type === 'scuttle') respawnDuration = 3.5;
                   
                   newJungleCamps[campIndex].respawnTime = gameMinutes + respawnDuration;
                   
-                  // Score
                   currentContribution += 10;
-                  newStamina = Math.min(100, newStamina + 10); // Killing camps restores stamina
-                  newHp = Math.min(entity.maxHp, newHp + (entity.maxHp * 0.1)); // Smite heal simulation
+                  newStamina = Math.min(100, newStamina + 10);
+                  newHp = Math.min(entity.maxHp, newHp + (entity.maxHp * 0.1));
               }
           }
       }
 
-      // 0. Minion Damage to Champion
       const nearbyEnemyMinions = newMinions.filter(m => m.team !== entity.team && gameMinutes >= m.spawnTime && Math.hypot(m.x - moveX, m.y - moveY) < 6);
       if (nearbyEnemyMinions.length > 0) {
-         // Minimal damage from minions normally (5 per tick)
          let minionDmg = 5;
          
-         // If champion is PUSHING a structure, they draw aggressive minion fire
          const nearbyStruct = enemyStructures.find(s => s.alive && Math.hypot(s.x - moveX, s.y - moveY) < 10);
          if (action === 'push' && nearbyStruct) {
-             minionDmg = 20; // Increased damage when siegeing
+             minionDmg = 20;
          }
 
          newHp -= (nearbyEnemyMinions.length * minionDmg);
       }
       
-      // Champion WAVE CLEAR (LANE STAT)
       if (nearbyEnemyMinions.length > 0) {
-         // Massive damage to minions
-         const waveClear = 0.5 + (entity.stats.lane / 150); // Higher Lane stat = Better Wave clear
+         const waveClear = 0.5 + (entity.stats.lane / 150);
          nearbyEnemyMinions.forEach(m => {
              m.hp -= (entity.damage * waveClear * dmgMultiplier); 
          });
       }
 
-      // 1. Turret Damage (Minimal)
       const nearbyEnemyTurret = enemyStructures.find(s => s.alive && Math.hypot(s.x - moveX, s.y - moveY) < 10);
       if (nearbyEnemyTurret) {
           const turretDmg = entity.maxHp * 0.015;
           newHp -= turretDmg;
       }
 
-      // 2. Champion Damage
       const attackers = enemies.filter(e => !e.isDead && Math.hypot(e.x - moveX, e.y - moveY) < 8);
       if (attackers.length > 0) {
           attackers.forEach(attacker => {
@@ -923,14 +790,12 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
              if (attacker.currentStamina < 30) rawDmg *= 0.8;
              if (attacker.isClutching) rawDmg *= 1.3;
 
-             // MECHANICS Stat: Crit Chance (Attacker)
-             if (Math.random() < (attacker.stats.mechanics / 300)) { // ~33% crit chance at 100 mechanics
+             if (Math.random() < (attacker.stats.mechanics / 300)) {
                  rawDmg *= 1.5;
              }
 
-             // MECHANICS Stat: Dodge Chance (Victim)
-             if (Math.random() < (entity.stats.mechanics / 500)) { // ~20% dodge chance at 100 mechanics
-                 rawDmg *= 0.5; // Glance
+             if (Math.random() < (entity.stats.mechanics / 500)) {
+                 rawDmg *= 0.5;
              }
 
              if (gameMinutes < 14 && attacker.role === entity.role) {
@@ -938,7 +803,6 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
                  if (diff > 0) rawDmg *= (1 + (diff / 200)); 
              }
              
-             // Apply Global Team Diff
              if (attacker.team === 'blue' && teamPowerDiff > 0) rawDmg *= (1 + (teamPowerDiff / 50));
              if (attacker.team === 'red' && teamPowerDiff < 0) rawDmg *= (1 + (Math.abs(teamPowerDiff) / 50));
 
@@ -949,22 +813,15 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
           });
       }
 
-      // 3. Structure Damage
-      // Only attack if we are 'pushing' or just happen to be close enough
       const nearbyStruct = enemyStructures.find(s => isStructureVulnerable(s, newStructures) && Math.hypot(s.x - moveX, s.y - moveY) < 10);
       
       if (nearbyStruct) {
-          // If we are pushing OR fighting near a structure, hit it
-          // We can hit structure even if fighting champions if we are close enough
           const sIndex = newStructures.findIndex(s => s.id === nearbyStruct.id);
           if (sIndex !== -1) {
-              // DRASTICALLY REDUCED STRUCTURE DAMAGE: 15% (was 50%)
               let structDmg = (entity.damage * 0.15) * timeScaling;
               
-              // LANE Stat Boost for Structures
               structDmg *= (1 + (entity.stats.lane / 200));
 
-              // EXTRA STRUCTURE DAMAGE AFTER 25 MINS
               if (gameMinutes > 25) structDmg *= 2.5;
 
               if (isClutch) structDmg *= 1.5;
@@ -974,13 +831,11 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
               structDmg *= dmgMultiplier; // Team Diff
 
               const newStructHp = newStructures[sIndex].hp - structDmg;
-              // Update last attacked timestamp for visual effect
               newStructures[sIndex] = { ...newStructures[sIndex], hp: newStructHp, lastAttackedTime: gameMinutes };
 
               if (newStructHp <= 0) {
                   newStructures[sIndex] = { ...newStructures[sIndex], alive: false, hp: 0 };
                   
-                  // CONTRIBUTION: Score for structure kill
                   currentContribution += 30;
 
                   let logMsg = `${entity.team === 'blue' ? 'Blue' : 'Red'} destroyed `;
@@ -1001,13 +856,10 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
           }
       }
 
-      // Objectives Damage
-      // Reduced Damage to Objectives to make them tankier (30% of champion output)
       const objectiveDmg = entity.damage * 0.3 * timeScaling;
 
       const distBaronMoved = Math.hypot(moveX - POSITIONS.BARON.x, moveY - POSITIONS.BARON.y);
       if (baron.alive && distBaronMoved < 8) {
-          // GROUPING CHECK
           const alliesNearby = entities.filter(e => e.team === entity.team && !e.isDead && Math.hypot(e.x - POSITIONS.BARON.x, e.y - POSITIONS.BARON.y) < 15).length;
           
           if (alliesNearby >= 3) {
@@ -1021,8 +873,6 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
                      addLog(`${entity.name} secured Baron! (+50 pts)`, 'obj');
                 }
              }
-          } else {
-             // Visual cue could be added here if needed, but logging spams
           }
       }
       
@@ -1039,7 +889,6 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
                     setDragon({ alive: false, nextSpawnTime: gameMinutes + 5 });
                     currentContribution += 50;
 
-                    // Dragon Logic
                     const newStacks = { ...dragonStacks };
                     if (entity.team === 'blue') newStacks.blue += 1;
                     else newStacks.red += 1;
@@ -1047,7 +896,6 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
 
                     const isElderKill = nextIsElder;
                     
-                    // If team reached 4 stacks, next one is Elder
                     if (newStacks[entity.team] >= 4) {
                     setNextIsElder(true);
                     }
@@ -1058,23 +906,20 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
           }
       }
 
-      // Death Check
       let isDead = false;
       let respawnTimer = 0;
 
       if (newHp <= 0) {
           isDead = true;
-          // AGGRESSIVE RESPAWN TIMERS TO END GAME
-          if (gameMinutes < 15) respawnTimer = 0.5; // 30s
-          else if (gameMinutes < 25) respawnTimer = 1.0; // 60s
-          else if (gameMinutes < 30) respawnTimer = 2.5; // 2m 30s
-          else respawnTimer = 5.0; // 5m - Game ending death
+          if (gameMinutes < 15) respawnTimer = 0.5;
+          else if (gameMinutes < 25) respawnTimer = 1.0;
+          else if (gameMinutes < 30) respawnTimer = 2.5;
+          else respawnTimer = 5.0;
 
           const killer = attackers.length > 0 ? attackers[0] : null;
           if (killer) {
             newScore[killer.team] += 1;
             
-            // Pending score update for killer
             const points = 100;
             pendingScoreUpdates[killer.id] = (pendingScoreUpdates[killer.id] || 0) + points;
 
@@ -1104,7 +949,6 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
       };
     });
 
-    // Apply pending score updates to new entities list
     const finalEntities = newEntities.map(e => {
         if (pendingScoreUpdates[e.id]) {
             return { ...e, contributionScore: (e.contributionScore || 0) + pendingScoreUpdates[e.id] };
@@ -1130,12 +974,10 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
       
       const hpPercent = s.maxHp > 0 ? (s.hp / s.maxHp) * 100 : 0;
       
-      // Animation Logic
       const isAttacked = s.alive && (gameMinutes - s.lastAttackedTime < 0.15);
       const shakeClass = isAttacked ? 'animate-shake' : '';
       const flashClass = isAttacked ? 'brightness-150' : '';
       
-      // HP Color
       let hpColor = 'bg-green-500';
       if (hpPercent < 30) hpColor = 'bg-red-500';
       else if (hpPercent < 60) hpColor = 'bg-yellow-500';
@@ -1180,8 +1022,6 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
           <h3 className={`text-xs font-bold uppercase tracking-widest mb-1 ${team === 'blue' ? 'text-blue-400' : 'text-red-400'}`}>{teamName}</h3>
           {entities.map(e => {
              const hpPercent = (e.hp / e.maxHp) * 100;
-             // Display countdown in approximate seconds based on the respawnTimer (game minutes)
-             // Arbitrary scaling for display: 1 game minute timer ~= 10 seconds visual
              const displayRespawn = Math.ceil(e.respawnTimer * 10); 
              
              let barColor = 'bg-blue-500';
@@ -1235,7 +1075,6 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
          `}
       </style>
 
-      {/* Header */}
       <div className="w-full max-w-[90rem] flex justify-between items-center mb-4 text-white shrink-0">
         <div className="flex items-center gap-4 bg-blue-900/20 p-2 pr-6 rounded-r-full border-l-4 border-blue-500 min-w-[300px]">
            <TeamLogo team={userTeam} size="w-12 h-12" />
@@ -1274,32 +1113,24 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
 
       <div className="flex gap-4 w-full max-w-[90rem] h-[75vh] items-stretch">
           
-          {/* LEFT: Player HUDs */}
           <div className="w-48 flex flex-col gap-4 overflow-y-auto shrink-0">
              <PlayerHUD entities={entities.filter(e => e.team === 'blue')} team="blue" teamName={userTeam.shortName} />
              <div className="flex-1"></div>
              <PlayerHUD entities={entities.filter(e => e.team === 'red')} team="red" teamName={enemyTeam?.shortName || 'ENEMY'} />
           </div>
 
-          {/* CENTER: Map */}
           <div className="flex-1 relative aspect-square bg-[#0f1923] border-4 border-dark-700 rounded-xl overflow-hidden shadow-2xl mx-auto">
-             {/* Map Graphics (Lanes) */}
              <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-20">
-                {/* Top/Left Lane */}
                 <path d="M 5 95 L 5 5 L 95 5" fill="none" stroke="#64748b" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
                 
-                {/* Mid Lane (Diagonal) */}
                 <line x1="5" y1="95" x2="95" y2="5" stroke="#64748b" strokeWidth="6" strokeLinecap="round" />
                 
-                {/* Bot/Right Lane */}
                 <path d="M 5 95 L 95 95 L 95 5" fill="none" stroke="#64748b" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
                 
-                {/* Bases */}
                 <circle cx="5" cy="95" r="15" fill="#3b82f6" opacity="0.2" />
                 <circle cx="95" cy="5" r="15" fill="#ef4444" opacity="0.2" />
              </svg>
 
-             {/* Jungle Camps */}
              {jungleCamps.map(camp => {
                  if (!camp.alive) return null;
                  return (
@@ -1313,7 +1144,6 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
                  )
              })}
 
-             {/* Structures */}
              {structures.map(s => (
                  <div 
                     key={s.id} 
@@ -1324,7 +1154,6 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
                  </div>
              ))}
 
-             {/* Objectives */}
              <div className={`absolute -translate-x-1/2 -translate-y-1/2 z-20 transition-all duration-500 ${baron.alive ? 'opacity-100 scale-100 animate-bounce' : 'opacity-20 scale-90 grayscale'}`} style={{ left: `${POSITIONS.BARON.x}%`, top: `${POSITIONS.BARON.y}%` }}>
                 {!baron.alive && baron.nextSpawnTime - gameMinutes < 1 && (
                     <div className="absolute inset-0 border-2 border-dashed border-purple-400 rounded-full animate-spin"></div>
@@ -1343,9 +1172,8 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
                 </div>
              </div>
 
-             {/* Minions */}
              {minions.map(m => {
-                 if (gameMinutes < m.spawnTime) return null; // Only show active minions
+                 if (gameMinutes < m.spawnTime) return null;
                  return (
                      <div 
                         key={m.id}
@@ -1355,7 +1183,6 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
                  )
              })}
 
-             {/* Champions */}
              {entities.map(e => {
                  if (e.isDead) return null;
                  
@@ -1372,7 +1199,6 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
                         className="absolute w-6 h-6 -translate-x-1/2 -translate-y-1/2 z-30 flex flex-col items-center justify-center transition-all duration-100 linear group"
                         style={{ left: `${e.x}%`, top: `${e.y}%` }}
                      >
-                        {/* Clutch Indicator (Aura) */}
                         {e.isClutching && (
                            <>
                              <div className="absolute inset-0 rounded-full shadow-[0_0_20px_4px_rgba(250,204,21,0.6)] animate-pulse"></div>
@@ -1382,12 +1208,10 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
                            </>
                         )}
                         
-                        {/* HP Bar */}
                         <div className="absolute -top-3 w-8 h-1 bg-black rounded-full overflow-hidden border border-white/20">
                            <div className={`h-full transition-all duration-300 ${barColor}`} style={{ width: `${hpPercent}%` }}></div>
                         </div>
 
-                        {/* Champ Icon */}
                         <div className={`w-full h-full rounded-full border border-white shadow-sm flex items-center justify-center ${e.team === 'blue' ? 'bg-blue-600' : 'bg-red-600'} ${isLow ? 'animate-pulse ring-2 ring-red-500' : ''} ${e.isClutching ? 'ring-2 ring-yellow-400' : ''}`}>
                             <span className="text-[8px] font-bold text-white leading-none">{e.role[0]}</span>
                         </div>
@@ -1396,7 +1220,6 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
              })}
           </div>
 
-          {/* RIGHT: Logs Panel */}
           <div className="w-80 bg-dark-900 border border-dark-700 rounded-xl overflow-hidden flex flex-col shadow-xl shrink-0">
              <div className="p-3 bg-dark-800 border-b border-dark-700 font-bold text-gray-300 flex items-center gap-2">
                 <Swords size={16} /> Match Events

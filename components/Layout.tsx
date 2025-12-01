@@ -25,7 +25,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentTab, onTabChang
     { id: 'play', label: week === 0 ? 'Season Start' : 'Play', icon: <PlayCircle size={20} /> },
   ];
 
-  const primaryColor = teamData?.primaryColor || '#0ea5e9'; // Fallback to hextech blue
+  const primaryColor = teamData?.primaryColor || '#0ea5e9';
 
   return (
     <div className="flex h-screen bg-dark-950 text-gray-100 font-sans selection:bg-hextech-500 selection:text-white">

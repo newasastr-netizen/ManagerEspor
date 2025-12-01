@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Layout } from './components/Layout';
 import { Card } from './components/Card';
-import { TeamLogo } from './components/TeamLogo';
+import { TeamLogo, getRoleIcon } from './components/TeamLogo';
 import { TeamStatsView } from './components/TeamStatsView';
 import { MatchSimulationView } from './components/MatchSimulationView';
 import { TrainingView } from './components/TrainingView';
@@ -155,7 +155,6 @@ const NegotiationModal: React.FC<NegotiationModalProps> = ({ player, isOpen, onC
   );
 }
 
-// --- Event Modal ---
 interface EventModalProps {
   event: PlayerEvent;
   player: PlayerCard;
@@ -204,7 +203,6 @@ const EventModal: React.FC<EventModalProps> = ({ event, player, onClose }) => {
   );
 };
 
-// BracketMatch component definition (Moved outside of App)
 const BracketMatch: React.FC<{ match: PlayoffMatch, style?: React.CSSProperties, teams: TeamData[] }> = ({ match, style, teams }) => {
   const teamA = teams.find(t => t.id === match.teamAId);
   const teamB = teams.find(t => t.id === match.teamBId);
@@ -344,7 +342,7 @@ export default function App() {
         gameWins: 0,
         gameLosses: 0,
         streak: 0,
-        group: 'A' as 'A' | 'B' // Placeholder
+        group: 'A' as 'A' | 'B' 
       }));
       setGameState(prev => ({ ...prev, standings: initialStandings }));
     }
@@ -460,6 +458,29 @@ export default function App() {
     }
   }, [gameState.roster, gameState.teamId, gameState.aiRosters, getActiveSynergies]);
 
+  const getTeamMoraleModifier = (roster: Record<Role, PlayerCard | null>): number => {
+    const players = Object.values(roster).filter((p): p is PlayerCard => p !== null && p.role !== Role.COACH);
+    if (players.length === 0) return 0;
+
+    const avgMorale = players.reduce((acc, p) => acc + (p.morale ?? 50), 0) / players.length;
+    
+    const modifier = Math.round((avgMorale - 50) / 10);
+    return modifier;
+  };
+
+  const updateTeamMorale = (roster: Record<Role, PlayerCard | null>, didWin: boolean, streak: number): Record<Role, PlayerCard | null> => {
+    const newRoster = { ...roster };
+    const moraleChange = didWin 
+      ? (streak <= -3 ? 20 : (streak >= 3 ? 10 : 5))
+      : (streak >= 3 ? -20 : (streak <= -3 ? -10 : -5));
+
+    Object.keys(newRoster).forEach(key => {
+        const player = newRoster[key as Role];
+        if (player) player.morale = Math.max(0, Math.min(100, (player.morale ?? 50) + moraleChange));
+    });
+    return newRoster;
+  };
+
   const isRosterComplete = useCallback(() => {
     const requiredRoles = [Role.TOP, Role.JUNGLE, Role.MID, Role.ADC, Role.SUPPORT];
     return requiredRoles.every(role => gameState.roster[role] !== null);
@@ -548,7 +569,7 @@ export default function App() {
 
     let budget = gameState.coins;
     let purchases: PlayerCard[] = [];
-    let updatedMarket = [...market]; // Use full market, ignore filters for auto-fill
+    let updatedMarket = [...market];
 
     missingRoles.forEach(role => {
         const candidates = updatedMarket.filter(p => {
@@ -772,7 +793,7 @@ export default function App() {
             week: 1, 
             currentDay: 1,
             schedule: schedule,
-            groups: groups,
+            groups: groups || { A: [], B: [] },
             standings: newStandings,
             aiRosters: newAiRosters,
             winnersGroup: null,
@@ -811,6 +832,7 @@ export default function App() {
   const advanceSeason = () => { 
       let seasonReward = 1000;
       let performanceTitle = "Participant";
+      const retiredPlayerNames: string[] = [];
 
       const grandFinal = gameState.playoffMatches.find(m => m.roundName === 'Grand Final');
       if (grandFinal && grandFinal.winnerId) {
@@ -841,10 +863,43 @@ export default function App() {
 
       const newFreeAgents = [...gameState.freeAgents];
       
+      const convertToCoach = (player: PlayerCard): PlayerCard => {
+        const newOverall = Math.round((player.stats.macro * 1.5 + player.stats.teamfight) / 2.5);
+        return {
+          ...player,
+          role: Role.COACH,
+          status: 'retired',
+          overall: Math.min(99, newOverall + 5),
+          salary: Math.floor(player.salary * 0.75),
+          price: 0,
+          team: 'FA',
+          contractDuration: 0,
+        };
+      };
+
+      const checkRetirement = (player: PlayerCard): boolean => {
+        const age = player.age;
+        if (age < 27) return false;
+
+        let retirementChance = 0;
+        if (age === 27) retirementChance = 0.05; // 5%
+        else if (age === 28) retirementChance = 0.15; // 15%
+        else if (age === 29) retirementChance = 0.30; // 30%
+        else if (age >= 30) retirementChance = 0.50; // 50%
+
+        return Math.random() < retirementChance;
+      };
+
       const updatePlayerContract = (p: PlayerCard): PlayerCard | null => {
           const updated = processPlayerProgression(p, clutchFactor);
           updated.contractDuration -= 1;
           
+          if (checkRetirement(updated)) {
+              retiredPlayerNames.push(updated.name);
+              newFreeAgents.push(convertToCoach(updated));
+              return null;
+          }
+
           if (updated.contractDuration <= 0) {
               newFreeAgents.push({ ...updated, team: 'FA', price: 0 }); 
               return null;
@@ -869,6 +924,11 @@ export default function App() {
               if (p) {
                   const updated = processPlayerProgression(p, 0); 
                   updated.contractDuration -= 1;
+                  if (checkRetirement(updated)) {
+                      retiredPlayerNames.push(p.name);
+                      newFreeAgents.push(convertToCoach(p));
+                      delete updatedAiRosters[teamId][role];
+                  }
                   if (updated.contractDuration <= 0) {
                       newFreeAgents.push({ ...updated, team: 'FA', price: 0 });
                       delete updatedAiRosters[teamId][role]; 
@@ -918,7 +978,11 @@ export default function App() {
           freeAgents: newFreeAgents
       })); 
       
-      showNotification('success', `Season ended! You earned ${seasonReward} G as ${performanceTitle}.`);
+      let notificationMessage = `Season ended! You earned ${seasonReward} G as ${performanceTitle}.`;
+      if (retiredPlayerNames.length > 0) {
+        notificationMessage += ` The following players have retired: ${retiredPlayerNames.join(', ')}.`;
+      }
+      showNotification('success', notificationMessage);
       setTab('dashboard'); 
   };
 
@@ -936,7 +1000,7 @@ export default function App() {
       const powerA = getPower(rosterA);
       const powerB = getPower(rosterB);
       
-      let winsA = 0;
+      let winsA = 0; 
       let winsB = 0;
       const gamesToWin = isBo5 ? 3 : 2;
       const maxGames = isBo5 ? 5 : 3;
@@ -966,10 +1030,10 @@ export default function App() {
 
           if (Math.random() < winProbA) {
               winsA++;
-              gameScores.push({user: 15 + Math.floor(Math.random()*15), enemy: 5 + Math.floor(Math.random()*10)});
+              gameScores.push({ user: 15 + Math.floor(Math.random() * 15), enemy: 5 + Math.floor(Math.random() * 10) });
           } else {
               winsB++;
-              gameScores.push({user: 5 + Math.floor(Math.random()*10), enemy: 15 + Math.floor(Math.random()*15)});
+              gameScores.push({ user: 5 + Math.floor(Math.random() * 10), enemy: 15 + Math.floor(Math.random() * 15) });
           }
       }
 
@@ -1026,6 +1090,46 @@ export default function App() {
           playoffMatches: matches
       }));
       setTab('play');
+  };
+
+  const initializeSimplePlayoffs = (standings: Standing[]) => {
+    const sortedStandings = [...standings].sort((a, b) => {
+      if (b.wins !== a.wins) return b.wins - a.wins;
+      return (b.gameWins - b.gameLosses) - (a.gameWins - a.gameLosses);
+    });
+
+    const top6 = sortedStandings.slice(0, 6).map(s => s.teamId);
+
+    const matches: PlayoffMatch[] = [
+      { id: 'qf-1', roundName: 'Quarterfinals', teamAId: top6[2], teamBId: top6[5], nextMatchId: 'sf-1', nextMatchSlot: 'B', isBo5: true },
+      { id: 'qf-2', roundName: 'Quarterfinals', teamAId: top6[3], teamBId: top6[4], nextMatchId: 'sf-2', nextMatchSlot: 'B', isBo5: true },
+      { id: 'sf-1', roundName: 'Semifinals', teamAId: top6[0], teamBId: null, nextMatchId: 'f-1', nextMatchSlot: 'A', isBo5: true },
+      { id: 'sf-2', roundName: 'Semifinals', teamAId: top6[1], teamBId: null, nextMatchId: 'f-1', nextMatchSlot: 'B', isBo5: true },
+      { id: 'f-1', roundName: 'Grand Final', teamAId: null, teamBId: null, isBo5: true },
+    ];
+
+    setGameState(prev => ({ ...prev, stage: 'PLAYOFFS', playoffMatches: matches, week: 10 }));
+    showNotification('success', 'Regular Season has ended! The top 6 teams advance to Playoffs.');
+  };
+
+  const startLECGroupStage = (standings: Standing[]) => {
+    const top8 = standings.slice(0, 8).map(s => s.teamId);
+    const groupA = [top8[0], top8[3], top8[4], top8[7]];
+    const groupB = [top8[1], top8[2], top8[5], top8[6]];
+
+    const createGroupMatches = (group: string[], prefix: string): PlayoffMatch[] => [
+        { id: `${prefix}-ub-1`, roundName: `Group ${prefix.toUpperCase()} UB Semis`, teamAId: group[0], teamBId: group[3], nextMatchId: `${prefix}-ub-final`, nextMatchSlot: 'A', loserMatchId: `${prefix}-lb-1`, loserMatchSlot: 'A', isBo5: false },
+        { id: `${prefix}-ub-2`, roundName: `Group ${prefix.toUpperCase()} UB Semis`, teamAId: group[1], teamBId: group[2], nextMatchId: `${prefix}-ub-final`, nextMatchSlot: 'B', loserMatchId: `${prefix}-lb-1`, loserMatchSlot: 'B', isBo5: false },
+        { id: `${prefix}-lb-1`, roundName: `Group ${prefix.toUpperCase()} LB Semis`, teamAId: null, teamBId: null, nextMatchId: `${prefix}-lb-final`, nextMatchSlot: 'A', isBo5: false },
+        { id: `${prefix}-ub-final`, roundName: `Group ${prefix.toUpperCase()} UB Final`, teamAId: null, teamBId: null, nextMatchId: `${prefix}-playoff-qual`, nextMatchSlot: 'A', loserMatchId: `${prefix}-lb-final`, loserMatchSlot: 'B', isBo5: false },
+        { id: `${prefix}-lb-final`, roundName: `Group ${prefix.toUpperCase()} LB Final`, teamAId: null, teamBId: null, nextMatchId: `${prefix}-playoff-qual`, nextMatchSlot: 'B', isBo5: false },
+    ];
+
+    const matches = [...createGroupMatches(groupA, 'a'), ...createGroupMatches(groupB, 'b')];
+
+    setGameState(prev => ({ ...prev, stage: 'LEC_GROUP_STAGE', playoffMatches: matches, week: 10 }));
+    showNotification('success', 'LEC Regular Season ended! Top 8 advance to the Group Stage.');
+    setTab('play');
   };
 
   const initializePlayoffs = (playInWinners: string[]) => {
@@ -1166,7 +1270,7 @@ export default function App() {
 
      if (gameState.stage === 'GROUP_STAGE') {
         const matchesToday = gameState.schedule.filter(m => m.round === gameState.currentDay);
-        const regularMatch = matchesToday.find(m => m.teamAId === gameState.teamId || m.teamBId === gameState.teamId);
+        const regularMatch = matchesToday.find(m => (m.teamAId === gameState.teamId || m.teamBId === gameState.teamId) && !m.played);
         if (regularMatch) userMatch = { ...regularMatch, isBo5: false };
      } else {
         const match = gameState.playoffMatches.find(m => (m.teamAId === gameState.teamId || m.teamBId === gameState.teamId) && !m.winnerId);
@@ -1174,26 +1278,27 @@ export default function App() {
      }
 
      if (userMatch) {
-         const sim = simulateSeries(userMatch.teamAId, userMatch.teamBId, !!userMatch.isBo5);
-         const won = sim.winnerId === gameState.teamId;
-         const opponentId = userMatch.teamAId === gameState.teamId ? userMatch.teamBId : userMatch.teamAId;
-         
-         const scoreUser = sim.winnerId === gameState.teamId ? (userMatch.teamAId === gameState.teamId ? sim.scoreA : sim.scoreB) : (userMatch.teamAId === gameState.teamId ? sim.scoreA : sim.scoreB);
-         const scoreEnemy = sim.winnerId === gameState.teamId ? (userMatch.teamAId === gameState.teamId ? sim.scoreB : sim.scoreA) : (userMatch.teamAId === gameState.teamId ? sim.scoreB : sim.scoreA);
+        const seriesResult = simulateSeries(userMatch.teamAId, userMatch.teamBId, !!userMatch.isBo5);
+        const won = seriesResult.winnerId === gameState.teamId;
+        const opponentId = userMatch.teamAId === gameState.teamId ? userMatch.teamBId : userMatch.teamAId;
+
+        const finalScoreUser = seriesResult.scoreA > seriesResult.scoreB ? (userMatch.teamAId === seriesResult.winnerId ? seriesResult.scoreA : seriesResult.scoreB) : (userMatch.teamAId === gameState.teamId ? seriesResult.scoreA : seriesResult.scoreB);
+        const finalScoreEnemy = seriesResult.scoreA > seriesResult.scoreB ? (userMatch.teamAId === seriesResult.winnerId ? seriesResult.scoreB : seriesResult.scoreA) : (userMatch.teamAId === gameState.teamId ? seriesResult.scoreB : seriesResult.scoreA);
 
          const resultObj: MatchResult = {
              victory: won,
-             scoreUser: scoreUser,
-             scoreEnemy: scoreEnemy,
-             gameScores: sim.gameScores,
+             scoreUser: finalScoreUser,
+             scoreEnemy: finalScoreEnemy,
+             playerStats: [],
+             gameScores: seriesResult.gameScores.map(game => (userMatch.teamAId === gameState.teamId ? game : { user: game.enemy, enemy: game.user })),
              enemyTeam: activeLeague.teams.find(t => t.id === opponentId)?.shortName || '',
              reward: won ? 300 : 100,
              commentary: '',
              isBo5: !!userMatch.isBo5
          };
 
-         setPendingSimResult({ userResult: resultObj, matchId: userMatch.id, opponentId });
-         setIsSimulating(true);
+        setPendingSimResult({ userResult: resultObj, matchId: userMatch.id, opponentId });
+        setIsSimulating(true);
      } else {
         finalizeDaySimulation(null);
      }
@@ -1202,6 +1307,16 @@ export default function App() {
   const finalizeDaySimulation = async (userResult: MatchResult | null) => {
      setIsSimulating(false);
      setPendingSimResult(null);
+
+     if (userResult && userResult.playerStats.length > 0) {
+      const { newRoster, newInventory } = processMatchPlayerStats(
+        gameState.roster,
+        gameState.inventory,
+        userResult.playerStats
+      );
+      setGameState(prev => ({ ...prev, roster: newRoster, inventory: newInventory }));
+      showNotification('success', 'Player stats have been updated based on match performance!');
+    }
 
      const randomEvt = generateRandomEvent(gameState.roster);
      if (randomEvt) {
@@ -1233,13 +1348,14 @@ export default function App() {
 
      setGameState(prev => {
         const eventResult = processEvents(prev);
+        let updatedStandings = [...prev.standings];
         const updatedRoster = eventResult.roster;
         let nextState = { ...prev, roster: updatedRoster };
 
         if (nextState.stage === 'GROUP_STAGE') {
             const matchesToday = nextState.schedule.filter(m => m.round === nextState.currentDay);
             const newSchedule = [...nextState.schedule];
-            const newStandings = [...nextState.standings];
+            let newRosterForMorale = { ...updatedRoster };
 
             matchesToday.forEach(m => {
                 let winnerId, scoreA, scoreB;
@@ -1250,39 +1366,67 @@ export default function App() {
                     scoreA = m.teamAId === nextState.teamId ? userResult.scoreUser : userResult.scoreEnemy;
                     scoreB = m.teamAId === nextState.teamId ? userResult.scoreEnemy : userResult.scoreUser;
                 } else {
-                    const sim = simulateSeries(m.teamAId, m.teamBId, false); 
+                    const sim = simulateSeries(m.teamAId, m.teamBId, false);
                     winnerId = sim.winnerId;
                     scoreA = sim.scoreA;
                     scoreB = sim.scoreB;
                 }
 
+               if (isUserMatch) {
+                    const didWin = winnerId === nextState.teamId;
+                    const userStanding = updatedStandings.find(s => s.teamId === nextState.teamId);
+                    const oldStreak = userStanding?.streak || 0;
+                    const newStreak = didWin ? Math.max(1, oldStreak + 1) : Math.min(-1, oldStreak - 1);
+                    if(userStanding) userStanding.streak = newStreak;
+
+                    newRosterForMorale = updateTeamMorale(newRosterForMorale, didWin, oldStreak);
+                }
+
                 const idx = newSchedule.findIndex(s => s.id === m.id);
                 newSchedule[idx] = { ...m, played: true, winnerId, seriesScoreA: scoreA, seriesScoreB: scoreB };
 
-                const winnerStat = newStandings.find(s => s.teamId === winnerId);
-                const loserStat = newStandings.find(s => s.teamId === (winnerId === m.teamAId ? m.teamBId : m.teamAId));
+                const winnerStat = updatedStandings.find(s => s.teamId === winnerId);
+                const loserStat = updatedStandings.find(s => s.teamId === (winnerId === m.teamAId ? m.teamBId : m.teamAId));
 
                 if (winnerStat) {
                     winnerStat.wins++;
-                    winnerStat.gameWins += scoreA > scoreB ? scoreA : scoreB; 
-                    winnerStat.gameLosses += scoreA > scoreB ? scoreB : scoreA;
+                    winnerStat.gameWins += Math.max(scoreA, scoreB);
+                    winnerStat.gameLosses += Math.min(scoreA, scoreB);
                 }
                 if (loserStat) {
                     loserStat.losses++;
-                    loserStat.gameWins += scoreA > scoreB ? scoreB : scoreA;
-                    loserStat.gameLosses += scoreA > scoreB ? scoreA : scoreB;
+                    loserStat.gameWins += Math.min(scoreA, scoreB);
+                    loserStat.gameLosses += Math.max(scoreA, scoreB);
                 }
             });
 
             const allPlayed = newSchedule.every(m => m.played);
-            
+
             if (allPlayed) {
-                setTimeout(() => endGroupStage(newStandings), 100);
-                return { ...nextState, schedule: newSchedule, standings: newStandings };
+                  setTimeout(() => {
+                    if (activeLeague.settings.format === 'LEC') {
+                      startLECGroupStage(updatedStandings);
+                    } else if (activeLeague.settings.format === 'LCK') {
+                    } else {
+                      initializeSimplePlayoffs(updatedStandings);
+                    }
+                  }, 100);
+                  return { ...nextState, schedule: newSchedule, standings: updatedStandings, roster: newRosterForMorale };
             }
 
-            return { ...nextState, schedule: newSchedule, standings: newStandings, currentDay: nextState.currentDay + 1, week: Math.ceil((nextState.currentDay + 1)/5) };
-        } 
+            const newDay = nextState.currentDay + 1;
+            const newWeek = Math.ceil(newDay / 5);
+
+            return { 
+                ...nextState,
+                roster: newRosterForMorale,
+                schedule: newSchedule, 
+                standings: updatedStandings, 
+                currentDay: newDay, 
+                week: newWeek,
+                trainingSlotsUsed: newWeek > nextState.week ? 0 : nextState.trainingSlotsUsed
+            };
+        }
         else if (nextState.stage === 'PLAY_IN' || nextState.stage === 'PLAYOFFS') {
             const newMatches = [...nextState.playoffMatches];
             const activeMatch = newMatches.find(m => !m.winnerId && m.teamAId && m.teamBId);
@@ -1320,6 +1464,61 @@ export default function App() {
      setIsPlayingMatch(false);
   };
 
+  const updatePlayerProgression = (player: PlayerCard, performanceScore: number): PlayerCard => {
+    const potentialMultipliers = { 'S': 1.5, 'A': 1.2, 'B': 1.0, 'C': 0.7 };
+    const ageFactor = Math.max(0.1, 1 - ((player.age - 20) / 10));
+    
+    const changeFactor = performanceScore * potentialMultipliers[player.potential] * ageFactor;
+
+    if (Math.random() > 0.6) return player;
+
+    const newStats = { ...player.stats };
+    const statsToChange: (keyof PlayerCard['stats'])[] = ['mechanics', 'macro', 'lane', 'teamfight'];
+    const statToChange = statsToChange[Math.floor(Math.random() * statsToChange.length)];
+
+    const changeAmount = (Math.random() * 0.5 + 0.5) * changeFactor;
+    newStats[statToChange] = Math.max(50, Math.min(99, newStats[statToChange] + changeAmount));
+
+    const newOverall = Math.round((newStats.mechanics + newStats.macro + newStats.lane + newStats.teamfight) / 4);
+
+    return {
+      ...player,
+      stats: newStats,
+      previousOverall: player.overall,
+      overall: newOverall,
+    };
+  };
+
+  const processMatchPlayerStats = (
+    roster: GameState['roster'],
+    inventory: GameState['inventory'],
+    playerStats: PlayerMatchStats[]
+  ): { newRoster: GameState['roster'], newInventory: GameState['inventory'] } => {
+      const allOwnedPlayers = [...Object.values(roster).filter((p): p is PlayerCard => p !== null), ...inventory];
+      const updatedPlayers = new Map<string, PlayerCard>();
+
+      playerStats.forEach(stat => {
+        const player = allOwnedPlayers.find(p => p.id === stat.playerId);
+        if (player) {
+          const kda = (stat.kills + stat.assists) / Math.max(1, stat.deaths);
+          const performanceScore = (kda - 1.5) * 0.2;
+          updatedPlayers.set(player.id, updatePlayerProgression(player, performanceScore));
+        }
+      });
+
+      const newRoster = { ...roster };
+      Object.keys(newRoster).forEach(role => {
+        const p = newRoster[role as Role];
+        if (p && updatedPlayers.has(p.id)) {
+          newRoster[role as Role] = updatedPlayers.get(p.id)!;
+        }
+      });
+
+      const newInventory = inventory.map(p => updatedPlayers.has(p.id) ? updatedPlayers.get(p.id)! : p);
+
+      return { newRoster, newInventory };
+  };
+
   const MarketView = () => {
      return (
         <div className="space-y-6">
@@ -1353,7 +1552,6 @@ export default function App() {
                  </div>
               </div>
 
-              {/* Filter Panel */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-4 border-t border-dark-800">
                  {/* Role Filter */}
                  <div className="flex gap-1 bg-dark-950 p-1 rounded-lg">
@@ -1365,14 +1563,12 @@ export default function App() {
                     ))}
                  </div>
 
-                 {/* Status Filter */}
                  <div className="flex gap-1 bg-dark-950 p-1 rounded-lg">
                     <button onClick={() => setFilterStatus('ALL')} className={`flex-1 py-1.5 rounded text-xs font-bold ${filterStatus === 'ALL' ? 'bg-dark-700 text-white' : 'text-gray-500 hover:text-gray-300'}`}>All</button>
                     <button onClick={() => setFilterStatus('FA')} className={`flex-1 py-1.5 rounded text-xs font-bold ${filterStatus === 'FA' ? 'bg-green-600/20 text-green-400' : 'text-gray-500 hover:text-gray-300'}`}>Free Agents</button>
                     <button onClick={() => setFilterStatus('TRANSFER')} className={`flex-1 py-1.5 rounded text-xs font-bold ${filterStatus === 'TRANSFER' ? 'bg-blue-600/20 text-blue-400' : 'text-gray-500 hover:text-gray-300'}`}>Transfer</button>
                  </div>
 
-                 {/* Sort Order */}
                  <div className="relative">
                     <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-gray-500">
                        <ArrowDownUp size={14} />
@@ -1388,7 +1584,6 @@ export default function App() {
                     </select>
                  </div>
 
-                 {/* Price Range */}
                  <div className="flex items-center gap-2 bg-dark-950 px-3 rounded-lg border border-dark-700">
                     <span className="text-xs font-bold text-gray-500">Fee:</span>
                     <input 
@@ -1488,7 +1683,6 @@ export default function App() {
        </div>
 
        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Active Roster */}
           <div className="lg:col-span-2 space-y-4">
              {(Object.values(Role) as Role[]).map(role => {
                 const player = gameState.roster[role];
@@ -1501,16 +1695,14 @@ export default function App() {
                          <Card
                            player={player} 
                            team={activeLeague.teams.find(t => t.shortName === player.team)}
-                           compact 
-                           isOwned 
+                           compact
+                           isOwned
+                           actionLabel="Unassign"
                            onClick={() => {
-                             // Unassign
                              setGameState(prev => ({
                                ...prev,
-                               roster: { ...prev.roster, [role]: null }, // This should move player to inventory
-                               inventory: [...prev.inventory, player] // Move back to bench if not already there? 
-                               // Simplified: In this model, inventory tracks ALL owned. 
-                               // So we don't duplicate. Just set roster slot to null.
+                                 roster: { ...prev.roster, [role]: null },
+                                 inventory: [...prev.inventory, player]
                              }));
                            }}
                          />) : (<div className="h-16 border-2 border-dashed border-dark-700 rounded-lg flex items-center justify-center text-gray-600 font-bold bg-dark-900/50">Empty Slot</div>
@@ -1520,7 +1712,6 @@ export default function App() {
              })}
           </div>
 
-          {/* Bench / Inventory */}
           <div className="bg-dark-900 border border-dark-800 rounded-2xl p-4 flex flex-col h-[600px]">
              <h3 className="text-lg font-bold text-white mb-4 px-2">Bench</h3>
              <div className="flex-1 overflow-y-auto space-y-2 pr-2">
@@ -1564,7 +1755,7 @@ export default function App() {
   };
 
   const ScheduleView = () => {
-    if (gameState.stage === 'PLAY_IN' || gameState.stage === 'PLAYOFFS') {
+    if (['PLAY_IN', 'PLAYOFFS', 'LEC_GROUP_STAGE', 'LEC_PLAYOFFS'].includes(gameState.stage)) {
         return (
             <div className="space-y-6">
                 <h2 className="text-2xl font-bold font-display text-white">

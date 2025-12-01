@@ -1,15 +1,15 @@
 import React, { useState } from 'react';
-import { TeamData } from '../types';
-import { LEAGUES, LeagueKey } from '../data/leagues';
+import { TeamData, LeagueKey } from '../types';
+import { LEAGUES } from '../data/leagues';
 import { TeamLogo } from './TeamLogo';
 import { ArrowRight, Crown } from 'lucide-react';
 
 interface OnboardingProps {
-  onComplete: (name: string, team: TeamData, league: LeagueKey) => void;
+  onComplete: (name: string, team: TeamData, leagueKey: LeagueKey) => void;
 }
 
 export const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
-  const [step, setStep] = useState(1); // 1: İsim girişi, 2: Takım seçimi
+  const [step, setStep] = useState(1);
   const [managerName, setManagerName] = useState('');
   const [selectedLeague, setSelectedLeague] = useState<LeagueKey>('LCK');
   const [selectedTeamId, setSelectedTeamId] = useState<string>('');
@@ -19,7 +19,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
       alert('Please enter a name with at least 3 characters.');
       return;
     }
-    setStep(2); // Sonraki adıma geç
+    setStep(2);
   };
 
   const handleSubmit = () => {
@@ -35,7 +35,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
   };
 
   const currentTeams = LEAGUES[selectedLeague].teams;
-
+  
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-dark-950 p-4">
       <div className="w-full max-w-lg bg-dark-900 border border-dark-800 rounded-2xl p-8 shadow-2xl space-y-8 animate-fade-in">
@@ -43,10 +43,14 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
         <div className="text-center">
             <Crown className="mx-auto text-hextech-500 mb-4" size={32} />
             <h1 className="text-3xl font-display font-bold text-white">Manager Registration</h1>
-            <p className="text-gray-400 mt-2">Enter your credentials to apply for the LCK 2025 Season.</p>
+            <p className="text-gray-400 mt-2">
+              {step === 1 
+                ? 'Enter your credentials to begin your managerial career.' 
+                : `Enter your credentials to apply for the ${LEAGUES[selectedLeague].name} 2025 Season.`}
+            </p>
         </div>
 
-        {/* Adım 1: Manager Name */}
+        {/* Step 1: Manager Name */}
         <div style={{ display: step === 1 ? 'block' : 'none' }} className="space-y-6">
             <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Manager Name</label>
@@ -67,13 +71,39 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
             </button>
         </div>
 
-        {/* Adım 2: Select Team */}
+        {/* Step 2: Select League */}
         <div style={{ display: step === 2 ? 'block' : 'none' }} className="space-y-6 animate-fade-in">
+             <div className="text-center">
+                <h2 className="text-xl font-bold font-display text-white">Select Your League</h2>
+                <p className="text-gray-400 text-sm">Which region will you compete in?</p>
+             </div>
+            <div className="grid grid-cols-2 gap-4">
+                {(Object.keys(LEAGUES) as LeagueKey[]).map(key => (
+                    <button 
+                        key={key} 
+                        onClick={() => {
+                            setSelectedLeague(key);
+                            setStep(3);
+                        }} 
+                        className={`p-4 flex flex-col items-center justify-center gap-2 rounded-lg border-2 transition-all border-dark-700 bg-dark-800 hover:border-hextech-500 hover:bg-hextech-500/10`}
+                    >
+                        <span className="text-2xl font-bold text-white">{LEAGUES[key].name}</span>
+                    </button>
+                ))}
+            </div>
+        </div>
+
+        {/* Step 3: Select Team */}
+        <div style={{ display: step === 3 ? 'block' : 'none' }} className="space-y-6 animate-fade-in">
              <div className="text-center">
                 <h2 className="text-xl font-bold font-display text-white">Select Your Team</h2>
                 <p className="text-gray-400 text-sm">Which organization will you lead to glory?</p>
              </div>
-            <div className="grid grid-cols-5 gap-4">
+            <div className={`grid ${
+                selectedLeague === 'LPL' 
+                ? 'grid-cols-4' 
+                : 'grid-cols-5'
+            } gap-4`}>
                 {currentTeams.map(team => (
                     <button 
                         key={team.id} 
