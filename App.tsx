@@ -1,15 +1,15 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Layout } from './components/Layout';
 import { Card } from './components/Card';
-import { TeamLogo, getRoleIcon } from './components/TeamLogo';
+import { TeamLogo, getTeamTier } from './components/TeamLogo';
 import { TeamStatsView } from './components/TeamStatsView';
 import { MatchSimulationView } from './components/MatchSimulationView';
 import { TrainingView } from './components/TrainingView';
 import { Onboarding } from './components/Onboarding';
 import { Role, PlayerCard, GameState, MatchResult, Rarity, TeamData, ScheduledMatch, PlayoffMatch, Standing, PlayerEvent } from './types';
-import { LEAGUES, LeagueKey, LeagueDefinition, LCK_TEAMS as FALLBACK_TEAMS } from './data/leagues';
+import { LEAGUES, LeagueKey, LeagueDefinition } from './data/leagues';
 import { drawGroups, generateGroupStageSchedule } from './utils/scheduler';
-import { Trophy, RotateCcw, Coins, AlertTriangle, Users, Play, Calendar, Lock, BarChart3, CheckCircle2, XCircle, Filter, ArrowDownUp, Search, Shield, Zap, Sword, Brain, Wand2, Handshake, Sparkles, CalendarDays, FastForward, SkipForward } from 'lucide-react';
+import { Trophy, RotateCcw, AlertTriangle, Play, Handshake, Wand2, FastForward, SkipForward, XCircle, ArrowDownUp, Search } from 'lucide-react';
 
 const ACTIVITIES = [
   { id: 'scrim', name: 'Scrimmage', cost: 50, slots: 2, description: 'Play a practice match against a random team.', gains: { teamfight: 2, macro: 1 } },
@@ -23,7 +23,13 @@ const scoutPlayers = async (count: number, existingIds: Set<string>, freeAgents:
   return pool.sort(() => 0.5 - Math.random()).slice(0, count);
 };
 
-const INITIAL_COINS = 10000; 
+const DIFFICULTY_SETTINGS = {
+  Easy: { initialCoins: 10000, feeMultiplier: 0 },
+  Normal: { initialCoins: 7500, feeMultiplier: 0.5 },
+  Hard: { initialCoins: 5000, feeMultiplier: 1.0 },
+};
+
+type Difficulty = keyof typeof DIFFICULTY_SETTINGS;
 
 interface NegotiationModalProps {
   player: PlayerCard;
@@ -58,7 +64,6 @@ const NegotiationModal: React.FC<NegotiationModalProps> = ({ player, isOpen, onC
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
       <div className="bg-dark-900 border border-dark-700 w-full max-w-md rounded-2xl p-6 shadow-2xl relative animate-fade-in">
          <button onClick={onClose} className="absolute top-4 right-4 text-gray-500 hover:text-white">✕</button>
-         
          <div className="flex items-center gap-4 mb-6">
             <div className="w-16 h-16 rounded-full bg-dark-800 border border-dark-600 overflow-hidden">
                <img src={player.imageUrl} alt={player.name} className="w-full h-full object-cover grayscale" />
@@ -68,7 +73,6 @@ const NegotiationModal: React.FC<NegotiationModalProps> = ({ player, isOpen, onC
                <p className="text-sm text-gray-400">{player.role} • {player.team} • {player.age}yo</p>
             </div>
          </div>
-
          <div className="space-y-6">
              {!isFA && (
                  <div className="p-3 bg-red-900/20 border border-red-500/30 rounded-lg flex justify-between items-center">
@@ -76,7 +80,6 @@ const NegotiationModal: React.FC<NegotiationModalProps> = ({ player, isOpen, onC
                     <span className="font-mono text-red-300 font-bold">{transferFee} G</span>
                  </div>
              )}
-
              <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Contract Duration</label>
                 <div className="flex gap-2">
@@ -91,7 +94,6 @@ const NegotiationModal: React.FC<NegotiationModalProps> = ({ player, isOpen, onC
                    ))}
                 </div>
              </div>
-
              <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Salary Offer (Per Season)</label>
                 <div className="flex items-center gap-2">
@@ -111,7 +113,6 @@ const NegotiationModal: React.FC<NegotiationModalProps> = ({ player, isOpen, onC
                    )}
                 </div>
              </div>
-             
              <div className="border-t border-dark-700 pt-4">
                 <div className="flex justify-between items-center mb-1">
                    <span className="text-gray-400">Total Upfront Cost:</span>
@@ -123,19 +124,16 @@ const NegotiationModal: React.FC<NegotiationModalProps> = ({ player, isOpen, onC
                    <p className="text-xs text-red-500 text-right">Insufficient Funds</p>
                 )}
              </div>
-
              {serverFeedback && (
                 <div className="p-3 bg-red-500/10 border border-red-500/50 rounded text-red-200 text-sm text-center font-bold animate-pulse">
                    {serverFeedback}
                 </div>
              )}
-
              {localError && (
                 <div className="p-3 bg-orange-500/10 border border-orange-500/50 rounded text-orange-200 text-sm text-center font-bold animate-pulse">
                    {localError}
                 </div>
              )}
-
              <button 
                 onClick={() => {
                    if (totalUpfrontCost > currentCoins) {
@@ -168,10 +166,8 @@ const EventModal: React.FC<EventModalProps> = ({ event, player, onClose }) => {
          <div className="w-16 h-16 mx-auto bg-red-500/20 rounded-full flex items-center justify-center mb-4">
             <AlertTriangle className="text-red-500" size={32} />
          </div>
-         
          <h2 className="text-2xl font-display font-bold text-white mb-2">Random Event Triggered!</h2>
          <p className="text-gray-400 mb-6">Something unexpected has happened to your team.</p>
-         
          <div className="bg-dark-950 p-4 rounded-xl border border-dark-800 mb-6 text-left flex items-start gap-4">
             <img 
                src={player.imageUrl} 
@@ -191,7 +187,6 @@ const EventModal: React.FC<EventModalProps> = ({ event, player, onClose }) => {
                </div>
             </div>
          </div>
-
          <button 
            onClick={onClose}
            className="w-full py-3 bg-white text-black font-bold uppercase rounded-xl hover:bg-gray-200 transition-colors"
@@ -203,70 +198,262 @@ const EventModal: React.FC<EventModalProps> = ({ event, player, onClose }) => {
   );
 };
 
-const BracketMatch: React.FC<{ match: PlayoffMatch, style?: React.CSSProperties, teams: TeamData[] }> = ({ match, style, teams }) => {
+interface RetiredPlayerModalProps {
+  player: PlayerCard;
+  isOpen: boolean;
+  onClose: () => void;
+  onHireAsCoach: () => void;
+  onLureBack: () => void;
+  currentCoins: number;
+}
+
+const RetiredPlayerModal: React.FC<RetiredPlayerModalProps> = ({ player, isOpen, onClose, onHireAsCoach, onLureBack, currentCoins }) => {
+  if (!isOpen) return null;
+  const coachCost = Math.floor(player.salary * 0.75);
+  const lureCost = Math.floor(player.salary * 1.5);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+      <div className="bg-dark-900 border border-dark-700 w-full max-w-md rounded-2xl p-6 shadow-2xl relative animate-fade-in">
+        <button onClick={onClose} className="absolute top-4 right-4 text-gray-500 hover:text-white">✕</button>
+        <div className="flex items-center gap-4 mb-6">
+          <div className="w-16 h-16 rounded-full bg-dark-800 border border-dark-600 overflow-hidden">
+            <img src={player.imageUrl} alt={player.name} className="w-full h-full object-cover grayscale" />
+          </div>
+          <div>
+            <h3 className="text-xl font-bold text-white">{player.name}</h3>
+            <p className="text-sm text-gray-400">Retired • {player.age}yo</p>
+          </div>
+        </div>
+        <div className="space-y-4">
+          <p className="text-center text-gray-300">This player is retired. You can try to bring them back to the scene.</p>
+          <button
+            onClick={onHireAsCoach}
+            disabled={currentCoins < coachCost}
+            className="w-full p-4 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Hire as Coach ({coachCost}G)
+          </button>
+          <button
+            onClick={onLureBack}
+            disabled={currentCoins < lureCost}
+            className="w-full p-4 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Lure back to Playing ({lureCost}G)
+          </button>
+          {(currentCoins < coachCost || currentCoins < lureCost) && <p className="text-xs text-red-500 text-center">Insufficient Funds</p>}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const BracketMatch: React.FC<{ 
+  match: PlayoffMatch, 
+  style?: React.CSSProperties, 
+  teams: TeamData[], 
+  standings: Standing[],
+  onHoverTeam: (teamId: string | null) => void,
+  highlightedPath: string[]
+}> = ({ match, style, teams, standings, onHoverTeam, highlightedPath }) => {
   const teamA = teams.find(t => t.id === match.teamAId);
   const teamB = teams.find(t => t.id === match.teamBId);
-  
+  const getRegion = (team: TeamData | undefined) => {
+    if (!team) return null;
+    const league = Object.values(LEAGUES).find(l => l.teams.some(t => t.id === team.id));
+    return league ? league.region : null;
+  };
+  const regionColors: { [key: string]: string } = { KR: 'bg-blue-500', CN: 'bg-red-500', EU: 'bg-yellow-500', TCL: 'bg-green-500' };
+  const isMatchHighlighted = highlightedPath.includes(match.id);
+
   return (
-      <div className="bg-dark-900 border border-dark-700 rounded-lg p-3 w-64 shadow-lg relative z-10" style={style}>
-          <div className="text-[10px] text-gray-500 font-bold uppercase mb-2 flex justify-between">
-              <span>{match.roundName}</span>
-              <span className="text-blue-400">{match.isBo5 ? 'Bo5' : 'Bo3'}</span>
-          </div>
-          
-          <div className={`flex justify-between items-center mb-2 ${match.winnerId === teamA?.id ? 'opacity-100' : match.winnerId ? 'opacity-50' : ''}`}>
-              <div className="flex items-center gap-2">
-                  <TeamLogo team={teamA} size="w-6 h-6" />
-                  <span className={`font-bold text-sm ${match.winnerId === teamA?.id ? 'text-green-400' : 'text-white'}`}>
-                      {teamA?.shortName || 'TBD'}
-                  </span>
+      <div 
+        className={`bg-dark-900 border rounded-lg shadow-lg relative transition-all duration-300 ${isMatchHighlighted ? 'border-yellow-400 scale-105' : 'border-dark-700'}`}
+        style={style}
+      >
+          <div className="flex">
+            <div className="flex-1 p-3">
+              <div 
+                className={`flex justify-between items-center mb-2 ${match.winnerId === teamA?.id ? 'opacity-100' : match.winnerId ? 'opacity-40' : ''}`}
+                onMouseEnter={() => onHoverTeam(teamA?.id || null)}
+                onMouseLeave={() => onHoverTeam(null)}
+              >
+                  <div className="flex items-center gap-3">
+                      <TeamLogo team={teamA} size="w-6 h-6" />
+                      <span className={`font-bold text-sm ${match.winnerId === teamA?.id ? 'text-green-400' : 'text-white'}`}>
+                          {teamA?.shortName || 'TBD'}
+                      </span>
+                  </div>
               </div>
-              <span className="font-mono font-bold">{match.seriesScoreA ?? 0}</span>
-          </div>
-          
-          <div className={`flex justify-between items-center ${match.winnerId === teamB?.id ? 'opacity-100' : match.winnerId ? 'opacity-50' : ''}`}>
-              <div className="flex items-center gap-2">
-                  <TeamLogo team={teamB} size="w-6 h-6" />
-                  <span className={`font-bold text-sm ${match.winnerId === teamB?.id ? 'text-green-400' : 'text-white'}`}>
-                      {teamB?.shortName || 'TBD'}
-                  </span>
+              <div 
+                className={`flex justify-between items-center ${match.winnerId === teamB?.id ? 'opacity-100' : match.winnerId ? 'opacity-40' : ''}`}
+                onMouseEnter={() => onHoverTeam(teamB?.id || null)}
+                onMouseLeave={() => onHoverTeam(null)}
+              >
+                  <div className="flex items-center gap-3">
+                      <TeamLogo team={teamB} size="w-6 h-6" />
+                      <span className={`font-bold text-sm ${match.winnerId === teamB?.id ? 'text-green-400' : 'text-white'}`}>
+                          {teamB?.shortName || 'TBD'}
+                      </span>
+                  </div>
               </div>
-              <span className="font-mono font-bold">{match.seriesScoreB ?? 0}</span>
-          </div>
+            </div>
+            <div className="flex flex-col justify-around items-center w-10 bg-dark-950 rounded-r-lg">
+                <span className={`font-mono font-bold text-lg ${match.winnerId === teamA?.id ? 'text-green-400' : 'text-white'}`}>{match.seriesScoreA ?? 0}</span>
+                <span className={`font-mono font-bold text-lg ${match.winnerId === teamB?.id ? 'text-green-400' : 'text-white'}`}>{match.seriesScoreB ?? 0}</span>
+            </div>
+            <div className="absolute -left-2 top-0 bottom-0 flex flex-col justify-around">
+                <div className={`w-1 h-1/2 ${regionColors[getRegion(teamA) || ''] || 'bg-gray-600'}`}></div>
+                <div className={`w-1 h-1/2 ${regionColors[getRegion(teamB) || ''] || 'bg-gray-600'}`}></div>
+            </div>
+        </div>
       </div>
   );
 };
 
-const BracketView: React.FC<{ matches: PlayoffMatch[], stage: string, teams: TeamData[] }> = ({ matches, stage, teams }) => {
+const BracketView: React.FC<{ matches: PlayoffMatch[], stage: string, teams: TeamData[], standings: Standing[], userTeamId: string, isCurrent: boolean }> = ({ matches, stage, teams, standings, userTeamId, isCurrent }) => {
+    const [highlightedTeam, setHighlightedTeam] = useState<string | null>(null);
     const getMatch = (id: string) => matches.find(m => m.id === id);
     
     if (matches.length === 0) return <div>No bracket available</div>;
 
+    const getTeamPath = (teamId: string | null): string[] => {
+        if (!teamId) return [];
+        const path: string[] = [];
+        let currentMatch = matches.find(m => m.winnerId === teamId || m.teamAId === teamId || m.teamBId === teamId);
+        
+        while(currentMatch) {
+            path.push(currentMatch.id);
+            const nextMatchId = currentMatch.winnerId === teamId ? currentMatch.nextMatchId : currentMatch.loserMatchId;
+            if (!nextMatchId) break;
+            currentMatch = matches.find(m => m.id === nextMatchId);
+        }
+        return path;
+    };
+
+    const highlightedPath = isCurrent ? getTeamPath(highlightedTeam) : [];
+
+    if (stage === 'MSI_BRACKET') {
+        const rounds: { [key: string]: string[] } = {
+            'UB Round 1': ['msi-b-r1-1', 'msi-b-r1-2', 'msi-b-r1-3', 'msi-b-r1-4'],
+            'UB Semifinals': ['msi-b-sf-1', 'msi-b-sf-2'],
+            'UB Final': ['msi-b-ubf'],
+            'LB Round 1': ['msi-b-lb1-1', 'msi-b-lb1-2'],
+            'LB Semifinal': ['msi-b-lbsf'],
+            'LB Final': ['msi-b-lbf'],
+            'Grand Final': ['msi-final'],
+        };
+
+        return (
+            <div className="flex space-x-8 overflow-x-auto p-4 bg-dark-950 rounded-xl">
+                {Object.entries(rounds).map(([roundName, matchIds]) => (
+                    <div key={roundName} className="flex flex-col space-y-6 flex-shrink-0 w-72">
+                        <h3 className="text-center font-bold text-lg text-hextech-300">{roundName}</h3>
+                        <div className={`flex flex-col gap-12 justify-center ${roundName.includes('Final') ? 'h-full' : ''}`}>
+                            {matchIds.map(id => {
+                                const match = getMatch(id);
+                                if (!match) return null;
+                                const isUserMatch = match.teamAId === userTeamId || match.teamBId === userTeamId;
+                                return (
+                                    <div key={id} className="relative group">
+                                        <div className={`absolute -inset-0.5 bg-gradient-to-r from-red-600 to-purple-600 rounded-lg blur opacity-25 group-hover:opacity-50 transition duration-1000 animate-tilt ${!match.winnerId && isUserMatch ? 'opacity-75' : ''}`}></div>
+                                        <BracketMatch match={match} teams={teams} standings={standings} onHoverTeam={isCurrent ? setHighlightedTeam : () => {}} highlightedPath={highlightedPath} />
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                ))}
+            </div>
+        );
+    }
+
+    if (stage === 'MSI_PLAY_IN') {
+        const playInRounds: { [key: string]: string[] } = {
+            'UB Semifinals': ['msi-pi-ub1', 'msi-pi-ub2'],
+            'UB Final & LB Semifinal': ['msi-pi-ub-final', 'msi-pi-lb1'],
+            'LB Final': ['msi-pi-lb-final'],
+        };
+        return (
+            <div className="flex justify-center space-x-8 overflow-x-auto p-4 bg-dark-950 rounded-xl">
+                {Object.entries(playInRounds).map(([roundName, matchIds]) => (
+                    <div key={roundName} className="flex flex-col space-y-6 flex-shrink-0 w-72">
+                        <h3 className="text-center font-bold text-lg text-hextech-300">{roundName}</h3>
+                        <div className="flex flex-col gap-12 justify-center h-full">
+                            {matchIds.map(id => {
+                                const match = getMatch(id);
+                                if (!match) return null;
+                                const isUserMatch = match.teamAId === userTeamId || match.teamBId === userTeamId;
+                                return (
+                                    <div key={id} className="relative group">
+                                        <div className={`absolute -inset-0.5 bg-gradient-to-r from-red-600 to-purple-600 rounded-lg blur opacity-25 group-hover:opacity-50 transition duration-1000 animate-tilt ${!match.winnerId && isUserMatch ? 'opacity-75' : ''}`}></div>
+                                        <BracketMatch key={id} match={match} teams={teams} standings={standings} onHoverTeam={isCurrent ? setHighlightedTeam : () => {}} highlightedPath={highlightedPath} />
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                ))}
+            </div>
+        );
+    }
+
     if (stage === 'PLAY_IN') {
         return (
-            <div className="flex flex-col gap-4 items-center">
-                {matches.map(m => <BracketMatch key={m.id} match={m} teams={teams} />)}
+            <div className="flex justify-center space-x-8 overflow-x-auto p-4 bg-dark-950 rounded-xl min-h-[500px]">
+                <div className="flex flex-col space-y-6 flex-shrink-0 w-72">
+                    <h3 className="text-center font-bold text-lg text-hextech-300">Play-In Qualifiers</h3>
+                    <div className="flex flex-col gap-12 justify-center h-full">
+                        {matches.map(match => {
+                            const isUserMatch = match.teamAId === userTeamId || match.teamBId === userTeamId;
+                            return (
+                                <div key={match.id} className="relative group">
+                                    <div className={`absolute -inset-0.5 bg-gradient-to-r from-red-600 to-purple-600 rounded-lg blur opacity-25 group-hover:opacity-50 transition duration-1000 animate-tilt ${!match.winnerId && isUserMatch ? 'opacity-75' : ''}`}></div>
+                                    <BracketMatch match={match} teams={teams} standings={standings} onHoverTeam={isCurrent ? setHighlightedTeam : () => {}} highlightedPath={highlightedPath} />
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
             </div>
         )
     }
+    
+    const rounds = matches.reduce((acc, match) => {
+        if (!acc.includes(match.roundName)) acc.push(match.roundName);
+        return acc;
+    }, [] as string[]);
 
     return (
-        <div className="flex gap-8 items-center overflow-x-auto p-4 min-h-[400px]">
-            <div className="flex flex-col gap-8 justify-around h-full">
-                {getMatch('r1-1') && <BracketMatch match={getMatch('r1-1')!} teams={teams} />}
-                {getMatch('r1-2') && <BracketMatch match={getMatch('r1-2')!} teams={teams} />}
-            </div>
-            <div className="flex flex-col gap-20 justify-around h-full mt-8">
-                {getMatch('sf1') && <BracketMatch match={getMatch('sf1')!} teams={teams} />}
-                {getMatch('sf2') && <BracketMatch match={getMatch('sf2')!} teams={teams} />}
-            </div>
-            <div className="flex flex-col justify-center h-full">
-                {getMatch('f1') && <BracketMatch match={getMatch('f1')!} style={{ borderColor: '#fbbf24', borderWidth: '2px' }} teams={teams} />}
-            </div>
-        </div>
+      <div className="flex space-x-8 overflow-x-auto p-4 bg-dark-950 rounded-xl">
+          {rounds.map(roundName => {
+             const roundMatches = matches.filter(m => m.roundName === roundName);
+             if(roundMatches.length === 0) return null;
+             return (
+                <div key={roundName} className="flex flex-col space-y-6 flex-shrink-0 w-72">
+                    <h3 className="text-center font-bold text-lg text-hextech-300">{roundName}</h3>
+                    <div className="flex flex-col gap-12 justify-center h-full">
+                        {roundMatches.map(match => (
+                            <div key={match.id} className="relative group">
+                                 <div className={`absolute -inset-0.5 bg-gradient-to-r from-red-600 to-purple-600 rounded-lg blur opacity-25 group-hover:opacity-50 transition duration-1000 animate-tilt ${!match.winnerId && (match.teamAId === userTeamId || match.teamBId === userTeamId) ? 'opacity-75' : ''}`}></div>
+                                 <BracketMatch match={match} teams={teams} standings={standings} onHoverTeam={isCurrent ? setHighlightedTeam : () => {}} highlightedPath={highlightedPath} />
+                            </div>
+                        ))}
+                    </div>
+                </div>
+             );
+          })}
+      </div>
     )
 };
 
+interface IncomingOffer {
+  player: PlayerCard;
+  offeringTeamId: string;
+  offeringTeamName: string;
+  offerAmount: number;
+  playerOpinion: string;
+}
 
 export default function App() {
   const [onboardingComplete, setOnboardingComplete] = useState(false);
@@ -276,10 +463,11 @@ export default function App() {
   const [gameState, setGameState] = useState<GameState>({
     managerName: '',
     teamId: '',
-    coins: INITIAL_COINS,
+    coins: DIFFICULTY_SETTINGS.Normal.initialCoins,
     year: 2025,
-    currentSeason: 1,
+    currentSplit: 'SPRING',
     week: 0, 
+    difficulty: 'Normal',
     currentDay: 1, 
     stage: 'PRE_SEASON',
     groups: { A: [], B: [] },
@@ -298,16 +486,19 @@ export default function App() {
     schedule: [],
     playoffMatches: [],
     freeAgents: [],
-    trainingSlotsUsed: 0
+    trainingSlotsUsed: 0,
+    matchHistory: {}
   });
 
   const [market, setMarket] = useState<PlayerCard[]>([]);
   const [isScouting, setIsScouting] = useState(false);
   const [lastMatch, setLastMatch] = useState<MatchResult | null>(null);
-  const [filterRole, setFilterRole] = useState<Role | 'ALL'>('ALL');
+  const [filterRole, setFilterRole] = useState<Role | 'ALL' | 'COACH'>('ALL');
   const [filterStatus, setFilterStatus] = useState<'ALL' | 'FA' | 'TRANSFER'>('ALL');
   const [sortOrder, setSortOrder] = useState<'RATING' | 'PRICE' | 'SALARY'>('RATING');
   const [priceRange, setPriceRange] = useState({ min: 0, max: 20000 });
+  const [filterLeague, setFilterLeague] = useState<LeagueKey | 'ALL'>('ALL');
+  const [marketPage, setMarketPage] = useState(1);
 
   const [pendingSimResult, setPendingSimResult] = useState<{
     userResult: MatchResult,
@@ -329,36 +520,89 @@ export default function App() {
   const [negotiationFeedback, setNegotiationFeedback] = useState<string | null>(null);
 
   const [activeEventModal, setActiveEventModal] = useState<{event: PlayerEvent, player: PlayerCard} | null>(null);
+  const [retiredPlayerModal, setRetiredPlayerModal] = useState<PlayerCard | null>(null);
+  const [incomingOffers, setIncomingOffers] = useState<IncomingOffer[]>([]);
 
   const activeTeamData = activeLeague.teams.find(t => t.id === gameState.teamId) || null;
 
+  const allTeams = useMemo(() => {
+    return Object.values(LEAGUES).flatMap(league => league.teams);
+  }, []);
+
+  useEffect(() => {
+    setMarketPage(1);
+  }, [filterRole, filterStatus, sortOrder, priceRange, filterLeague]);
+
   useEffect(() => {
     if (onboardingComplete && gameState.standings.length === 0) {
-      const initialStandings = activeLeague.teams.map(t => ({
-        teamId: t.id,
-        name: t.shortName,
-        wins: 0,
-        losses: 0,
-        gameWins: 0,
-        gameLosses: 0,
-        streak: 0,
-        group: 'A' as 'A' | 'B' 
-      }));
+      let initialStandings: Standing[] = [];
+      if (activeLeague.settings.format === 'LPL') {
+         initialStandings = activeLeague.teams.map((t, index) => {
+             const groupCode = ['A', 'B', 'C', 'D'][index % 4] as 'A' | 'B' | 'C' | 'D';
+             return {
+                teamId: t.id,
+                name: t.shortName,
+                wins: 0,
+                losses: 0,
+                gameWins: 0,
+                gameLosses: 0,
+                streak: 0,
+                group: groupCode
+             };
+         });
+      } else {
+         initialStandings = activeLeague.teams.map(t => ({
+            teamId: t.id,
+            name: t.shortName,
+            wins: 0,
+            losses: 0,
+            gameWins: 0,
+            gameLosses: 0,
+            streak: 0,
+            group: 'A' as any 
+         }));
+      }
       setGameState(prev => ({ ...prev, standings: initialStandings }));
     }
-  }, [onboardingComplete, activeLeague.teams]);
+  }, [onboardingComplete, activeLeague]);
 
-  const handleOnboardingComplete = (name: string, team: TeamData, leagueKey: LeagueKey) => {
+  const handleOnboardingComplete = (name: string, team: TeamData, leagueKey: LeagueKey, difficulty?: Difficulty) => {
     const selectedLeague = LEAGUES[leagueKey];
     setActiveLeague(selectedLeague);
 
-    const shuffledPlayers = [...selectedLeague.players].sort(() => 0.5 - Math.random());
+    const finalDifficulty = difficulty || 'Normal';
+    const difficultySettings = DIFFICULTY_SETTINGS[finalDifficulty];
+    let startingCoins = difficultySettings.initialCoins;
+
+    const teamTier = getTeamTier(team.id);
+    let tierBonus = 0;
+    if (teamTier === 'S') tierBonus = 5000;
+    else if (teamTier === 'A') tierBonus = 2500;
+    else if (teamTier === 'B') tierBonus = 0;
+    else if (teamTier === 'C') tierBonus = -1000;
+
+    startingCoins += tierBonus;
+
+    const allPlayers = Object.entries(LEAGUES).flatMap(([key, leagueData]) => 
+      leagueData.players.map(p => ({ ...p, league: key as LeagueKey }))
+    );
+
+    const userTeamPlayers = allPlayers
+      .filter(p => p.team === team.shortName)
+      .map(p => ({ ...p, contractDuration: 2, price: 0 }));
+
+    const marketPlayers = allPlayers
+      .filter(p => p.team !== team.shortName)
+      .sort(() => 0.5 - Math.random());
     
     setGameState(prev => ({
       ...prev,
       managerName: name,
       teamId: team.id,
-      inventory: [],
+      difficulty: finalDifficulty,
+      coins: startingCoins,
+      inventory: userTeamPlayers,
+      standings: [], // startSeason'da oluşturulacak
       roster: {
         [Role.TOP]: null,
         [Role.JUNGLE]: null,
@@ -369,22 +613,57 @@ export default function App() {
       }
     }));
     
-    setMarket(shuffledPlayers);
+    setMarket(marketPlayers);
     setOnboardingComplete(true);
     setTab('market'); 
   };
 
+  const processPlayerProgression = (player: PlayerCard, clutchFactor: number) => {
+      let newStats = { ...player.stats };
+      const age = player.age;
+      let growthChance = 0.4;
+      let declineChance = 0.0;
+
+      if (age < 22) growthChance = 0.7;
+      else if (age > 26) { growthChance = 0.1; declineChance = 0.4; }
+
+      if (clutchFactor > 0) {
+          growthChance += 0.2;
+          declineChance = 0; 
+      }
+
+      if (Math.random() < growthChance) {
+          if (Math.random() > 0.5) newStats.mechanics = Math.min(99, newStats.mechanics + 0.2);
+          if (Math.random() > 0.5) newStats.macro = Math.min(99, newStats.macro + 0.2);
+      }
+      if (Math.random() < declineChance) {
+          newStats.mechanics = Math.max(60, newStats.mechanics - 1);
+      }
+      
+      const newOverall = Math.round((newStats.mechanics + newStats.macro + newStats.lane + newStats.teamfight) / 4);
+      return { ...player, stats: newStats, overall: newOverall, previousOverall: player.overall, age: player.age + 1 };
+  };
+
   const filteredMarket = useMemo(() => {
-    let result = [...market];
+    const allKnownPlayers = [...market, ...gameState.freeAgents];
+    let source = filterStatus === 'RETIRED' ? allKnownPlayers : market;
+
+    let result = [...source];
 
     if (filterRole !== 'ALL') {
       result = result.filter(p => p.role === filterRole);
     }
 
-    if (filterStatus === 'FA') {
+    if (filterStatus === 'RETIRED') {
+      result = result.filter(p => p.status === 'retired');
+    } else if (filterStatus === 'FA') {
       result = result.filter(p => p.team === 'FA' || p.team === 'ACA');
     } else if (filterStatus === 'TRANSFER') {
       result = result.filter(p => p.team !== 'FA' && p.team !== 'ACA');
+    }
+
+    if (filterLeague !== 'ALL') {
+      result = result.filter(p => p.league === filterLeague as LeagueKey);
     }
 
     result = result.filter(p => {
@@ -400,29 +679,32 @@ export default function App() {
     });
 
     return result;
-  }, [market, filterRole, filterStatus, sortOrder, priceRange]);
+  }, [market, filterRole, filterStatus, sortOrder, priceRange, filterLeague, gameState.freeAgents]);
+
+  const PLAYERS_PER_PAGE = 12;
+  const paginatedMarket = useMemo(() => {
+    const startIndex = (marketPage - 1) * PLAYERS_PER_PAGE;
+    const endIndex = startIndex + PLAYERS_PER_PAGE;
+    return filteredMarket.slice(startIndex, endIndex);
+  }, [filteredMarket, marketPage]);
 
   const getActiveSynergies = useCallback((roster: Record<Role, PlayerCard | null> | Record<string, PlayerCard>) => {
     const players = Object.values(roster).filter(p => p !== null) as PlayerCard[];
-    const counts: Record<string, number> = {};
+    const leagueCounts: Record<string, number> = {};
     
     players.forEach(p => {
-      if (['FA', 'ACA'].includes(p.team)) return;
-      counts[p.team] = (counts[p.team] || 0) + 1;
+      if (p.league) {
+        leagueCounts[p.league] = (leagueCounts[p.league] || 0) + 1;
+      }
     });
 
-    const synergies: { team: string, count: number, bonus: number }[] = [];
+    const synergies: { league: string, count: number, bonus: number }[] = [];
     let totalBonus = 0;
 
-    Object.entries(counts).forEach(([team, count]) => {
+    Object.entries(leagueCounts).forEach(([league, count]) => {
       if (count >= 2) {
-        let bonus = 0;
-        if (count === 2) bonus = 2;
-        if (count === 3) bonus = 4;
-        if (count === 4) bonus = 6;
-        if (count === 5) bonus = 10;
-        
-        synergies.push({ team, count, bonus });
+        const bonus = count * count;
+        synergies.push({ league, count, bonus });
         totalBonus += bonus;
       }
     });
@@ -430,43 +712,50 @@ export default function App() {
     return { synergies, totalBonus };
   }, []);
 
-  const getTeamPower = useCallback((teamId: string = gameState.teamId) => {
-    if (teamId === gameState.teamId) {
-      const players = Object.values(gameState.roster).filter(p => p !== null) as PlayerCard[];
-      if (players.length === 0) return 0;
-      
-      const baseTotal = players.reduce((acc, p) => acc + p.overall, 0);
-      const { totalBonus } = getActiveSynergies(gameState.roster);
-      
-      return Math.round(baseTotal / 5) + totalBonus;
-    } else {
-      if (gameState.aiRosters[teamId]) {
-         const roster = gameState.aiRosters[teamId];
-         const { totalBonus } = getActiveSynergies(roster as unknown as Record<string, PlayerCard>);
-         const players = Object.values(roster) as PlayerCard[];
-         
-         if (players.length > 0) {
-            const total = players.reduce((acc, p) => acc + p.overall, 0);
-            return Math.round(total / 5) + totalBonus;
-         }
-      }
-      const baseMap: Record<string, number> = {
-        't1': 95, 'geng': 94, 'hle': 91, 'dk': 89, 'kt': 87,
-        'kdf': 84, 'drx': 80, 'fox': 81, 'ns': 79, 'bro': 77
-      };
-      return baseMap[teamId] || 80;
-    }
-  }, [gameState.roster, gameState.teamId, gameState.aiRosters, getActiveSynergies]);
-
   const getTeamMoraleModifier = (roster: Record<Role, PlayerCard | null>): number => {
     const players = Object.values(roster).filter((p): p is PlayerCard => p !== null && p.role !== Role.COACH);
     if (players.length === 0) return 0;
-
     const avgMorale = players.reduce((acc, p) => acc + (p.morale ?? 50), 0) / players.length;
-    
     const modifier = Math.round((avgMorale - 50) / 10);
     return modifier;
   };
+
+  const getTeamPower = useCallback((teamId: string = gameState.teamId) => {
+    const roster = teamId === gameState.teamId ? gameState.roster : gameState.aiRosters[teamId];
+    if (!roster) {
+        const baseMap: Record<string, number> = {
+            't1': 95, 'geng': 94, 'hle': 91, 'dk': 89, 'kt': 87,
+            'kdf': 84, 'drx': 80, 'fox': 81, 'ns': 79, 'bro': 77
+        };
+        return baseMap[teamId] || 80;
+    }
+
+    const players = Object.values(roster).filter((p): p is PlayerCard => p !== null && p.role !== Role.COACH);
+    if (players.length < 5) {
+        // Eğer kadro tam değilse, genel takım gücünden bir tahmin yap
+        const teamData = allTeams.find(t => t.id === teamId);
+        const tier = teamData ? getTeamTier(teamData.id) : 'C';
+        switch(tier) {
+            case 'S': return 92;
+            case 'A': return 88;
+            case 'B': return 84;
+            case 'C': return 80;
+            default: return 78;
+        }
+    }
+
+    const baseTotal = players.reduce((acc, p) => acc + p.overall, 0);
+    const { totalBonus } = getActiveSynergies(roster as Record<Role, PlayerCard | null>);
+    const moraleModifier = getTeamMoraleModifier(roster as Record<Role, PlayerCard | null>);
+
+    // Koç bonusu
+    const coach = (roster as Record<Role, PlayerCard | null>)[Role.COACH];
+    const coachBonus = coach ? Math.floor(coach.overall / 20) : 0; // Örn: 90 OVR koç +4.5 -> 4 güç verir
+
+    return Math.round(baseTotal / 5) + totalBonus + moraleModifier + coachBonus;
+
+}, [gameState.roster, gameState.teamId, gameState.aiRosters, getActiveSynergies, allTeams]);
+
 
   const updateTeamMorale = (roster: Record<Role, PlayerCard | null>, didWin: boolean, streak: number): Record<Role, PlayerCard | null> => {
     const newRoster = { ...roster };
@@ -492,32 +781,32 @@ export default function App() {
   };
 
   const generateRandomEvent = (roster: Record<Role, PlayerCard | null>): { player: PlayerCard, event: PlayerEvent } | null => {
-     if (Math.random() > 0.05) return null;
-     const players = Object.values(roster).filter((p): p is PlayerCard => p !== null);
-     if (players.length === 0) return null;
-     const player = players[Math.floor(Math.random() * players.length)];
-     const scenarios: Omit<PlayerEvent, 'id' | 'duration' | 'penalty'>[] = [
+      if (Math.random() > 0.05) return null;
+      const players = Object.values(roster).filter((p): p is PlayerCard => p !== null);
+      if (players.length === 0) return null;
+      const player = players[Math.floor(Math.random() * players.length)];
+      const scenarios: Omit<PlayerEvent, 'id' | 'duration' | 'penalty'>[] = [
         { type: 'INJURY', title: 'Finger Sprain', description: '{player} jammed their finger during practice.' },
         { type: 'INJURY', title: 'Wrist Pain', description: '{player} is complaining of wrist fatigue.' },
         { type: 'MORALE', title: 'Bad Mood', description: '{player} is feeling down after a solo queue loss streak.' },
         { type: 'DRAMA', title: 'Internal Conflict', description: '{player} argued with the coaching staff.' },
         { type: 'CONTRACT', title: 'Secret Talks', description: 'Rumors say {player} is talking to other teams.' },
-     ];
-     const scenario = scenarios[Math.floor(Math.random() * scenarios.length)];
-     const duration = Math.floor(Math.random() * 3) + 2; 
-     const penalty: Partial<PlayerCard['stats']> = {};
-     if (scenario.type === 'INJURY') penalty.mechanics = Math.floor(Math.random() * 5) + 3; 
-     else if (scenario.type === 'MORALE') { penalty.lane = 3; penalty.teamfight = 3; }
-     else if (scenario.type === 'DRAMA') penalty.teamfight = 5; 
-     else if (scenario.type === 'CONTRACT') penalty.macro = 4;
+      ];
+      const scenario = scenarios[Math.floor(Math.random() * scenarios.length)];
+      const duration = Math.floor(Math.random() * 3) + 2; 
+      const penalty: Partial<PlayerCard['stats']> = {};
+      if (scenario.type === 'INJURY') penalty.mechanics = Math.floor(Math.random() * 5) + 3; 
+      else if (scenario.type === 'MORALE') { penalty.lane = 3; penalty.teamfight = 3; }
+      else if (scenario.type === 'DRAMA') penalty.teamfight = 5; 
+      else if (scenario.type === 'CONTRACT') penalty.macro = 4;
 
-     return { player, event: { id: crypto.randomUUID(), ...scenario, duration, penalty } };
+      return { player, event: { id: crypto.randomUUID(), ...scenario, duration, penalty } };
   };
 
   const processEvents = (prevGameState: GameState): { roster: GameState['roster'], notifications: string[] } => {
-     let newRoster = { ...prevGameState.roster };
-     const notifications: string[] = [];
-     Object.keys(newRoster).forEach(key => {
+      let newRoster = { ...prevGameState.roster };
+      const notifications: string[] = [];
+      Object.keys(newRoster).forEach(key => {
         const role = key as Role;
         const player = newRoster[role];
         if (player && player.events && player.events.length > 0) {
@@ -544,8 +833,8 @@ export default function App() {
                 newRoster[role] = { ...player, events: updatedEvents };
             }
         }
-     });
-     return { roster: newRoster, notifications };
+      });
+      return { roster: newRoster, notifications };
   };
 
   const scoutMarket = async () => {
@@ -738,6 +1027,107 @@ export default function App() {
      }
   };
 
+  const handleHireRetired = (player: PlayerCard, as: 'coach' | 'player') => {
+    const cost = as === 'coach' ? Math.floor(player.salary * 0.75) : Math.floor(player.salary * 1.5);
+
+    if (gameState.coins < cost) {
+      showNotification('error', 'Insufficient funds.');
+      return;
+    }
+
+    const newPlayer: PlayerCard = {
+      ...player,
+      team: activeTeamData?.shortName || 'MY TEAM',
+      contractDuration: 2,
+      status: undefined,
+      role: as === 'coach' ? Role.COACH : player.originalRole || player.role,
+      salary: as === 'player' ? Math.floor(player.salary * 1.2) : player.salary,
+    };
+
+    setGameState(prev => {
+      const isRosterSlotFree = !prev.roster[newPlayer.role];
+      const newRoster = { ...prev.roster };
+      const newInventory = [...prev.inventory];
+
+      if (isRosterSlotFree) {
+        newRoster[newPlayer.role] = newPlayer;
+      } else {
+        newInventory.push(newPlayer);
+      }
+
+      return {
+        ...prev,
+        coins: prev.coins - cost,
+        inventory: newInventory,
+        roster: newRoster,
+        freeAgents: prev.freeAgents.filter(p => p.id !== player.id)
+      };
+    });
+
+    setMarket(prev => prev.filter(p => p.id !== player.id));
+    setRetiredPlayerModal(null);
+    showNotification('success', `${player.name} has joined your team as a ${as}!`);
+  };
+
+  const handleAiTransfers = (currentGameState: GameState): Partial<GameState> => {
+    const aiTeams = activeLeague.teams.filter(t => t.id !== currentGameState.teamId);
+    let newAiRosters = JSON.parse(JSON.stringify(currentGameState.aiRosters));
+    let newFreeAgents = JSON.parse(JSON.stringify(currentGameState.freeAgents));
+    const transferLogs: string[] = [];
+    const difficulty = currentGameState.difficulty;
+
+    const settings = {
+      Easy: { attemptChance: 0.2, upgradeThreshold: 5 },
+      Normal: { attemptChance: 0.5, upgradeThreshold: 3 },
+      Hard: { attemptChance: 0.8, upgradeThreshold: 2 },
+    };
+
+    const { attemptChance, upgradeThreshold } = settings[difficulty];
+
+    aiTeams.forEach(team => {
+       
+        if (Math.random() > attemptChance) return;
+
+        const roster = newAiRosters[team.id];
+        if (!roster) return;
+
+        const rosterPlayers = Object.values(roster) as PlayerCard[];
+        if (rosterPlayers.length === 0) return;
+
+        const weakestPlayer = rosterPlayers.reduce((min, p) => p.overall < min.overall ? p : min, rosterPlayers[0]);
+
+        const potentialUpgrades: PlayerCard[] = [];
+        Object.entries(newAiRosters).forEach(([otherTeamId, otherRoster]) => {
+            if (otherTeamId === team.id) return;
+            const otherPlayers = Object.values(otherRoster as any) as PlayerCard[];
+            potentialUpgrades.push(...otherPlayers.filter(p => p.role === weakestPlayer.role && p.overall > weakestPlayer.overall + upgradeThreshold));
+        });
+        potentialUpgrades.push(...newFreeAgents.filter(p => p.role === weakestPlayer.role && p.overall > weakestPlayer.overall + upgradeThreshold));
+
+        if (potentialUpgrades.length > 0) {
+            const upgrade = potentialUpgrades.sort((a, b) => b.overall - a.overall)[0];
+
+            if (upgrade.team === 'FA' || upgrade.team === 'ACA') {
+                newAiRosters[team.id][weakestPlayer.role] = { ...upgrade, team: team.shortName };
+                newFreeAgents = newFreeAgents.filter(p => p.id !== upgrade.id);
+                newFreeAgents.push({ ...weakestPlayer, team: 'FA', contractDuration: 0, price: 0 });
+                transferLogs.push(`${team.shortName} signed ${upgrade.name} (FA) and released ${weakestPlayer.name}.`);
+            } else {
+                const otherTeamId = activeLeague.teams.find(t => t.shortName === upgrade.team)?.id;
+                if (otherTeamId && newAiRosters[otherTeamId]) {
+                    newAiRosters[team.id][weakestPlayer.role] = { ...upgrade, team: team.shortName };
+                    newAiRosters[otherTeamId][upgrade.role] = { ...weakestPlayer, team: upgrade.team };
+                    transferLogs.push(`${team.shortName} traded for ${upgrade.name} from ${upgrade.team}, sending ${weakestPlayer.name}.`);
+                }
+            }
+        }
+    });
+
+    if (transferLogs.length > 0) showNotification('success', `AI teams made ${transferLogs.length} transfers!`);
+
+    return { aiRosters: newAiRosters, freeAgents: newFreeAgents };
+  };
+
   const startSeason = () => {
     if (!isRosterComplete()) {
       setError("You must sign a player for every role to start the season!");
@@ -745,55 +1135,148 @@ export default function App() {
       return;
     }
 
-    const userPlayerIds = new Set([
+    const allPlayerIdsInUse = new Set([
         ...gameState.inventory.map(p => p.id),
         ...(Object.values(gameState.roster) as (PlayerCard | null)[]).filter(p => p).map(p => p!.id)
     ]);
+    Object.values(gameState.aiRosters).forEach(roster => Object.values(roster).forEach(p => allPlayerIdsInUse.add(p.id)));
 
-    const aiTeams = activeLeague.teams.filter(t => t.id !== gameState.teamId);
     const roles = [Role.TOP, Role.JUNGLE, Role.MID, Role.ADC, Role.SUPPORT];
     
     setGameState(prev => {
-        const newAiRosters = { ...prev.aiRosters };
-        const pool = [...activeLeague.players, ...prev.freeAgents].filter(p => !userPlayerIds.has(p.id));
+        // 1. ADIM: AI TAKIMLARI İÇİN KADRO DOLDURMA
+        const transferUpdates = handleAiTransfers(prev); // Off-season transferleri
 
-        aiTeams.forEach(team => {
-            if (!newAiRosters[team.id]) newAiRosters[team.id] = {} as any;
+        const newAiRosters = { ...prev.aiRosters };
+        const allPlayers = Object.entries(LEAGUES).flatMap(([key, leagueData]) => 
+          leagueData.players.map(p => ({ ...p, league: key as LeagueKey }))
+        );
+
+        const pool = [...allPlayers, ...prev.freeAgents].filter(p => !allPlayerIdsInUse.has(p.id));
+        const allAiTeams = Object.values(LEAGUES).flatMap(l => l.teams).filter(t => t.id !== prev.teamId);
+
+        allAiTeams.forEach(team => {
+            const teamLeagueKey = Object.keys(LEAGUES).find(key => 
+                (LEAGUES as any)[key].teams.some((t: TeamData) => t.id === team.id)
+            ) as LeagueKey | undefined;
+
+            if (!teamLeagueKey) return;
+
+            // Eğer takımın 5 oyuncusu varsa dokunma
+            if (newAiRosters[team.id] && Object.keys(newAiRosters[team.id]).length >= 5) return;
+
+            const newRoster: Record<Role, PlayerCard> = newAiRosters[team.id] ? {...newAiRosters[team.id]} as any : {} as any;
+
+            const roll = Math.random();
+            const foreignPlayerCount = roll < 0.25 ? 2 : 1;
+            let currentForeignPlayers = 0;
+
             roles.forEach(role => {
-                if (!newAiRosters[team.id][role]) {
-                    const playerIndex = pool.findIndex(p => p.role === role);
-                    if (playerIndex >= 0) {
-                        const player = pool[playerIndex];
-                        newAiRosters[team.id][role] = { ...player, team: team.shortName, contractDuration: 2 };
-                        pool.splice(playerIndex, 1); 
-                    } else {
-                        newAiRosters[team.id][role] = { ...activeLeague.players[0], id: `gen-${team.id}-${role}-${Date.now()}`, name: `Rookie ${role}`, role, overall: 70, age: 18, price: 0, salary: 20, contractDuration: 2, rarity: Rarity.COMMON, stats: {mechanics:70, macro:70, lane:70, teamfight:70}, team: team.shortName };
+                // Eğer o rolde oyuncu zaten varsa atla
+                if (newRoster[role]) return;
+
+                let playerIndex = pool.findIndex(p => p.role === role && p.league === teamLeagueKey);
+                let useForeign = false;
+
+                if (playerIndex === -1 || (currentForeignPlayers < foreignPlayerCount && Math.random() < 0.4)) {
+                    const foreignIndex = pool.findIndex(p => p.role === role && p.league !== teamLeagueKey);
+                    if (foreignIndex !== -1) {
+                        playerIndex = foreignIndex;
+                        useForeign = true;
                     }
                 }
+
+                if (playerIndex >= 0) {
+                    const player = pool[playerIndex];
+                    newRoster[role] = { ...player, team: team.shortName, contractDuration: 2 };
+                    pool.splice(playerIndex, 1);
+                    if (useForeign) currentForeignPlayers++;
+                } else {
+                    // Oyuncu bulunamazsa Rookie oluştur
+                    newRoster[role] = { ...activeLeague.players[0], id: `gen-${team.id}-${role}-${Date.now()}`, name: `Rookie ${role}`, role, overall: 70, age: 18, price: 0, salary: 20, contractDuration: 2, rarity: Rarity.COMMON, stats: {mechanics:70, macro:70, lane:70, teamfight:70}, team: team.shortName, league: teamLeagueKey };
+                }
             });
+            newAiRosters[team.id] = newRoster;
         });
 
-        const groups = drawGroups(activeLeague.teams);
-        const schedule = generateGroupStageSchedule(groups, activeLeague.settings);
+        // 2. ADIM: FİKSTÜR (SCHEDULE) OLUŞTURMA
+        // Ligin türüne göre (LPL veya Standart) fikstürü burada ayırıyoruz.
         
-        const newStandings = activeLeague.teams.map(t => ({
-            teamId: t.id,
-            name: t.shortName,
-            wins: 0,
-            losses: 0,
-            gameWins: 0,
-            gameLosses: 0,
-            streak: 0,
-            group: groups.A.includes(t.id) ? 'A' : 'B'
-        } as Standing));
+        let groups, schedule, newStandings;
+
+        if (activeLeague.settings.format === 'LPL') {
+            // LPL Fikstür Mantığı
+            if (prev.currentSplit === 'SUMMER') {
+                // Summer Split için hesaplama (yardımcı fonksiyondan veriyi alıyoruz)
+                const lplState = startLPLSplit2(prev);
+                groups = lplState.groups;
+                schedule = lplState.schedule;
+                newStandings = lplState.standings;
+            } else {
+                const teams = activeLeague.teams;
+                const shuffledTeams = [...teams].sort(() => 0.5 - Math.random());
+                groups = {
+                  A: shuffledTeams.slice(0, 4).map(t => t.id),
+                  B: shuffledTeams.slice(4, 8).map(t => t.id),
+                  C: shuffledTeams.slice(8, 12).map(t => t.id),
+                  D: shuffledTeams.slice(12, 16).map(t => t.id),
+                };
+
+                schedule = [];
+                let matchIdCounter = 0;
+                Object.values(groups).forEach((group) => {
+                  for (let i = 0; i < group.length; i++) {
+                    for (let j = i + 1; j < group.length; j++) {
+                      schedule.push({
+                        id: `lpl-s1-${matchIdCounter++}`,
+                        round: Math.floor(matchIdCounter / 2) + 1,
+                        week: Math.ceil((matchIdCounter / 2 + 1) / 5),
+                        teamAId: group[i] as string,
+                        teamBId: group[j],
+                        played: false,
+                        isBo5: true, 
+                      });
+                    }
+                  }
+                });
+
+                newStandings = teams.map(t => ({
+                  teamId: t.id,
+                  name: t.shortName,
+                  wins: 0,
+                  losses: 0,
+                  gameWins: 0,
+                  gameLosses: 0,
+                  streak: 0,
+                  group: Object.keys(groups).find(key => (groups as any)[key].includes(t.id)) as 'A' | 'B' | 'C' | 'D'
+                }));
+            }
+
+        } else {
+            // Standart Lig Fikstür Mantığı (LCK, LEC, TCL vb.)
+            groups = drawGroups(activeLeague.teams);
+            schedule = generateGroupStageSchedule(groups, activeLeague.settings);
+            
+            newStandings = activeLeague.teams.map(t => ({
+                teamId: t.id,
+                name: t.shortName,
+                wins: 0,
+                losses: 0,
+                gameWins: 0,
+                gameLosses: 0,
+                streak: 0,
+                group: groups.A.includes(t.id) ? 'A' : 'B'
+            } as Standing));
+        }
 
         return { 
             ...prev, 
+            ...transferUpdates, 
             stage: 'GROUP_STAGE',
             week: 1, 
             currentDay: 1,
             schedule: schedule,
-            groups: groups || { A: [], B: [] },
+            groups: groups,
             standings: newStandings,
             aiRosters: newAiRosters,
             winnersGroup: null,
@@ -802,117 +1285,467 @@ export default function App() {
     });
     setTab('schedule');
   };
-  
-  const processPlayerProgression = (player: PlayerCard, clutchFactor: number) => {
-      let newStats = { ...player.stats };
-      const age = player.age;
-      let growthChance = 0.4;
-      let declineChance = 0.0;
 
-      if (age < 22) growthChance = 0.7;
-      else if (age > 26) { growthChance = 0.1; declineChance = 0.4; }
+  const startLPLSplit1Playoffs = (prev: GameState): GameState => {
+    const { standings, groups } = prev;
+    if (!groups) return prev;
 
-      if (clutchFactor > 0) {
-          growthChance += 0.2;
-          declineChance = 0; 
-      }
+    const getGroupRankings = (groupKey: string) => {
+        return standings
+            .filter(s => s.group === groupKey)
+            .sort((a, b) => b.wins - a.wins || (b.gameWins - b.gameLosses) - (a.gameWins - a.gameLosses));
+    };
 
-      if (Math.random() < growthChance) {
-          if (Math.random() > 0.5) newStats.mechanics = Math.min(99, newStats.mechanics + 1);
-          if (Math.random() > 0.5) newStats.macro = Math.min(99, newStats.macro + 1);
-      }
-      if (Math.random() < declineChance) {
-          newStats.mechanics = Math.max(60, newStats.mechanics - 1);
-      }
-      
-      const newOverall = Math.round((newStats.mechanics + newStats.macro + newStats.lane + newStats.teamfight) / 4);
-      return { ...player, stats: newStats, overall: newOverall, previousOverall: player.overall, age: player.age + 1 };
+    const groupA = getGroupRankings('A');
+    const groupB = getGroupRankings('B');
+    const groupC = getGroupRankings('C');
+    const groupD = getGroupRankings('D');
+
+    const seeds = {
+        UB1: groupA[0]?.teamId, UB2: groupB[0]?.teamId, UB3: groupC[0]?.teamId, UB4: groupD[0]?.teamId,
+        LB1: groupA[1]?.teamId, LB2: groupB[1]?.teamId, LB3: groupC[1]?.teamId, LB4: groupD[1]?.teamId
+    };
+
+    if (!seeds.UB1 || !seeds.LB1) {
+        console.error("Playoff oluşturulamadı: Yeterli takım yok.");
+        return prev;
+    }
+
+    const matches: PlayoffMatch[] = [
+        { id: 'ub-r1-1', roundName: 'Upper Semis', teamAId: seeds.UB1, teamBId: seeds.UB4, nextMatchId: 'ub-final', nextMatchSlot: 'A', loserMatchId: 'lb-r2-1', loserMatchSlot: 'A', isBo5: true },
+        { id: 'ub-r1-2', roundName: 'Upper Semis', teamAId: seeds.UB2, teamBId: seeds.UB3, nextMatchId: 'ub-final', nextMatchSlot: 'B', loserMatchId: 'lb-r2-2', loserMatchSlot: 'A', isBo5: true },
+
+        { id: 'lb-r1-1', roundName: 'Lower Round 1', teamAId: seeds.LB1, teamBId: seeds.LB4, nextMatchId: 'lb-r2-1', nextMatchSlot: 'B', isBo5: true },
+        { id: 'lb-r1-2', roundName: 'Lower Round 1', teamAId: seeds.LB2, teamBId: seeds.LB3, nextMatchId: 'lb-r2-2', nextMatchSlot: 'B', isBo5: true },
+
+        { id: 'lb-r2-1', roundName: 'Lower Round 2', teamAId: null, teamBId: null, nextMatchId: 'lb-semis', nextMatchSlot: 'A', isBo5: true },
+        { id: 'lb-r2-2', roundName: 'Lower Round 2', teamAId: null, teamBId: null, nextMatchId: 'lb-semis', nextMatchSlot: 'B', isBo5: true },
+
+        { id: 'lb-semis', roundName: 'Lower Semis', teamAId: null, teamBId: null, nextMatchId: 'lb-final', nextMatchSlot: 'B', isBo5: true },
+
+        { id: 'ub-final', roundName: 'Upper Final', teamAId: null, teamBId: null, nextMatchId: 'grand-final', nextMatchSlot: 'A', loserMatchId: 'lb-final', loserMatchSlot: 'A', isBo5: true },
+
+        { id: 'lb-final', roundName: 'Lower Final', teamAId: null, teamBId: null, nextMatchId: 'grand-final', nextMatchSlot: 'B', isBo5: true },
+
+        { id: 'grand-final', roundName: 'Grand Final', teamAId: null, teamBId: null, isBo5: true },
+    ];
+
+    return {
+        ...prev,
+        stage: 'PLAYOFFS',
+        week: 10,
+        matchHistory: { ...prev.matchHistory, [`${prev.year} ${prev.currentSplit}`]: { schedule: prev.schedule, standings: prev.standings, groups: prev.groups } },
+        playoffMatches: matches
+    };
   };
 
-  const advanceSeason = () => { 
-      let seasonReward = 1000;
+  const startLPLSplit2 = (prev: GameState): GameState => {
+    const split1HistoryKey = `${prev.year} Split 1 Playoffs`; // Anahtar ismini düzelttik
+    const split1Playoffs = prev.matchHistory[split1HistoryKey]?.playoffs;
+
+    let finalRankings: { teamId: string, rank: number }[] = [];
+    
+    if (split1Playoffs) {
+        const gf = split1Playoffs.find(m => m.id === 'grand-final');
+        if (gf?.winnerId) finalRankings.push({ teamId: gf.winnerId, rank: 1 });
+        const gfLoser = gf?.winnerId === gf?.teamAId ? gf?.teamBId : gf?.teamAId;
+        if (gfLoser) finalRankings.push({ teamId: gfLoser, rank: 2 });
+
+        const groupStageLosers = prev.matchHistory[`${prev.year} Split 1`]?.standings // Anahtar ismini düzelttik
+            ?.filter(s => !finalRankings.some(r => r.teamId === s.teamId))
+            .sort((a, b) => b.wins - a.wins)
+            .map(s => s.teamId) || [];
+        
+        groupStageLosers.forEach((teamId, index) => {
+             if (!finalRankings.some(r => r.teamId === teamId)) {
+                finalRankings.push({ teamId, rank: 3 + index });
+             }
+        });
+    } else {
+        finalRankings = LEAGUES.LPL.teams.map((t, i) => ({ teamId: t.id, rank: i + 1 }));
+    }
+
+    const pools: Record<string, string[]> = {
+        '1': finalRankings.filter(r => r.rank >= 1 && r.rank <= 4).map(r => r.teamId),
+        '2': finalRankings.filter(r => r.rank >= 5 && r.rank <= 8).map(r => r.teamId),
+        '3': finalRankings.filter(r => r.rank >= 9 && r.rank <= 12).map(r => r.teamId),
+        '4': finalRankings.filter(r => r.rank >= 13 && r.rank <= 16).map(r => r.teamId),
+    };
+
+    const groups = {
+        A: [pools['1'][0], pools['2'][3], pools['3'][2], pools['4'][1]].filter(t=>t),
+        B: [pools['1'][1], pools['2'][2], pools['3'][3], pools['4'][0]].filter(t=>t),
+        C: [pools['1'][2], pools['2'][1], pools['3'][0], pools['4'][3]].filter(t=>t),
+        D: [pools['1'][3], pools['2'][0], pools['3'][1], pools['4'][2]].filter(t=>t),
+    };
+
+    const schedule: ScheduledMatch[] = [];
+    let matchIdCounter = 0;
+
+    Object.values(groups).forEach(group => {
+        for (let i = 0; i < group.length; i++) {
+            for (let j = i + 1; j < group.length; j++) {
+                schedule.push({ id: `lpl-s2-pl-${matchIdCounter++}`, round: matchIdCounter, week: Math.ceil(matchIdCounter / 8), teamAId: group[i], teamBId: group[j], played: false, isBo5: false });
+            }
+        }
+        for (let i = 0; i < group.length; i++) {
+            for (let j = i + 1; j < group.length; j++) {
+                schedule.push({ id: `lpl-s2-pl-${matchIdCounter++}`, round: matchIdCounter, week: Math.ceil(matchIdCounter / 8), teamAId: group[j], teamBId: group[i], played: false, isBo5: false });
+            }
+        }
+    });
+
+    const shuffledSchedule = schedule.sort(() => 0.5 - Math.random()).map((m, idx) => ({ ...m, round: idx + 1, week: Math.ceil((idx + 1) / 8) }));
+
+    const newStandings = LEAGUES.LPL.teams.map(t => ({
+      teamId: t.id, name: t.shortName, wins: 0, losses: 0, gameWins: 0, gameLosses: 0, streak: 0,
+      group: Object.keys(groups).find(key => (groups as any)[key].includes(t.id)) as 'A' | 'B' | 'C' | 'D'
+    }));
+
+    return {
+      ...prev,
+      stage: 'LPL_SPLIT_2_PLACEMENTS',
+      week: 1,
+      currentDay: 1,
+      schedule: shuffledSchedule,
+      groups: groups,
+      standings: newStandings,
+      playoffMatches: [],
+    };
+  };
+
+  const endLPLPlacementStage = (currentGameState: GameState) => {
+    const { standings, schedule } = currentGameState;
+    const sortStandings = (groupCode: string) => {
+        return standings.filter(s => s.group === groupCode).sort((a, b) => b.wins - a.wins); // Basit sıralama, H2H eklenebilir
+    };
+
+    const groupA = sortStandings('A');
+    const groupB = sortStandings('B');
+    const groupC = sortStandings('C');
+    const groupD = sortStandings('D');
+    const allGroups = [groupA, groupB, groupC, groupD];
+
+    const lcqTeams: string[] = [];
+    allGroups.forEach(grp => {
+        if (grp[2]) lcqTeams.push(grp[2].teamId);
+    });
+
+    initializeLPLLCQ(lcqTeams);
+  };
+
+  const initializeLPLLCQ = (lcqTeams: string[]) => {
+      const teams = [...lcqTeams].sort(() => 0.5 - Math.random());
+      const matches: PlayoffMatch[] = [
+          { id: 'lcq-r1-1', roundName: 'LCQ Round 1', teamAId: teams[0], teamBId: teams[1], nextMatchId: 'lcq-winner-match', nextMatchSlot: 'A', loserMatchId: 'lcq-loser-match', loserMatchSlot: 'A', isBo5: true },
+          { id: 'lcq-r1-2', roundName: 'LCQ Round 1', teamAId: teams[2], teamBId: teams[3], nextMatchId: 'lcq-winner-match', nextMatchSlot: 'B', loserMatchId: 'lcq-loser-match', loserMatchSlot: 'B', isBo5: true },
+          { id: 'lcq-winner-match', roundName: 'LCQ Winners Match', teamAId: null, teamBId: null, isBo5: true },
+          { id: 'lcq-loser-match', roundName: 'LCQ Elimination Match', teamAId: null, teamBId: null, nextMatchId: 'lcq-decider', nextMatchSlot: 'B', isBo5: true },
+          { id: 'lcq-decider', roundName: 'LCQ Decider Match', teamAId: null, teamBId: null, isBo5: true } 
+      ];
+
+      setGameState(prev => ({
+          ...prev,
+          stage: 'LPL_SPLIT_2_LCQ',
+          matchHistory: { ...prev.matchHistory, [`${prev.year} Split 2 Placements`]: { schedule: prev.schedule, standings: prev.standings } },
+          playoffMatches: matches,
+          schedule: [],
+      }));
+      setTab('play');
+      showNotification('success', 'Placements concluded! Proceeding to Last Chance Qualifier.');
+  };
+
+  const startLPLSplit2Playoffs = (prev: GameState): void => { 
+      // LPL Split 2 Playoffları: Buradan çıkan en iyi takımlar MSI'a gidecek.
+      // Basitlik adına LCQ ve Group Ascend'den gelen en iyi 4 takımı alıyoruz.
+      
+      // Örnek: Ligdeki en güçlü 4 takımı al (Simülasyon mantığı)
+      const topTeams = LEAGUES.LPL.teams
+        .sort((a, b) => getTeamTier(a.id).localeCompare(getTeamTier(b.id))) // S tier önce gelir
+        .slice(0, 4)
+        .map(t => t.id);
+      
+      const matches: PlayoffMatch[] = [
+          { id: 'lpl-s2-sf-1', roundName: 'Semifinals', teamAId: topTeams[0], teamBId: topTeams[3], nextMatchId: 'lpl-s2-final', nextMatchSlot: 'A', isBo5: true },
+          { id: 'lpl-s2-sf-2', roundName: 'Semifinals', teamAId: topTeams[1], teamBId: topTeams[2], nextMatchId: 'lpl-s2-final', nextMatchSlot: 'B', isBo5: true },
+          { id: 'lpl-s2-final', roundName: 'Grand Final', teamAId: null, teamBId: null, isBo5: true }
+      ];
+
+      setGameState(p => ({
+          ...p,
+          stage: 'PLAYOFFS',
+          currentSplit: 'SPLIT_2', // Artık resmen Split 2 Playofflarındayız
+          playoffMatches: matches
+      }));
+      setTab('play');
+      showNotification('success', 'LPL Split 2 Playoffs Started! Top 2 go to MSI.');
+  };
+
+  const initializeMSI = (isUserQualified: boolean) => {
+    if (isUserQualified) {
+        showNotification('success', `Congratulations! You have qualified for MSI.`);
+    } else {
+        showNotification('info', `You didn't qualify, but the show goes on! Spectating MSI...`);
+    }
+    
+    // Liglerden temsilci seçme fonksiyonu
+    const getRepresentative = (leagueKey: string, count: number): string[] => {
+        const league = LEAGUES[leagueKey as LeagueKey];
+        if (!league) return [];
+        
+        // Kullanıcı bu ligdeyse ve elendiyse onu havuza alma
+        let candidates = league.teams.filter(t => t.id !== gameState.teamId);
+        
+        // Eğer kullanıcı bu ligdense ve kazandıysa, onu manuel ekleyeceğiz, o yüzden havuzdan çıkar
+        if (gameState.teamId && activeLeague.name === leagueKey && isUserQualified) {
+             candidates = league.teams.filter(t => t.id !== gameState.teamId);
+        }
+
+        // Rastgele seçim (Gerçekte sıralamaya göre olmalı ama şimdilik simülasyon)
+        // Eğer kullanıcı kazandıysa 1 eksik seç, çünkü kullanıcıyı en başa ekleyeceğiz
+        const needed = (gameState.teamId && activeLeague.name === leagueKey && isUserQualified) ? count - 1 : count;
+        const selected = candidates.sort(() => 0.5 - Math.random()).slice(0, needed).map(t => t.id);
+
+        // Kullanıcıyı en başa (1. seed gibi) ekle
+        if (gameState.teamId && activeLeague.name === leagueKey && isUserQualified) {
+            selected.unshift(gameState.teamId);
+        }
+        
+        // Sıralamayı koruyarak döndür (0. index en güçlü seed)
+        return selected; 
+    };
+
+    const lckTeams = getRepresentative('LCK', 4); // 4 Kore
+    const lplTeams = getRepresentative('LPL', 3); // 3 Çin
+    const lecTeams = getRepresentative('LEC', 2); // 2 Avrupa
+    const tclTeams = getRepresentative('TCL', 1); // 1 Türkiye
+
+    // FORMAT:
+    // Play-In: LCK#4, LPL#3, LEC#2, TCL#1 (4 Takım) -> İlk 2 çıkar
+    // Bracket (Main): LCK#1, LCK#2, LCK#3, LPL#1, LPL#2, LEC#1 (6 Takım) + 2 Play-In Kazananı = 8 Takım
+
+    const bracketContenders = [
+        ...lckTeams.slice(0, 3), // LCK 1,2,3
+        ...lplTeams.slice(0, 2), // LPL 1,2
+        ...lecTeams.slice(0, 1)  // LEC 1
+    ];
+
+    const playInContenders = [
+        lckTeams[3], // LCK 4
+        lplTeams[2], // LPL 3
+        lecTeams[1], // LEC 2
+        tclTeams[0]  // TCL 1
+    ].filter(t => t); // Undefined filtrele
+
+    // Play-In Eşleşmeleri (GSL Tarzı veya Double Elim)
+    const playInMatches: PlayoffMatch[] = [
+      // UB Semis
+      { id: 'msi-pi-ub1', roundName: 'MSI Play-In UB Semis', teamAId: playInContenders[0], teamBId: playInContenders[3], nextMatchId: 'msi-pi-ub-final', nextMatchSlot: 'A', loserMatchId: 'msi-pi-lb1', loserMatchSlot: 'A', isBo5: false },
+      { id: 'msi-pi-ub2', roundName: 'MSI Play-In UB Semis', teamAId: playInContenders[1], teamBId: playInContenders[2], nextMatchId: 'msi-pi-ub-final', nextMatchSlot: 'B', loserMatchId: 'msi-pi-lb1', loserMatchSlot: 'B', isBo5: false },
+      // UB Final (Kazanan MSI Bracket'a)
+      { id: 'msi-pi-ub-final', roundName: 'MSI Play-In UB Final', teamAId: null, teamBId: null, loserMatchId: 'msi-pi-lb-final', loserMatchSlot: 'B', isBo5: true },
+      // LB Semis
+      { id: 'msi-pi-lb1', roundName: 'MSI Play-In LB Semis', teamAId: null, teamBId: null, nextMatchId: 'msi-pi-lb-final', nextMatchSlot: 'A', isBo5: false },
+      // LB Final (Kazanan MSI Bracket'a)
+      { id: 'msi-pi-lb-final', roundName: 'MSI Play-In LB Final', teamAId: null, teamBId: null, isBo5: true },
+    ];
+
+    setGameState(prev => ({
+      ...prev,
+      matchHistory: { ...prev.matchHistory, [`${prev.year} ${prev.currentSplit} Playoffs`]: { playoffs: prev.playoffMatches } }, 
+      stage: 'MSI_PLAY_IN', // Önce Play-In Başlatıyoruz
+      playoffMatches: playInMatches,
+      msiBracketContenders: bracketContenders, // Bracket'a direkt gidenleri burada saklıyoruz
+      schedule: [], 
+    }));
+    setTab('play');
+  };
+
+  const getUserTeamRank = (gs: GameState): number => {
+      // Playoff finaline bakarak sıralamayı bul
+      const finals = gs.playoffMatches.find(m => m.roundName === 'Grand Final');
+      
+      // Şampiyon ise 1.
+      if (finals?.winnerId === gs.teamId) return 1;
+      
+      // Finalist ise 2.
+      if (finals && (finals.teamAId === gs.teamId || finals.teamBId === gs.teamId)) return 2;
+      
+      // Eğer finalde yoksa, yarı finalde elenenler vs. için basitçe 3. varsayıyoruz
+      // (Gerçekçi bir senaryoda standings'e bakılabilir ama MSI kontrolü için ilk 2 önemli)
+      return 3; 
+  };
+
+  const advanceToNextStage = () => {
+      const currentStage = gameState.stage;
+      const currentSplit = gameState.currentSplit;
+      const leagueFormat = activeLeague.settings.format;
+
+      // --- 1. SEZON SONU -> MSI GEÇİŞ KONTROLLERİ ---
+      const isStandardSpringEnd = leagueFormat !== 'LPL' && currentSplit === 'SPRING' && currentStage === 'PLAYOFFS';
+      const isLPLSplit2End = leagueFormat === 'LPL' && currentSplit === 'SPLIT_2' && currentStage === 'PLAYOFFS';
+
+      if (isStandardSpringEnd || isLPLSplit2End) {
+          const splitName = leagueFormat === 'LPL' ? 'Split 2' : 'Spring';
+          const historyKey = `${gameState.year} ${splitName} Playoffs`;
+          const newHistory = { ...gameState.matchHistory, [historyKey]: { playoffs: gameState.playoffMatches } };
+
+          const userRank = getUserTeamRank(gameState);
+          
+          // SENİN İSTEDİĞİN GÜNCEL SLOT SAYILARI (LCS YOK)
+          const msiSlots: Record<string, number> = { 
+              LCK: 4, 
+              LPL: 3, 
+              LEC: 2, 
+              TCL: 1 
+          };
+          
+          const limit = msiSlots[activeLeague.name] || 1;
+          const didQualifyMSI = userRank <= limit;
+
+          // Kullanıcı katılsın ya da katılmasın MSI başlat
+          // ÖNCE state'i MSI'a hazırla, SONRA initializeMSI'ı çağır.
+          // Bu, "Spring Playoffs" sekmesinin çiftlenmesini önler.
+          setGameState(prev => ({ 
+              ...prev, 
+              matchHistory: newHistory,
+              stage: 'MSI_PLAY_IN', // Hemen bir sonraki aşamaya geç
+              currentSplit: 'MSI' // Mevsimi de güncelle
+          }));
+          initializeMSI(didQualifyMSI);
+          return;
+      }
+
+      // --- 2. MSI BİTİMİ -> YAZ SEZONU / SPLIT 3 GEÇİŞİ ---
+      if (currentStage === 'MSI_BRACKET') {
+           let newHistory = { ...gameState.matchHistory };
+           newHistory[`${gameState.year} MSI`] = { playoffs: gameState.playoffMatches };
+
+           if (leagueFormat === 'LPL') {
+               setGameState(prev => ({
+                   ...prev,
+                   matchHistory: newHistory,
+                   stage: 'PRE_SEASON', 
+                   currentSplit: 'SPLIT_3', // LPL Split 3 Başlıyor
+                   playoffMatches: [],
+                   schedule: [],
+                   week: 1,
+                   currentDay: 1
+               }));
+               showNotification('success', 'MSI Concluded! Welcome to LPL Split 3.');
+           } else {
+               setGameState(prev => ({
+                   ...prev,
+                   matchHistory: newHistory,
+                   stage: 'PRE_SEASON',
+                   currentSplit: 'SUMMER', // Diğerleri Summer'a geçiyor
+                   playoffMatches: [],
+                   schedule: [],
+                   week: 1,
+                   currentDay: 1
+               }));
+               showNotification('success', 'MSI Concluded! Prepare for the Summer Split.');
+           }
+           setTab('market'); 
+           return;
+      }
+
+      // --- LPL ÖZEL GEÇİŞLERİ ---
+      if (currentStage === 'LPL_SPLIT_2_PLACEMENTS') {
+          const historyKey = `${gameState.year} Split 2 Placements`;
+          const newHistory = { ...gameState.matchHistory, [historyKey]: { schedule: gameState.schedule, standings: gameState.standings } };
+          endLPLPlacementStage({ ...gameState, matchHistory: newHistory });
+          return;
+      }
+      
+      if (currentStage === 'LPL_SPLIT_2_LCQ') {
+          const historyKey = `${gameState.year} Split 2 LCQ`;
+          const newHistory = { ...gameState.matchHistory, [historyKey]: { playoffs: gameState.playoffMatches } };
+          startLPLSplit2Playoffs({ ...gameState, matchHistory: newHistory }); 
+          return;
+      }
+
+      if (leagueFormat === 'LPL' && currentSplit === 'SPRING' && currentStage === 'PLAYOFFS') {
+           const historyKey = `${gameState.year} Split 1 Playoffs`;
+           const newHistory = { ...gameState.matchHistory, [historyKey]: { playoffs: gameState.playoffMatches } };
+           const split2State = startLPLSplit2({ ...gameState, matchHistory: newHistory });
+           setGameState({ ...split2State, currentSplit: 'SPLIT_2' });
+           setTab('schedule');
+           return;
+      }
+
+      advanceYear(); 
+  };
+
+  const advanceYear = () => { 
+      let seasonReward = 5000;
+      const newIncomingOffers: IncomingOffer[] = [];
+
+      const generateAiOffers = (player: PlayerCard) => {
+        if (player.contractDuration <= 1) return;
+        const offerChance = 0.05 + (player.overall - 80) * 0.005 + (25 - player.age) * 0.005;
+        if (Math.random() > offerChance) return;
+
+        const interestedTeams = activeLeague.teams.filter(t => {
+            if (t.id === gameState.teamId) return false;
+            const teamRoster = gameState.aiRosters[t.id];
+            if (!teamRoster) return true;
+            const playerInRole = teamRoster[player.role];
+            return !playerInRole || playerInRole.overall < player.overall - 5;
+        });
+
+        if (interestedTeams.length > 0) {
+            const offeringTeam = interestedTeams[Math.floor(Math.random() * interestedTeams.length)];
+            const baseValue = player.salary * 2 + player.overall * 150;
+            const offerAmount = Math.floor(baseValue * (0.2 + Math.random() * 0.3)); 
+            
+            let playerOpinion = "Player is unsure.";
+            const offerRatio = offerAmount / baseValue;
+            const morale = player.morale ?? 50;
+
+            if (morale > 70 && offerRatio > 0.4) playerOpinion = "Player is interested.";
+            else if (morale < 40 || offerRatio < 0.25) playerOpinion = "Player is not interested.";
+            else if (offerRatio > 0.35) playerOpinion = "The offer caught their attention.";
+
+            newIncomingOffers.push({
+                player: player,
+                offeringTeamId: offeringTeam.id,
+                offeringTeamName: offeringTeam.shortName,
+                offerAmount: offerAmount,
+                playerOpinion: playerOpinion,
+            });
+        }
+      };
+
+      const allUserPlayers = [...Object.values(gameState.roster).filter(p => p), ...gameState.inventory] as PlayerCard[];
+      allUserPlayers.forEach(p => generateAiOffers(p));
+
       let performanceTitle = "Participant";
       const retiredPlayerNames: string[] = [];
-
       const grandFinal = gameState.playoffMatches.find(m => m.roundName === 'Grand Final');
+      
       if (grandFinal && grandFinal.winnerId) {
           if (grandFinal.winnerId === gameState.teamId) {
-              seasonReward += 5000; 
+              seasonReward += 25000; 
               performanceTitle = "LCK Champion";
           } else if (grandFinal.teamAId === gameState.teamId || grandFinal.teamBId === gameState.teamId) {
-              seasonReward += 3000;
+              seasonReward += 20000;
               performanceTitle = "Runner-up";
-          } else {
-              const semis = gameState.playoffMatches.filter(m => m.roundName.includes('Semifinals'));
-              const inSemis = semis.some(m => m.teamAId === gameState.teamId || m.teamBId === gameState.teamId);
-              if (inSemis) {
-                  seasonReward += 2000;
-                  performanceTitle = "Semifinalist";
-              } else {
-                  const quarters = gameState.playoffMatches.filter(m => m.roundName.includes('Quarterfinals'));
-                  const inQuarters = quarters.some(m => m.teamAId === gameState.teamId || m.teamBId === gameState.teamId);
-                  if (inQuarters) {
-                      seasonReward += 1500;
-                      performanceTitle = "Quarterfinalist";
-                  }
-              }
           }
       }
 
       const clutchFactor = performanceTitle === "LCK Champion" ? 1 : 0;
-
       const newFreeAgents = [...gameState.freeAgents];
       
-      const convertToCoach = (player: PlayerCard): PlayerCard => {
-        const newOverall = Math.round((player.stats.macro * 1.5 + player.stats.teamfight) / 2.5);
-        return {
-          ...player,
-          role: Role.COACH,
-          status: 'retired',
-          overall: Math.min(99, newOverall + 5),
-          salary: Math.floor(player.salary * 0.75),
-          price: 0,
-          team: 'FA',
-          contractDuration: 0,
-        };
-      };
+      const updatedInventory = gameState.inventory
+        .map(p => processPlayerOffSeason(p, clutchFactor, retiredPlayerNames, newFreeAgents))
+        .filter((p): p is PlayerCard => p !== null);
 
-      const checkRetirement = (player: PlayerCard): boolean => {
-        const age = player.age;
-        if (age < 27) return false;
-
-        let retirementChance = 0;
-        if (age === 27) retirementChance = 0.05; // 5%
-        else if (age === 28) retirementChance = 0.15; // 15%
-        else if (age === 29) retirementChance = 0.30; // 30%
-        else if (age >= 30) retirementChance = 0.50; // 50%
-
-        return Math.random() < retirementChance;
-      };
-
-      const updatePlayerContract = (p: PlayerCard): PlayerCard | null => {
-          const updated = processPlayerProgression(p, clutchFactor);
-          updated.contractDuration -= 1;
-          
-          if (checkRetirement(updated)) {
-              retiredPlayerNames.push(updated.name);
-              newFreeAgents.push(convertToCoach(updated));
-              return null;
-          }
-
-          if (updated.contractDuration <= 0) {
-              newFreeAgents.push({ ...updated, team: 'FA', price: 0 }); 
-              return null;
-          }
-          return updated;
-      };
-
-      const updatedInventory = gameState.inventory.map(p => updatePlayerContract(p)).filter(p => p !== null) as PlayerCard[];
       const updatedRoster = { ...gameState.roster };
       Object.keys(updatedRoster).forEach(key => {
           const role = key as Role;
           if (updatedRoster[role]) {
-              updatedRoster[role] = updatePlayerContract(updatedRoster[role]!);
+              updatedRoster[role] = processPlayerOffSeason(updatedRoster[role]!, clutchFactor, retiredPlayerNames, newFreeAgents);
           }
       });
 
@@ -922,19 +1755,8 @@ export default function App() {
               const role = rKey as Role;
               const p = updatedAiRosters[teamId][role];
               if (p) {
-                  const updated = processPlayerProgression(p, 0); 
-                  updated.contractDuration -= 1;
-                  if (checkRetirement(updated)) {
-                      retiredPlayerNames.push(p.name);
-                      newFreeAgents.push(convertToCoach(p));
-                      delete updatedAiRosters[teamId][role];
-                  }
-                  if (updated.contractDuration <= 0) {
-                      newFreeAgents.push({ ...updated, team: 'FA', price: 0 });
-                      delete updatedAiRosters[teamId][role]; 
-                  } else {
-                      updatedAiRosters[teamId][role] = updated;
-                  }
+                  const updatedPlayer = processPlayerOffSeason(p, 0, retiredPlayerNames, newFreeAgents);
+                  updatedAiRosters[teamId][role] = updatedPlayer!; 
               }
           });
           
@@ -966,24 +1788,81 @@ export default function App() {
           });
       });
 
+      const transferUpdates = handleAiTransfers({ ...gameState, aiRosters: updatedAiRosters, freeAgents: newFreeAgents });
+
       setGameState(prev => ({
           ...prev, 
           stage: 'OFF_SEASON', 
-          currentSeason: prev.currentSeason + 1, 
+          matchHistory: { ...prev.matchHistory, [`${prev.year} ${prev.currentSplit} Playoffs`]: { playoffs: prev.playoffMatches } },
+          year: prev.year + 1,
+          currentSplit: 'SPRING',
           week: 0,
           coins: prev.coins + seasonReward,
           inventory: updatedInventory,
           roster: updatedRoster,
-          aiRosters: updatedAiRosters,
-          freeAgents: newFreeAgents
+          aiRosters: transferUpdates.aiRosters || updatedAiRosters,
+          freeAgents: transferUpdates.freeAgents || newFreeAgents,
+          playoffMatches: [] 
       })); 
       
-      let notificationMessage = `Season ended! You earned ${seasonReward} G as ${performanceTitle}.`;
-      if (retiredPlayerNames.length > 0) {
-        notificationMessage += ` The following players have retired: ${retiredPlayerNames.join(', ')}.`;
-      }
+      let notificationMessage = `${gameState.year} Season has ended! You earned ${seasonReward} G as ${performanceTitle}.`;
+      if (retiredPlayerNames.length > 0) notificationMessage += ` Retirements: ${retiredPlayerNames.join(', ')}.`;
+      
       showNotification('success', notificationMessage);
+      if (newIncomingOffers.length > 0) {
+        setIncomingOffers(newIncomingOffers);
+        showNotification('success', `${newIncomingOffers.length} new offers received!`);
+      }
+      setMarket(prevMarket => prevMarket.filter(p => !retiredPlayerNames.includes(p.name)));
       setTab('dashboard'); 
+  };
+
+  const checkRetirement = (player: PlayerCard, isChampion: boolean): boolean => {
+    const age = player.age;
+    if (age < 27) return false;
+    let retirementChance = 0;
+    if (age === 27) retirementChance = 0.03; 
+    else if (age === 28) retirementChance = 0.08; 
+    else if (age === 29) retirementChance = 0.15; 
+    else if (age >= 30) retirementChance = 0.25; 
+
+    if (isChampion) retirementChance *= 0.2; 
+    if (player.overall > (player.previousOverall || player.overall -1)) retirementChance *= 0.3; 
+
+    return Math.random() < retirementChance;
+  };
+
+  const processPlayerOffSeason = (
+    player: PlayerCard, 
+    clutchFactor: number, 
+    retiredPlayerNames: string[], 
+    newFreeAgents: PlayerCard[]
+  ): PlayerCard | null => {
+      const updated = processPlayerProgression(player, clutchFactor);
+      updated.contractDuration -= 1;
+
+      const convertToCoach = (p: PlayerCard): PlayerCard => ({
+        ...p,
+        role: Role.COACH,
+        status: 'retired',
+        overall: Math.min(99, Math.round((p.stats.macro * 1.5 + p.stats.teamfight) / 2.5) + 5),
+        salary: Math.floor(p.salary * 0.75),
+        price: 0,
+        team: 'FA',
+        contractDuration: 0,
+      });
+
+      if (checkRetirement(updated, clutchFactor > 0)) {
+          retiredPlayerNames.push(updated.name);
+          newFreeAgents.push(convertToCoach(updated));
+          return null;
+      }
+
+      if (updated.contractDuration <= 0) {
+          newFreeAgents.push({ ...updated, team: 'FA', price: 0 }); 
+          return null;
+      }
+      return updated;
   };
 
   const simulateSeries = (teamAId: string, teamBId: string, isBo5: boolean) => {
@@ -1008,22 +1887,17 @@ export default function App() {
 
       for (let game = 1; game <= maxGames; game++) {
           if (winsA === gamesToWin || winsB === gamesToWin) break;
-
           let draftPenaltyA = 0;
           let draftPenaltyB = 0;
 
           if (game >= 3) {
               if (powerA > powerB + 2) draftPenaltyB = (game - 2) * 3; 
               else if (powerB > powerA + 2) draftPenaltyA = (game - 2) * 3;
-              else {
-                  draftPenaltyA = (game - 2) * 2;
-                  draftPenaltyB = (game - 2) * 2;
-              }
+              else { draftPenaltyA = (game - 2) * 2; draftPenaltyB = (game - 2) * 2; }
           }
 
           const effectivePowerA = powerA - draftPenaltyA;
           const effectivePowerB = powerB - draftPenaltyB;
-          
           const effectiveDiff = effectivePowerA - effectivePowerB;
           let winProbA = 0.50 + (effectiveDiff * 0.025); 
           winProbA = Math.max(0.1, Math.min(0.9, winProbA));
@@ -1037,11 +1911,7 @@ export default function App() {
           }
       }
 
-      const winnerId = winsA > winsB ? teamAId : teamBId;
-      const scoreA = winsA;
-      const scoreB = winsB;
-
-      return { winnerId, scoreA, scoreB, gameScores };
+      return { winnerId: winsA > winsB ? teamAId : teamBId, scoreA: winsA, scoreB: winsB, gameScores };
   };
 
   const endGroupStage = (standings: Standing[]) => {
@@ -1059,34 +1929,26 @@ export default function App() {
 
       const sortedWinners = getSortedGroup(winnersGroup);
       const sortedLosers = getSortedGroup(losersGroup);
-
-      const playInTeams = [
-          ...sortedWinners.slice(3, 5),
-          ...sortedLosers.slice(0, 4)
-      ];
+      const playInTeams = [ ...sortedWinners.slice(3, 5), ...sortedLosers.slice(0, 4) ];
 
       playInTeams.sort((a, b) => b.wins - a.wins);
       initializePlayIns(playInTeams);
 
-      setGameState(prev => ({
-          ...prev,
-          stage: 'PLAY_IN',
-          winnersGroup,
-          week: 10
-      }));
-      
+      setGameState(prev => ({ ...prev, stage: 'PLAY_IN', winnersGroup, week: 10 }));
       showNotification('success', `Group Stage Ended! ${winnersGroup} is the Winners Group.`);
   };
 
   const initializePlayIns = (teams: Standing[]) => {
+      if (teams.length < 6) console.warn("Not enough teams for play-in:", teams.length);
       const matches: PlayoffMatch[] = [
-          { id: 'pi-1', roundName: 'Play-In Qualifier A', teamAId: teams[0].teamId, teamBId: teams[5].teamId, isBo5: true },
-          { id: 'pi-2', roundName: 'Play-In Qualifier B', teamAId: teams[1].teamId, teamBId: teams[4].teamId, isBo5: true },
-          { id: 'pi-3', roundName: 'Play-In Qualifier C', teamAId: teams[2].teamId, teamBId: teams[3].teamId, isBo5: true },
+          { id: 'pi-1', roundName: 'Play-In Qualifier A', teamAId: teams[0]?.teamId || null, teamBId: teams[5]?.teamId || null, isBo5: true },
+          { id: 'pi-2', roundName: 'Play-In Qualifier B', teamAId: teams[1]?.teamId || null, teamBId: teams[4]?.teamId || null, isBo5: true },
+          { id: 'pi-3', roundName: 'Play-In Qualifier C', teamAId: teams[2]?.teamId || null, teamBId: teams[3]?.teamId || null, isBo5: true },
       ];
 
       setGameState(prev => ({
           ...prev,
+          matchHistory: { ...prev.matchHistory, [`${prev.year} ${prev.currentSplit}`]: { schedule: prev.schedule } },
           playoffMatches: matches
       }));
       setTab('play');
@@ -1099,7 +1961,6 @@ export default function App() {
     });
 
     const top6 = sortedStandings.slice(0, 6).map(s => s.teamId);
-
     const matches: PlayoffMatch[] = [
       { id: 'qf-1', roundName: 'Quarterfinals', teamAId: top6[2], teamBId: top6[5], nextMatchId: 'sf-1', nextMatchSlot: 'B', isBo5: true },
       { id: 'qf-2', roundName: 'Quarterfinals', teamAId: top6[3], teamBId: top6[4], nextMatchId: 'sf-2', nextMatchSlot: 'B', isBo5: true },
@@ -1108,7 +1969,11 @@ export default function App() {
       { id: 'f-1', roundName: 'Grand Final', teamAId: null, teamBId: null, isBo5: true },
     ];
 
-    setGameState(prev => ({ ...prev, stage: 'PLAYOFFS', playoffMatches: matches, week: 10 }));
+    setGameState(prev => ({ 
+      ...prev, 
+      matchHistory: { ...prev.matchHistory, [`${prev.year} ${prev.currentSplit}`]: { schedule: prev.schedule } },
+      stage: 'PLAYOFFS', playoffMatches: matches, week: 10 
+    }));
     showNotification('success', 'Regular Season has ended! The top 6 teams advance to Playoffs.');
   };
 
@@ -1126,8 +1991,11 @@ export default function App() {
     ];
 
     const matches = [...createGroupMatches(groupA, 'a'), ...createGroupMatches(groupB, 'b')];
-
-    setGameState(prev => ({ ...prev, stage: 'LEC_GROUP_STAGE', playoffMatches: matches, week: 10 }));
+    setGameState(prev => ({ 
+      ...prev, 
+      matchHistory: { ...prev.matchHistory, [`${prev.year} ${prev.currentSplit}`]: { schedule: prev.schedule } },
+      stage: 'LEC_GROUP_STAGE', playoffMatches: matches, week: 10 
+    }));
     showNotification('success', 'LEC Regular Season ended! Top 8 advance to the Group Stage.');
     setTab('play');
   };
@@ -1137,20 +2005,20 @@ export default function App() {
           const { standings, winnersGroup } = prev;
           const sortedWinners = standings.filter(s => s.group === winnersGroup).sort((a, b) => b.wins - a.wins);
           const directQualifiers = sortedWinners.slice(0, 3).map(s => s.teamId);
-          
           const allQualifiers = [...directQualifiers, ...playInWinners];
           const seeds = allQualifiers; 
 
           const matches: PlayoffMatch[] = [
-              { id: 'r1-1', roundName: 'Quarterfinals 1', teamAId: seeds[2], teamBId: seeds[5], nextMatchId: 'sf1', nextMatchSlot: 'B', isBo5: true },
-              { id: 'r1-2', roundName: 'Quarterfinals 2', teamAId: seeds[3], teamBId: seeds[4], nextMatchId: 'sf2', nextMatchSlot: 'B', isBo5: true },
-              { id: 'sf1', roundName: 'Semifinals 1', teamAId: seeds[0], teamBId: null, nextMatchId: 'f1', nextMatchSlot: 'A', isBo5: true },
-              { id: 'sf2', roundName: 'Semifinals 2', teamAId: seeds[1], teamBId: null, nextMatchId: 'f1', nextMatchSlot: 'B', isBo5: true },
-              { id: 'f1', roundName: 'Grand Final', teamAId: null, teamBId: null, isBo5: true },
+              { id: 'qf-1', roundName: 'Quarterfinals 1', teamAId: seeds[2], teamBId: seeds[5], nextMatchId: 'sf-1', nextMatchSlot: 'B', isBo5: true },
+              { id: 'qf-2', roundName: 'Quarterfinals 2', teamAId: seeds[3], teamBId: seeds[4], nextMatchId: 'sf-2', nextMatchSlot: 'B', isBo5: true },
+              { id: 'sf-1', roundName: 'Semifinals 1', teamAId: seeds[0], teamBId: null, nextMatchId: 'f-1', nextMatchSlot: 'A', isBo5: true },
+              { id: 'sf-2', roundName: 'Semifinals 2', teamAId: seeds[1], teamBId: null, nextMatchId: 'f-1', nextMatchSlot: 'B', isBo5: true },
+              { id: 'f-1', roundName: 'Grand Final', teamAId: null, teamBId: null, isBo5: true },
           ];
 
           return {
               ...prev,
+              matchHistory: { ...prev.matchHistory, [`${prev.year} ${prev.currentSplit} Play-In`]: { playoffs: prev.playoffMatches } },
               stage: 'PLAYOFFS',
               playoffMatches: matches
           };
@@ -1164,98 +2032,155 @@ export default function App() {
         let newState = { ...prev };
         let stopSkipping = false;
         let loopCount = 0;
-        const MAX_LOOPS = 100; 
+        const MAX_LOOPS = 100;
 
         while (!stopSkipping && loopCount < MAX_LOOPS) {
           loopCount++;
 
-          if (newState.stage === 'GROUP_STAGE') {
-             const matchesToday = newState.schedule.filter(m => m.round === newState.currentDay);
-             
-             if (matchesToday.length === 0) {
-                stopSkipping = true;
-                break;
-             }
+          // GROUP STAGE ve LPL PLACEMENTS Mantığı
+          if (newState.stage === 'GROUP_STAGE' || newState.stage === 'LPL_SPLIT_2_PLACEMENTS') {
+              const matchesToday = newState.schedule.filter(m => m.round === newState.currentDay);
+              
+              if (matchesToday.length === 0) { stopSkipping = true; break; }
+              
+              const userMatch = matchesToday.find(m => m.teamAId === newState.teamId || m.teamBId === newState.teamId);
+              if (userMatch && !userMatch.played) { stopSkipping = true; break; }
 
-             const userMatch = matchesToday.find(m => m.teamAId === newState.teamId || m.teamBId === newState.teamId);
-             if (userMatch) {
-                stopSkipping = true;
-                break;
-             }
+              const newSchedule = [...newState.schedule];
+              const newStandings = [...newState.standings];
 
-             const newSchedule = [...newState.schedule];
-             const newStandings = [...newState.standings];
+              matchesToday.forEach(m => {
+                  if (m.played || m.teamAId === newState.teamId || m.teamBId === newState.teamId) return;
+                  
+                  const league = Object.values(LEAGUES).find(l => l.teams.some(t => t.id === m.teamAId));
+                  const isBo3 = league ? league.settings.isBo3 : false;
+                  const sim = simulateSeries(m.teamAId, m.teamBId, isBo3 || !!m.isBo5);
+                  
+                  const idx = newSchedule.findIndex(s => s.id === m.id);
+                  newSchedule[idx] = { ...m, played: true, winnerId: sim.winnerId, seriesScoreA: sim.scoreA, seriesScoreB: sim.scoreB };
 
-             matchesToday.forEach(m => {
-                 if (m.played) return;
-                 const sim = simulateSeries(m.teamAId, m.teamBId, false);
-                 const idx = newSchedule.findIndex(s => s.id === m.id);
-                 newSchedule[idx] = { ...m, played: true, winnerId: sim.winnerId, seriesScoreA: sim.scoreA, seriesScoreB: sim.scoreB };
+                  const winnerStat = newStandings.find(s => s.teamId === sim.winnerId);
+                  const loserStat = newStandings.find(s => s.teamId === (sim.winnerId === m.teamAId ? m.teamBId : m.teamAId));
 
-                 const winnerStat = newStandings.find(s => s.teamId === sim.winnerId);
-                 const loserStat = newStandings.find(s => s.teamId === (sim.winnerId === m.teamAId ? m.teamBId : m.teamAId));
-
-                 if (winnerStat) {
+                  if (winnerStat) {
                     winnerStat.wins++;
-                    winnerStat.gameWins += sim.scoreA > sim.scoreB ? sim.scoreA : sim.scoreB; 
-                    winnerStat.gameLosses += sim.scoreA > sim.scoreB ? sim.scoreB : sim.scoreA;
-                 }
-                 if (loserStat) {
+                    winnerStat.gameWins += Math.max(sim.scoreA, sim.scoreB);
+                    winnerStat.gameLosses += Math.min(sim.scoreA, sim.scoreB);
+                  }
+                  if (loserStat) {
                     loserStat.losses++;
-                    loserStat.gameWins += sim.scoreA > sim.scoreB ? sim.scoreB : sim.scoreA;
-                    loserStat.gameLosses += sim.scoreA > sim.scoreB ? sim.scoreA : sim.scoreB;
-                 }
-             });
+                    loserStat.gameWins += Math.min(sim.scoreA, sim.scoreB);
+                    loserStat.gameLosses += Math.max(sim.scoreA, sim.scoreB);
+                  }
+              });
 
-             newState.schedule = newSchedule;
-             newState.standings = newStandings;
+              newState.schedule = newSchedule;
+              newState.standings = newStandings;
 
-             if (newSchedule.every(m => m.played)) {
-                 stopSkipping = true;
-             } else {
-                 newState.currentDay++;
-                 newState.week = Math.ceil(newState.currentDay / 5);
-             }
-
-          } else if (newState.stage === 'PLAY_IN' || newState.stage === 'PLAYOFFS') {
+              if (newSchedule.every(m => m.played)) {
+                  stopSkipping = true;
+              } else {
+                  const currentWeek = newState.week;
+                  newState.currentDay++;
+                  const matchesPerWeek = newState.stage === 'LPL_SPLIT_2_PLACEMENTS' ? 8 : 5;
+                  newState.week = Math.ceil(newState.currentDay / matchesPerWeek);
+                  
+                  if (newState.week > currentWeek) newState.trainingSlotsUsed = 0;
+              }
+          } 
+          else if (['PLAY_IN', 'PLAYOFFS', 'MSI_PLAY_IN', 'MSI_BRACKET', 'LPL_SPLIT_2_LCQ'].includes(newState.stage)) {
              const newMatches = [...newState.playoffMatches];
              const activeMatch = newMatches.find(m => !m.winnerId && m.teamAId && m.teamBId);
 
-             if (!activeMatch) {
-                 stopSkipping = true;
-                 break;
-             }
-
-             if (activeMatch.teamAId === newState.teamId || activeMatch.teamBId === newState.teamId) {
-                 stopSkipping = true;
-                 break;
-             }
+             if (!activeMatch) { stopSkipping = true; break; }
+             if (activeMatch.teamAId === newState.teamId || activeMatch.teamBId === newState.teamId) { stopSkipping = true; break; }
 
              const sim = simulateSeries(activeMatch.teamAId!, activeMatch.teamBId!, !!activeMatch.isBo5);
              const idx = newMatches.findIndex(m => m.id === activeMatch.id);
+             
+             newMatches[idx].seriesScoreA = sim.scoreA;
+             newMatches[idx].seriesScoreB = sim.scoreB;
              newMatches[idx].winnerId = sim.winnerId;
 
              if (newMatches[idx].nextMatchId) {
-                const nextIdx = newMatches.findIndex(m => m.id === newMatches[idx].nextMatchId);
-                if (nextIdx >= 0) {
-                    if (newMatches[idx].nextMatchSlot === 'A') newMatches[nextIdx].teamAId = sim.winnerId;
-                    else newMatches[nextIdx].teamBId = sim.winnerId;
-                }
+                 const nextIdx = newMatches.findIndex(m => m.id === newMatches[idx].nextMatchId);
+                 if (nextIdx >= 0) {
+                     if (newMatches[idx].nextMatchSlot === 'A') newMatches[nextIdx].teamAId = sim.winnerId;
+                     else newMatches[nextIdx].teamBId = sim.winnerId;
+                 }
+             }
+             
+             if (newMatches[idx].loserMatchId) {
+                 const loserId = sim.winnerId === activeMatch.teamAId ? activeMatch.teamBId : activeMatch.teamAId;
+                 const loserIdx = newMatches.findIndex(m => m.id === newMatches[idx].loserMatchId);
+                 if (loserIdx >= 0) {
+                     if (newMatches[idx].loserMatchSlot === 'A') newMatches[loserIdx].teamAId = loserId;
+                     else newMatches[loserIdx].teamBId = loserId;
+                 }
+             }
+
+             if (newState.stage === 'LPL_SPLIT_2_LCQ') {
+                 const winnerMatch = newMatches.find(m => m.id === 'lcq-winner-match');
+                 const deciderMatch = newMatches.find(m => m.id === 'lcq-decider');
+                 
+                 if (winnerMatch && winnerMatch.winnerId && deciderMatch && !deciderMatch.teamAId) {
+                     const loserId = winnerMatch.winnerId === winnerMatch.teamAId ? winnerMatch.teamBId : winnerMatch.teamAId;
+                     const deciderIndex = newMatches.findIndex(m => m.id === 'lcq-decider');
+                     if (deciderIndex >= 0) newMatches[deciderIndex].teamAId = loserId;
+                 }
              }
 
              newState.playoffMatches = newMatches;
-
+             
+             if (newState.stage === 'LPL_SPLIT_2_LCQ' && newMatches.every(m => m.winnerId)) stopSkipping = true;
              if (newState.stage === 'PLAY_IN' && newMatches.every(m => m.winnerId)) stopSkipping = true;
-             if (newState.stage === 'PLAYOFFS' && newMatches.find(m => m.roundName === 'Grand Final')?.winnerId) stopSkipping = true;
+             const finalMatch = newMatches.find(m => m.roundName === 'Grand Final');
+             if (newState.stage === 'PLAYOFFS' && finalMatch && finalMatch.winnerId) stopSkipping = true;
+             if (newState.stage === 'MSI_PLAY_IN' && newMatches.filter(m => m.roundName.includes('Final')).every(m => m.winnerId)) stopSkipping = true;
+             const msiFinal = newMatches.find(m => m.id === 'msi-final');
+             if (newState.stage === 'MSI_BRACKET' && msiFinal && msiFinal.winnerId) stopSkipping = true;
           }
         }
 
-        if (newState.stage === 'GROUP_STAGE' && newState.schedule.every(m => m.played)) {
-             setTimeout(() => endGroupStage(newState.standings), 100);
+        // --- DÜZELTME BURADA ---
+        // BİTİŞ KONTROLLERİ (Aşama geçişleri)
+        if ((newState.stage === 'GROUP_STAGE' || newState.stage === 'LPL_SPLIT_2_PLACEMENTS') && newState.schedule.every(m => m.played)) {
+             
+             // LPL için özel işlem (Fonksiyonlar state döndürdüğü için 'return' ile yakalıyoruz)
+             if (activeLeague.settings.format === 'LPL') {
+                if (newState.stage === 'LPL_SPLIT_2_PLACEMENTS') {
+                    // Bu fonksiyon side-effect (setGameState) yapıyor, o yüzden setTimeout ile döngü dışına atıyoruz
+                    setTimeout(() => endLPLPlacementStage(newState), 0);
+                    return newState;
+                } else if (newState.currentSplit === 'SUMMER') {
+                    // Summer sonu (Boş şimdilik)
+                    return newState;
+                } else {
+                    // LPL Split 1 Sonu -> Playoff'a geçiş
+                    // startLPLSplit1Playoffs bir STATE nesnesi döndürüyor.
+                    // Bunu direkt return ederek state'i güncelliyoruz!
+                    return startLPLSplit1Playoffs(newState);
+                }
+             } 
+             
+             // Diğer ligler (Side-effect kullanan fonksiyonlar)
+             else {
+                 setTimeout(() => {
+                    if (activeLeague.settings.format === 'LEC') {
+                        startLECGroupStage(newState.standings);
+                    } else if (activeLeague.settings.format === 'LCK') {
+                        endGroupStage(newState.standings);
+                    } else {
+                        initializeSimplePlayoffs(newState.standings);
+                    }
+                 }, 0);
+                 return newState;
+             }
         }
+        
         if (newState.stage === 'PLAY_IN' && newState.playoffMatches.every(m => m.winnerId)) {
-             const qualifiers = newState.playoffMatches.map(m => m.winnerId!);
-             setTimeout(() => initializePlayoffs(qualifiers), 100);
+            const qualifiers = newState.playoffMatches.map(m => m.winnerId!);
+            setTimeout(() => initializePlayoffs(qualifiers), 100);
         }
 
         return newState;
@@ -1280,17 +2205,23 @@ export default function App() {
      if (userMatch) {
         const seriesResult = simulateSeries(userMatch.teamAId, userMatch.teamBId, !!userMatch.isBo5);
         const won = seriesResult.winnerId === gameState.teamId;
-        const opponentId = userMatch.teamAId === gameState.teamId ? userMatch.teamBId : userMatch.teamAId;
+        const opponentId = userMatch.teamAId === gameState.teamId ? userMatch.teamBId : userMatch.teamAId;        
 
-        const finalScoreUser = seriesResult.scoreA > seriesResult.scoreB ? (userMatch.teamAId === seriesResult.winnerId ? seriesResult.scoreA : seriesResult.scoreB) : (userMatch.teamAId === gameState.teamId ? seriesResult.scoreA : seriesResult.scoreB);
-        const finalScoreEnemy = seriesResult.scoreA > seriesResult.scoreB ? (userMatch.teamAId === seriesResult.winnerId ? seriesResult.scoreB : seriesResult.scoreA) : (userMatch.teamAId === gameState.teamId ? seriesResult.scoreB : seriesResult.scoreA);
+        let finalScoreUser, finalScoreEnemy;
+        if (userMatch.teamAId === gameState.teamId) {
+          finalScoreUser = seriesResult.scoreA;
+          finalScoreEnemy = seriesResult.scoreB;
+        } else {
+          finalScoreUser = seriesResult.scoreB;
+          finalScoreEnemy = seriesResult.scoreA;
+        }
 
          const resultObj: MatchResult = {
              victory: won,
              scoreUser: finalScoreUser,
              scoreEnemy: finalScoreEnemy,
              playerStats: [],
-             gameScores: seriesResult.gameScores.map(game => (userMatch.teamAId === gameState.teamId ? game : { user: game.enemy, enemy: game.user })),
+             gameScores: seriesResult.gameScores,
              enemyTeam: activeLeague.teams.find(t => t.id === opponentId)?.shortName || '',
              reward: won ? 300 : 100,
              commentary: '',
@@ -1333,13 +2264,7 @@ export default function App() {
                  if (randomEvt.event.penalty.teamfight) newStats.teamfight -= randomEvt.event.penalty.teamfight;
                  
                  const newOverall = Math.round((newStats.mechanics + newStats.macro + newStats.lane + newStats.teamfight) / 4);
-                 
-                 roster[randomEvt.player.role] = { 
-                     ...player, 
-                     stats: newStats, 
-                     overall: newOverall, 
-                     events: [...currentEvents, randomEvt.event] 
-                 };
+                 roster[randomEvt.player.role] = { ...player, stats: newStats, overall: newOverall, events: [...currentEvents, randomEvt.event] };
                  return { ...prev, roster };
              }
              return prev;
@@ -1347,182 +2272,219 @@ export default function App() {
      }
 
      setGameState(prev => {
-        const eventResult = processEvents(prev);
-        let updatedStandings = [...prev.standings];
-        const updatedRoster = eventResult.roster;
-        let nextState = { ...prev, roster: updatedRoster };
+       const eventResult = processEvents(prev);
+       let updatedStandings = [...prev.standings];
+       const updatedRoster = eventResult.roster;
+       let nextState = { ...prev, roster: updatedRoster };
 
-        if (nextState.stage === 'GROUP_STAGE') {
-            const matchesToday = nextState.schedule.filter(m => m.round === nextState.currentDay);
-            const newSchedule = [...nextState.schedule];
-            let newRosterForMorale = { ...updatedRoster };
+       if (nextState.stage === 'GROUP_STAGE') {
+           const matchesToday = nextState.schedule.filter(m => m.round === nextState.currentDay);
+           const newSchedule = [...nextState.schedule];
+           let newRosterForMorale = { ...updatedRoster };
 
-            matchesToday.forEach(m => {
-                let winnerId, scoreA, scoreB;
-                const isUserMatch = m.teamAId === nextState.teamId || m.teamBId === nextState.teamId;
+           matchesToday.forEach(m => {
+               let winnerId, scoreA, scoreB;
+               const isUserMatch = m.teamAId === nextState.teamId || m.teamBId === nextState.teamId;
 
-                if (isUserMatch && userResult) {
-                    winnerId = userResult.victory ? nextState.teamId : (m.teamAId === nextState.teamId ? m.teamBId : m.teamAId);
-                    scoreA = m.teamAId === nextState.teamId ? userResult.scoreUser : userResult.scoreEnemy;
-                    scoreB = m.teamAId === nextState.teamId ? userResult.scoreEnemy : userResult.scoreUser;
-                } else {
-                    const sim = simulateSeries(m.teamAId, m.teamBId, false);
-                    winnerId = sim.winnerId;
-                    scoreA = sim.scoreA;
-                    scoreB = sim.scoreB;
-                }
+               if (isUserMatch && userResult) {
+                   winnerId = userResult.victory ? nextState.teamId : (m.teamAId === nextState.teamId ? m.teamBId : m.teamAId);
+                   scoreA = m.teamAId === nextState.teamId ? userResult.scoreUser : userResult.scoreEnemy;
+                   scoreB = m.teamAId === nextState.teamId ? userResult.scoreEnemy : userResult.scoreUser;
+               } else {
+                   if (m.played || isUserMatch) return;
+                   const sim = simulateSeries(m.teamAId, m.teamBId, !!activeLeague.settings.isBo3);
+                   winnerId = sim.winnerId;
+                   scoreA = sim.scoreA;
+                   scoreB = sim.scoreB;
+               }
 
-               if (isUserMatch) {
-                    const didWin = winnerId === nextState.teamId;
-                    const userStanding = updatedStandings.find(s => s.teamId === nextState.teamId);
-                    const oldStreak = userStanding?.streak || 0;
-                    const newStreak = didWin ? Math.max(1, oldStreak + 1) : Math.min(-1, oldStreak - 1);
-                    if(userStanding) userStanding.streak = newStreak;
+              if (isUserMatch) {
+                   const didWin = winnerId === nextState.teamId;
+                   const userStanding = updatedStandings.find(s => s.teamId === nextState.teamId);
+                   const oldStreak = userStanding?.streak || 0;
+                   const newStreak = didWin ? Math.max(1, oldStreak + 1) : Math.min(-1, oldStreak - 1);
+                   if(userStanding) userStanding.streak = newStreak;
+                   newRosterForMorale = updateTeamMorale(newRosterForMorale, didWin, oldStreak);
+               }
 
-                    newRosterForMorale = updateTeamMorale(newRosterForMorale, didWin, oldStreak);
-                }
+               const idx = newSchedule.findIndex(s => s.id === m.id);
+               newSchedule[idx] = { ...m, played: true, winnerId, seriesScoreA: scoreA, seriesScoreB: scoreB };
 
-                const idx = newSchedule.findIndex(s => s.id === m.id);
-                newSchedule[idx] = { ...m, played: true, winnerId, seriesScoreA: scoreA, seriesScoreB: scoreB };
+               const winnerStat = updatedStandings.find(s => s.teamId === winnerId);
+               const loserStat = updatedStandings.find(s => s.teamId === (winnerId === m.teamAId ? m.teamBId : m.teamAId));
 
-                const winnerStat = updatedStandings.find(s => s.teamId === winnerId);
-                const loserStat = updatedStandings.find(s => s.teamId === (winnerId === m.teamAId ? m.teamBId : m.teamAId));
+               if (winnerStat) {
+                   winnerStat.wins++;
+                   winnerStat.gameWins += Math.max(scoreA, scoreB);
+                   winnerStat.gameLosses += Math.min(scoreA, scoreB);
+               }
+               if (loserStat) {
+                   loserStat.losses++;
+                   loserStat.gameWins += Math.min(scoreA, scoreB);
+                   loserStat.gameLosses += Math.max(scoreA, scoreB);
+               }
+           });
 
-                if (winnerStat) {
-                    winnerStat.wins++;
-                    winnerStat.gameWins += Math.max(scoreA, scoreB);
-                    winnerStat.gameLosses += Math.min(scoreA, scoreB);
-                }
-                if (loserStat) {
-                    loserStat.losses++;
-                    loserStat.gameWins += Math.min(scoreA, scoreB);
-                    loserStat.gameLosses += Math.max(scoreA, scoreB);
-                }
-            });
+           const allSeasonPlayed = newSchedule.every(m => m.played);
+           const allTodayPlayed = matchesToday.every(m => newSchedule.find(s => s.id === m.id)?.played);
 
-            const allPlayed = newSchedule.every(m => m.played);
+           if (allSeasonPlayed) {
+                 setTimeout(() => { 
+                   if (activeLeague.settings.format === 'LPL') {
+                       if (nextState.currentSplit === 'SUMMER') setGameState(prev => startLPLSplit2(prev)); 
+                       else setGameState(prev => startLPLSplit1Playoffs(prev));
+                   } else if (activeLeague.settings.format === 'LEC') {
+                     startLECGroupStage(updatedStandings);
+                   } else if (activeLeague.settings.format === 'LCK') {
+                     endGroupStage(updatedStandings);
+                   } else {
+                     initializeSimplePlayoffs(updatedStandings);
+                   }
+                 }, 100);
+                 return { ...nextState, schedule: newSchedule, standings: updatedStandings, roster: newRosterForMorale };
+           }
 
-            if (allPlayed) {
-                  setTimeout(() => {
-                    if (activeLeague.settings.format === 'LEC') {
-                      startLECGroupStage(updatedStandings);
-                    } else if (activeLeague.settings.format === 'LCK') {
-                    } else {
-                      initializeSimplePlayoffs(updatedStandings);
-                    }
-                  }, 100);
-                  return { ...nextState, schedule: newSchedule, standings: updatedStandings, roster: newRosterForMorale };
-            }
+           const newDay = allTodayPlayed ? nextState.currentDay + 1 : nextState.currentDay;
+           const newWeek = Math.ceil(newDay / 5);
 
-            const newDay = nextState.currentDay + 1;
-            const newWeek = Math.ceil(newDay / 5);
+           return { 
+               ...nextState,
+               roster: newRosterForMorale,
+               schedule: newSchedule, 
+               standings: updatedStandings, 
+               currentDay: newDay, 
+               week: newWeek,
+               trainingSlotsUsed: newWeek > nextState.week ? 0 : nextState.trainingSlotsUsed
+           };
+       }
+       else if (['PLAY_IN', 'PLAYOFFS', 'MSI_PLAY_IN', 'MSI_BRACKET'].includes(nextState.stage)) {
+           const newMatches = [...nextState.playoffMatches];
+           const matchIdToProcess = userResult ? pendingSimResult?.matchId : newMatches.find(m => !m.winnerId && m.teamAId && m.teamBId)?.id;
+           let activeMatch = matchIdToProcess ? newMatches.find(m => m.id === matchIdToProcess) : undefined;
 
-            return { 
-                ...nextState,
-                roster: newRosterForMorale,
-                schedule: newSchedule, 
-                standings: updatedStandings, 
-                currentDay: newDay, 
-                week: newWeek,
-                trainingSlotsUsed: newWeek > nextState.week ? 0 : nextState.trainingSlotsUsed
-            };
-        }
-        else if (nextState.stage === 'PLAY_IN' || nextState.stage === 'PLAYOFFS') {
-            const newMatches = [...nextState.playoffMatches];
-            const activeMatch = newMatches.find(m => !m.winnerId && m.teamAId && m.teamBId);
-            
-            if (activeMatch) {
-                let winnerId;
-                if (activeMatch.teamAId === nextState.teamId || activeMatch.teamBId === nextState.teamId) {
-                    winnerId = userResult?.victory ? nextState.teamId : (activeMatch.teamAId === nextState.teamId ? activeMatch.teamBId : activeMatch.teamAId);
-                } else {
-                    const sim = simulateSeries(activeMatch.teamAId!, activeMatch.teamBId!, !!activeMatch.isBo5);
-                    winnerId = sim.winnerId;
-                }
-                
-                const idx = newMatches.findIndex(m => m.id === activeMatch.id);
-                newMatches[idx].winnerId = winnerId!;
+           if (!activeMatch && userResult === null && ['MSI_PLAY_IN', 'MSI_BRACKET'].includes(nextState.stage)) {
+               activeMatch = newMatches.find(m => !m.winnerId && m.teamAId && m.teamBId);
+           }
+           
+           if (activeMatch) {
+               let winnerId;
+               if (activeMatch.teamAId === nextState.teamId || activeMatch.teamBId === nextState.teamId) {
+                   winnerId = userResult?.victory ? nextState.teamId : (activeMatch.teamAId === nextState.teamId ? activeMatch.teamBId : activeMatch.teamAId);
+               } else if (userResult === null) {
+                   const sim = simulateSeries(activeMatch.teamAId!, activeMatch.teamBId!, !!activeMatch.isBo5);
+                   winnerId = sim.winnerId;
+                   const resultObj: MatchResult = {
+                       victory: false,
+                       scoreUser: sim.scoreA,
+                       scoreEnemy: sim.scoreB,
+                       playerStats: [],
+                       gameScores: [],
+                       enemyTeam: allTeams.find(t => t.id === activeMatch.teamBId)?.shortName || '',
+                       isBo5: !!activeMatch.isBo5
+                   };
+                   setLastMatch(resultObj);
+               } else {
+                   return nextState;
+               }
+               
+               const idx = newMatches.findIndex(m => m.id === activeMatch.id);
+               newMatches[idx].winnerId = winnerId!;
+               const userResultExists = userResult && (activeMatch.teamAId === nextState.teamId || activeMatch.teamBId === nextState.teamId);
+               newMatches[idx].seriesScoreA = userResultExists ? (activeMatch.teamAId === nextState.teamId ? userResult.scoreUser : userResult.scoreEnemy) : (winnerId === activeMatch.teamAId ? Math.max(2,3) : Math.floor(Math.random() * 2));
+               newMatches[idx].seriesScoreB = userResultExists ? (activeMatch.teamBId === nextState.teamId ? userResult.scoreUser : userResult.scoreEnemy) : (winnerId === activeMatch.teamBId ? Math.max(2,3) : Math.floor(Math.random() * 2));
 
-                if (newMatches[idx].nextMatchId) {
-                    const nextIdx = newMatches.findIndex(m => m.id === newMatches[idx].nextMatchId);
-                    if (nextIdx >= 0) {
-                        if (newMatches[idx].nextMatchSlot === 'A') newMatches[nextIdx].teamAId = winnerId!;
-                        else newMatches[nextIdx].teamBId = winnerId!;
-                    }
-                }
-            }
+               if (newMatches[idx].nextMatchId) {
+                   const nextIdx = newMatches.findIndex(m => m.id === activeMatch.nextMatchId);
+                   if (nextIdx >= 0) {
+                       if (activeMatch.nextMatchSlot === 'A') newMatches[nextIdx].teamAId = winnerId!;
+                       else newMatches[nextIdx].teamBId = winnerId!;
+                   }
+               }
 
-            if (nextState.stage === 'PLAY_IN' && newMatches.every(m => m.winnerId)) {
-                const qualifiers = newMatches.map(m => m.winnerId!);
-                setTimeout(() => initializePlayoffs(qualifiers), 100);
-            }
+               if (newMatches[idx].loserMatchId) {
+                   const loserId = winnerId === activeMatch.teamAId ? activeMatch.teamBId : activeMatch.teamAId;
+                   const loserIdx = newMatches.findIndex(m => m.id === activeMatch.loserMatchId);
+                   if (loserIdx >= 0) {
+                       if (activeMatch.loserMatchSlot === 'A') newMatches[loserIdx].teamAId = loserId;
+                       else newMatches[loserIdx].teamBId = loserId;
+                   }
+               }
+           }
 
-            return { ...nextState, playoffMatches: newMatches };
-        }
-        return nextState;
+           if (nextState.stage === 'PLAY_IN' && newMatches.every(m => m.winnerId)) {
+               const qualifiers = newMatches.map(m => m.winnerId!);
+               setTimeout(() => initializePlayoffs(qualifiers), 100);
+           }
+           
+           if (nextState.stage === 'MSI_PLAY_IN' && newMatches.filter(m => m.roundName.includes('Final')).every(m => m.winnerId)) {
+               const ubFinalWinner = newMatches.find(m => m.id === 'msi-pi-ub-final')!.winnerId!;
+               const lbFinalWinner = newMatches.find(m => m.id === 'msi-pi-lb-final')!.winnerId!;
+               const qualifiers = [ubFinalWinner, lbFinalWinner];
+               showNotification('success', `MSI Play-In has concluded! ${qualifiers.join(' and ')} advance.`);
+               
+               const bracketContenders = [...(nextState.msiBracketContenders || []), ...qualifiers].sort(() => 0.5 - Math.random());
+               const bracketMatches: PlayoffMatch[] = [
+                 { id: 'msi-b-r1-1', roundName: 'UB Round 1', teamAId: bracketContenders[0], teamBId: bracketContenders[7], nextMatchId: 'msi-b-sf-1', nextMatchSlot: 'A', loserMatchId: 'msi-b-lb1-1', loserMatchSlot: 'A', isBo5: true },
+                 { id: 'msi-b-r1-2', roundName: 'UB Round 1', teamAId: bracketContenders[3], teamBId: bracketContenders[4], nextMatchId: 'msi-b-sf-1', nextMatchSlot: 'B', loserMatchId: 'msi-b-lb1-1', loserMatchSlot: 'B', isBo5: true },
+                 { id: 'msi-b-r1-3', roundName: 'UB Round 1', teamAId: bracketContenders[1], teamBId: bracketContenders[6], nextMatchId: 'msi-b-sf-2', nextMatchSlot: 'A', loserMatchId: 'msi-b-lb1-2', loserMatchSlot: 'A', isBo5: true },
+                 { id: 'msi-b-r1-4', roundName: 'UB Round 1', teamAId: bracketContenders[2], teamBId: bracketContenders[5], nextMatchId: 'msi-b-sf-2', nextMatchSlot: 'B', loserMatchId: 'msi-b-lb1-2', loserMatchSlot: 'B', isBo5: true },
+                 { id: 'msi-b-sf-1', roundName: 'UB Semifinals', teamAId: null, teamBId: null, nextMatchId: 'msi-b-ubf', nextMatchSlot: 'A', loserMatchId: 'msi-b-lbsf', loserMatchSlot: 'B', isBo5: true },
+                 { id: 'msi-b-sf-2', roundName: 'UB Semifinals', teamAId: null, teamBId: null, nextMatchId: 'msi-b-ubf', nextMatchSlot: 'B', loserMatchId: 'msi-b-lbsf', loserMatchSlot: 'A', isBo5: true },
+                 { id: 'msi-b-ubf', roundName: 'UB Final', teamAId: null, teamBId: null, nextMatchId: 'msi-final', nextMatchSlot: 'A', loserMatchId: 'msi-b-lbf', loserMatchSlot: 'B', isBo5: true },
+                 { id: 'msi-b-lb1-1', roundName: 'LB Round 1', teamAId: null, teamBId: null, nextMatchId: 'msi-b-lbsf', nextMatchSlot: 'A', isBo5: true },
+                 { id: 'msi-b-lb1-2', roundName: 'LB Round 1', teamAId: null, teamBId: null, nextMatchId: 'msi-b-lbsf', nextMatchSlot: 'B', isBo5: true },
+                 { id: 'msi-b-lbsf', roundName: 'LB Semifinal', teamAId: null, teamBId: null, nextMatchId: 'msi-b-lbf', nextMatchSlot: 'A', isBo5: true },
+                 { id: 'msi-b-lbf', roundName: 'LB Final', teamAId: null, teamBId: null, nextMatchId: 'msi-final', nextMatchSlot: 'B', isBo5: true },
+                 { id: 'msi-final', roundName: 'Grand Final', teamAId: null, teamBId: null, isBo5: true },
+               ];
+
+               return {
+                 ...nextState,
+                 stage: 'MSI_BRACKET',
+                 matchHistory: { ...nextState.matchHistory, [`${nextState.year} MSI Play-In`]: { playoffs: newMatches } },
+                 playoffMatches: bracketMatches,
+               };
+           }
+           
+           if (nextState.stage === 'MSI_BRACKET' && newMatches.every(m => m.winnerId)) {
+               const msiWinnerId = newMatches.find(m => m.roundName.includes('Grand Final'))!.winnerId;
+               const isMsiChampion = msiWinnerId === nextState.teamId;
+               const reward = isMsiChampion ? 50000 : 10000;
+               showNotification('success', `MSI has concluded! You earned ${reward}G.`);
+               return {
+                   ...nextState,
+                   coins: nextState.coins + reward,
+                   matchHistory: { 
+                       ...nextState.matchHistory, 
+                       [`${nextState.year} MSI Play-In`]: nextState.matchHistory[`${nextState.year} MSI Play-In`] || {},
+                       [`${nextState.year} MSI`]: { playoffs: newMatches } 
+                   },
+                   stage: 'PRE_SEASON',
+                   currentSplit: 'SUMMER',
+               };
+           }
+
+           return { ...nextState, playoffMatches: newMatches };
+       }
+       return nextState;
      });
      setIsPlayingMatch(false);
   };
 
-  const updatePlayerProgression = (player: PlayerCard, performanceScore: number): PlayerCard => {
-    const potentialMultipliers = { 'S': 1.5, 'A': 1.2, 'B': 1.0, 'C': 0.7 };
-    const ageFactor = Math.max(0.1, 1 - ((player.age - 20) / 10));
-    
-    const changeFactor = performanceScore * potentialMultipliers[player.potential] * ageFactor;
-
-    if (Math.random() > 0.6) return player;
-
-    const newStats = { ...player.stats };
-    const statsToChange: (keyof PlayerCard['stats'])[] = ['mechanics', 'macro', 'lane', 'teamfight'];
-    const statToChange = statsToChange[Math.floor(Math.random() * statsToChange.length)];
-
-    const changeAmount = (Math.random() * 0.5 + 0.5) * changeFactor;
-    newStats[statToChange] = Math.max(50, Math.min(99, newStats[statToChange] + changeAmount));
-
-    const newOverall = Math.round((newStats.mechanics + newStats.macro + newStats.lane + newStats.teamfight) / 4);
-
-    return {
-      ...player,
-      stats: newStats,
-      previousOverall: player.overall,
-      overall: newOverall,
-    };
+  const handleResetFilters = () => {
+    setFilterRole('ALL');
+    setFilterStatus('ALL');
+    setSortOrder('RATING');
+    setPriceRange({ min: 0, max: 20000 });
+    setFilterLeague('ALL');
+    setMarketPage(1);
   };
 
-  const processMatchPlayerStats = (
-    roster: GameState['roster'],
-    inventory: GameState['inventory'],
-    playerStats: PlayerMatchStats[]
-  ): { newRoster: GameState['roster'], newInventory: GameState['inventory'] } => {
-      const allOwnedPlayers = [...Object.values(roster).filter((p): p is PlayerCard => p !== null), ...inventory];
-      const updatedPlayers = new Map<string, PlayerCard>();
-
-      playerStats.forEach(stat => {
-        const player = allOwnedPlayers.find(p => p.id === stat.playerId);
-        if (player) {
-          const kda = (stat.kills + stat.assists) / Math.max(1, stat.deaths);
-          const performanceScore = (kda - 1.5) * 0.2;
-          updatedPlayers.set(player.id, updatePlayerProgression(player, performanceScore));
-        }
-      });
-
-      const newRoster = { ...roster };
-      Object.keys(newRoster).forEach(role => {
-        const p = newRoster[role as Role];
-        if (p && updatedPlayers.has(p.id)) {
-          newRoster[role as Role] = updatedPlayers.get(p.id)!;
-        }
-      });
-
-      const newInventory = inventory.map(p => updatedPlayers.has(p.id) ? updatedPlayers.get(p.id)! : p);
-
-      return { newRoster, newInventory };
-  };
-
-  const MarketView = () => {
-     return (
-        <div className="space-y-6">
-           <div className="flex flex-col gap-4 bg-dark-900 p-6 rounded-xl border border-dark-800">
+  const MarketViewComponent = () => {
+    const totalPages = Math.ceil(filteredMarket.length / PLAYERS_PER_PAGE);
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-col gap-4 bg-dark-900 p-6 rounded-xl border border-dark-800">
               <div className="flex justify-between items-start">
                  <div>
                     <h2 className="text-2xl font-bold font-display text-white">Transfer Market</h2>
@@ -1552,94 +2514,151 @@ export default function App() {
                  </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-4 border-t border-dark-800">
-                 {/* Role Filter */}
-                 <div className="flex gap-1 bg-dark-950 p-1 rounded-lg">
-                    <button onClick={() => setFilterRole('ALL')} className={`flex-1 py-1.5 rounded text-xs font-bold ${filterRole === 'ALL' ? 'bg-dark-700 text-white' : 'text-gray-500 hover:text-gray-300'}`}>ALL</button>
-                    {Object.values(Role).filter(r => r !== Role.COACH).map(role => (
-                       <button key={role} onClick={() => setFilterRole(role)} className={`flex-1 py-1.5 rounded text-xs font-bold ${filterRole === role ? 'bg-hextech-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}>
-                          {role === Role.JUNGLE ? 'JGL' : role}
-                       </button>
-                    ))}
-                 </div>
-
-                 <div className="flex gap-1 bg-dark-950 p-1 rounded-lg">
-                    <button onClick={() => setFilterStatus('ALL')} className={`flex-1 py-1.5 rounded text-xs font-bold ${filterStatus === 'ALL' ? 'bg-dark-700 text-white' : 'text-gray-500 hover:text-gray-300'}`}>All</button>
-                    <button onClick={() => setFilterStatus('FA')} className={`flex-1 py-1.5 rounded text-xs font-bold ${filterStatus === 'FA' ? 'bg-green-600/20 text-green-400' : 'text-gray-500 hover:text-gray-300'}`}>Free Agents</button>
-                    <button onClick={() => setFilterStatus('TRANSFER')} className={`flex-1 py-1.5 rounded text-xs font-bold ${filterStatus === 'TRANSFER' ? 'bg-blue-600/20 text-blue-400' : 'text-gray-500 hover:text-gray-300'}`}>Transfer</button>
-                 </div>
-
-                 <div className="relative">
-                    <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-gray-500">
-                       <ArrowDownUp size={14} />
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4 pt-4 border-t border-dark-800">
+                <div className="xl:col-span-2">
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Role</label>
+                  <div className="flex gap-1 bg-dark-950 p-1 rounded-lg h-10 items-center">
+                      <button onClick={() => setFilterRole('ALL')} className={`flex-1 py-1.5 rounded text-xs font-bold ${filterRole === 'ALL' ? 'bg-dark-700 text-white' : 'text-gray-500 hover:text-gray-300'}`}>ALL</button>
+                      {Object.values(Role).filter(r => r !== Role.COACH).map(role => (
+                        <button key={role} onClick={() => setFilterRole(role)} className={`flex-1 py-1.5 rounded text-xs font-bold ${filterRole === role ? 'bg-hextech-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}>
+                            {role === Role.JUNGLE ? 'JGL' : role.slice(0, 3)}
+                        </button>
+                      ))}
+                      <button onClick={() => setFilterRole(Role.COACH)} className={`flex-1 py-1.5 rounded text-xs font-bold ${filterRole === Role.COACH ? 'bg-purple-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}>
+                        COACH
+                      </button>
+                  </div>
+                </div>
+                <div className="xl:col-span-2">
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Status</label>
+                  <div className="flex gap-1 bg-dark-950 p-1 rounded-lg h-10 items-center">
+                      <button onClick={() => setFilterStatus('ALL')} className={`flex-1 py-1.5 rounded text-xs font-bold ${filterStatus === 'ALL' ? 'bg-dark-700 text-white' : 'text-gray-500 hover:text-gray-300'}`}>All</button>
+                      <button onClick={() => setFilterStatus('FA')} className={`flex-1 py-1.5 rounded text-xs font-bold ${filterStatus === 'FA' ? 'bg-green-600/20 text-green-400' : 'text-gray-500 hover:text-gray-300'}`}>Free Agents</button>
+                      <button onClick={() => setFilterStatus('TRANSFER')} className={`flex-1 py-1.5 rounded text-xs font-bold ${filterStatus === 'TRANSFER' ? 'bg-blue-600/20 text-blue-400' : 'text-gray-500 hover:text-gray-300'}`}>Transfer</button>
+                      <button onClick={() => setFilterStatus('RETIRED' as any)} className={`flex-1 py-1.5 rounded text-xs font-bold ${filterStatus === 'RETIRED' ? 'bg-gray-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}>Retired</button>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-2">League</label>
+                  <div className="relative">
+                      <select value={filterLeague} onChange={(e) => setFilterLeague(e.target.value as any)} className="w-full bg-dark-950 border border-dark-700 text-white text-sm font-bold pl-3 pr-8 rounded-lg focus:outline-none focus:border-hextech-500 appearance-none cursor-pointer h-10">
+                        <option value="ALL">All Leagues</option>
+                        {Object.keys(LEAGUES).map(key => (
+                          <option key={key} value={key}>{(LEAGUES as any)[key].name}</option>
+                        ))}
+                      </select>
+                  </div>
+                </div>
+                <div className="xl:col-span-2">
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Sort By</label>
+                  <div className="relative">
+                      <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-gray-500">
+                        <ArrowDownUp size={14} />
+                      </div>
+                      <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value as any)} className="w-full bg-dark-950 border border-dark-700 text-white text-sm font-bold pl-9 pr-4 rounded-lg focus:outline-none focus:border-hextech-500 appearance-none cursor-pointer h-10">
+                        <option value="RATING">Rating</option>
+                        <option value="PRICE">Transfer Fee</option>
+                        <option value="SALARY">Salary</option>
+                      </select>
+                  </div>
+                </div>
+                <div className="xl:col-span-2">
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Transfer Fee</label>
+                    <div className="flex items-center gap-2 bg-dark-950 px-3 rounded-lg border border-dark-700 h-10">
+                      <span className="text-xs font-bold text-gray-500">Fee:</span>
+                      <input type="number" value={priceRange.min} onChange={e => setPriceRange({...priceRange, min: Number(e.target.value)})} className="w-16 bg-transparent text-white text-xs font-mono focus:outline-none text-right" placeholder="Min" />
+                      <span className="text-gray-600">-</span>
+                      <input type="number" value={priceRange.max} onChange={e => setPriceRange({...priceRange, max: Number(e.target.value)})} className="w-16 bg-transparent text-white text-xs font-mono focus:outline-none" placeholder="Max" />
                     </div>
-                    <select 
-                       value={sortOrder} 
-                       onChange={(e) => setSortOrder(e.target.value as any)}
-                       className="w-full bg-dark-950 border border-dark-700 text-white text-xs font-bold py-2 pl-9 pr-4 rounded-lg focus:outline-none focus:border-hextech-500 appearance-none cursor-pointer"
-                    >
-                       <option value="RATING">Rating (High to Low)</option>
-                       <option value="PRICE">Price (Low to High)</option>
-                       <option value="SALARY">Salary (Low to High)</option>
-                    </select>
-                 </div>
-
-                 <div className="flex items-center gap-2 bg-dark-950 px-3 rounded-lg border border-dark-700">
-                    <span className="text-xs font-bold text-gray-500">Fee:</span>
-                    <input 
-                       type="number" 
-                       value={priceRange.min} 
-                       onChange={e => setPriceRange({...priceRange, min: Number(e.target.value)})}
-                       className="w-16 bg-transparent text-white text-xs font-mono focus:outline-none text-right"
-                       placeholder="Min"
-                    />
-                    <span className="text-gray-600">-</span>
-                    <input 
-                       type="number" 
-                       value={priceRange.max} 
-                       onChange={e => setPriceRange({...priceRange, max: Number(e.target.value)})}
-                       className="w-16 bg-transparent text-white text-xs font-mono focus:outline-none"
-                       placeholder="Max"
-                    />
-                 </div>
+                </div>
+                <div className="flex items-end">
+                  <button onClick={handleResetFilters} className="w-full h-10 flex items-center justify-center gap-2 rounded-lg text-xs font-bold bg-dark-800 text-gray-400 hover:text-white hover:bg-dark-700 border border-dark-700">
+                    <RotateCcw size={14} /> Reset
+                  </button>
+                </div>
               </div>
            </div>
            
            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {filteredMarket.length === 0 && <div className="col-span-full text-center py-10 text-gray-500 italic">No players match your filters.</div>}
-              {filteredMarket.map(player => {
+              {paginatedMarket.length === 0 && <div className="col-span-full text-center py-10 text-gray-500 italic">No players match your filters.</div>}
+              {paginatedMarket.map(player => {
                  const team = activeLeague.teams.find(t => t.shortName === player.team);
                  return <Card 
-                    key={player.id} 
-                    player={player} 
-                    team={team}
-                    actionLabel="Negotiate"
-                    onClick={() => openNegotiation(player)}
+                   key={player.id} 
+                   player={player} 
+                   team={team}
+                   actionLabel={player.status === 'retired' ? 'Negotiate' : 'Negotiate'}
+                   onClick={() => {
+                     if (player.status === 'retired') {
+                       setRetiredPlayerModal(player);
+                     } else openNegotiation(player);
+                   }}
                  />;
               })}
            </div>
-        </div>
-     );
+
+           {totalPages > 1 && (
+             <div className="flex justify-center items-center gap-4 pt-6 border-t border-dark-800">
+                <button
+                   onClick={() => setMarketPage(p => Math.max(1, p - 1))}
+                   disabled={marketPage === 1}
+                   className="px-4 py-2 bg-dark-800 text-white font-bold rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-dark-700"
+                >
+                   Previous
+                </button>
+                <span className="text-gray-400 font-mono text-sm">
+                   Page {marketPage} of {totalPages}
+                </span>
+                <button
+                   onClick={() => setMarketPage(p => Math.min(totalPages, p + 1))}
+                   disabled={marketPage >= totalPages}
+                   className="px-4 py-2 bg-dark-800 text-white font-bold rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-dark-700"
+                >
+                   Next
+                </button>
+             </div>
+           )}
+      </div>
+    );
   };
 
-  const DashboardView = () => (
-    <div className="space-y-6">
-      <div className="bg-dark-900 rounded-2xl p-6 border border-dark-800 flex justify-between items-center">
-        <div>
-          <h2 className="text-3xl font-display font-bold text-white mb-1">
-            {activeTeamData?.name}
-          </h2>
-          <div className="flex gap-4 text-sm text-gray-400">
-            <span>Power: <span className="text-white font-bold">{getTeamPower()}</span></span>
-            <span>Coins: <span className="text-gold-400 font-bold">{gameState.coins}</span></span>
-            <span>Season: <span className="text-white font-bold">{gameState.currentSeason}</span></span>
-          </div>
-        </div>
-        <TeamLogo team={activeTeamData} size="w-16 h-16" />
-      </div>
+  const MarketView = React.memo(MarketViewComponent);
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-dark-900 rounded-2xl p-6 border border-dark-800">
+  const DashboardView = () => {
+    const { synergies, totalBonus } = getActiveSynergies(gameState.roster);
+
+    return (
+      <div className="space-y-6">
+        <div className="bg-dark-900 rounded-2xl p-6 border border-dark-800 flex justify-between items-center">
+          <div>
+            <h2 className="text-3xl font-display font-bold text-white mb-1">
+              {activeTeamData?.name}
+            </h2>
+            <div className="flex gap-3 text-sm text-gray-400 items-center">
+              <span>Power: <span className="text-white font-bold">{getTeamPower()}</span></span>
+              <span className="text-gray-600">|</span>
+              <span>Synergy: <span className="text-cyan-400 font-bold">+{totalBonus}</span></span>
+              <span className="text-gray-600">|</span>
+              <span>Coins: <span className="text-gold-400 font-bold">{gameState.coins}</span></span>
+              <span className="text-gray-600">|</span>
+              <span>Season: <span className="text-white font-bold">{gameState.currentSeason}</span></span>
+            </div>
+            {synergies.length > 0 && (
+              <div className="mt-4 flex flex-wrap gap-2">
+                {synergies.map(s => (
+                  <div key={s.league} className="bg-cyan-900/50 border border-cyan-700/50 px-2.5 py-1 rounded-full text-xs">
+                    <span className="font-bold text-cyan-300">{s.league} ({s.count})</span>
+                    <span className="text-cyan-400 font-mono ml-1.5">+{s.bonus}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <TeamLogo team={activeTeamData} size="w-16 h-16" />
+        </div>
+  
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="bg-dark-900 rounded-2xl p-6 border border-dark-800">
            <h3 className="text-lg font-bold text-white mb-4">Active Roster</h3>
            <div className="space-y-2">
              {Object.values(Role).filter(r => r !== Role.COACH).map(role => {
@@ -1654,10 +2673,10 @@ export default function App() {
                  </div>
                )
              })}
-           </div>
-        </div>
-
-        <div className="bg-dark-900 rounded-2xl p-6 border border-dark-800 flex flex-col justify-center items-center">
+            </div>
+          </div>
+  
+          <div className="bg-dark-900 rounded-2xl p-6 border border-dark-800 flex flex-col justify-center items-center">
             <h3 className="text-lg font-bold text-white mb-2">Next Step</h3>
             <p className="text-gray-400 text-center mb-6">
               {gameState.stage === 'PRE_SEASON' ? 'Complete your roster and start the season.' : `Week ${gameState.week} Matches`}
@@ -1668,10 +2687,52 @@ export default function App() {
             >
               {gameState.stage === 'PRE_SEASON' ? 'Go to Market' : 'Play Match'}
             </button>
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
+
+  const handleOfferResponse = (offer: IncomingOffer, accepted: boolean) => {
+    if (accepted) {
+      setGameState(prev => {
+        const newRoster = { ...prev.roster };
+        const newInventory = [...prev.inventory];
+        let playerFound = false;
+
+        for (const role in newRoster) {
+          if (newRoster[role as Role]?.id === offer.player.id) {
+            newRoster[role as Role] = null;
+            playerFound = true;
+            break;
+          }
+        }
+
+        if (!playerFound) {
+          const inventoryIndex = newInventory.findIndex(p => p.id === offer.player.id);
+          if (inventoryIndex > -1) {
+            newInventory.splice(inventoryIndex, 1);
+          }
+        }
+
+        const newAiRosters = { ...prev.aiRosters };
+        if (!newAiRosters[offer.offeringTeamId]) newAiRosters[offer.offeringTeamId] = {};
+        newAiRosters[offer.offeringTeamId][offer.player.role] = { ...offer.player, team: offer.offeringTeamName };
+
+        return {
+          ...prev,
+          coins: prev.coins + offer.offerAmount,
+          roster: newRoster,
+          inventory: newInventory,
+          aiRosters: newAiRosters
+        };
+      });
+      showNotification('success', `${offer.player.name} has been sold to ${offer.offeringTeamName} for ${offer.offerAmount}G.`);
+    } else {
+      showNotification('error', `Offer for ${offer.player.name} from ${offer.offeringTeamName} has been rejected.`);
+    }
+    setIncomingOffers(prev => prev.filter(o => o.player.id !== offer.player.id));
+  };
 
   const RosterView = () => (
     <div className="space-y-6">
@@ -1681,6 +2742,36 @@ export default function App() {
              Drag & Drop functionality coming soon. Click to assign.
           </div>
        </div>
+
+       {incomingOffers.length > 0 && gameState.stage === 'OFF_SEASON' && (
+        <div className="bg-dark-950 border-2 border-gold-500/50 rounded-2xl p-6">
+          <h3 className="text-xl font-bold text-gold-300 mb-4">Incoming Transfer Offers</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {incomingOffers.map(offer => (
+              <div key={offer.player.id} className="bg-dark-900 border border-dark-700 rounded-xl p-4 flex flex-col gap-3">
+                <div>
+                  <p className="text-sm text-gray-400">Offer for <span className="font-bold text-white">{offer.player.name}</span> (OVR {offer.player.overall})</p>
+                  <p className="text-xs">From: <span className="font-bold text-white">{offer.offeringTeamName}</span></p>
+                </div>
+                <div className="text-center font-mono text-lg font-bold text-gold-400 bg-dark-950 py-2 rounded-lg">
+                  {offer.offerAmount} G
+                </div>
+                <div className="text-xs text-center text-gray-400 italic mt-1">
+                  "{offer.playerOpinion}"
+                </div>
+                <div className="flex gap-2 mt-2">
+                  <button onClick={() => handleOfferResponse(offer, true)} className="flex-1 py-2 bg-green-600 hover:bg-green-500 text-white font-bold rounded-lg text-sm">
+                    Accept
+                  </button>
+                  <button onClick={() => handleOfferResponse(offer, false)} className="flex-1 py-2 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg text-sm">
+                    Reject
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-4">
@@ -1692,7 +2783,7 @@ export default function App() {
                          {role}
                       </div>
                       {player ? (
-                         <Card
+                         <Card 
                            player={player} 
                            team={activeLeague.teams.find(t => t.shortName === player.team)}
                            compact
@@ -1716,20 +2807,30 @@ export default function App() {
              <h3 className="text-lg font-bold text-white mb-4 px-2">Bench</h3>
              <div className="flex-1 overflow-y-auto space-y-2 pr-2">
                 {gameState.inventory.filter(p => {
-                    const currentRoster = Object.values(gameState.roster) as (PlayerCard | null)[];
-                    return !currentRoster.some(rp => rp?.id === p.id);
+                  const currentRoster = Object.values(gameState.roster) as (PlayerCard | null)[];
+                  return !currentRoster.some(rp => rp?.id === p.id);
                 }).map(p => (
-                   <div 
-                     key={p.id} 
-                     onClick={() => assignToRoster(p)}
-                     className="p-3 bg-dark-950 border border-dark-800 rounded-lg cursor-pointer hover:border-hextech-500 transition-colors"
-                   >
-                      <div className="flex justify-between">
-                         <span className="font-bold text-white">{p.name}</span>
-                         <span className="text-xs text-gray-500">{p.role}</span>
+                  <div key={p.id} className="flex items-center gap-2">
+                    <div
+                      onClick={() => assignToRoster(p)}
+                      className="flex-1 p-3 bg-dark-950 border border-dark-800 rounded-lg cursor-pointer hover:border-hextech-500 transition-colors"
+                    >
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <span className="font-bold text-white">{p.name}</span>
+                          <div className="text-xs text-gray-400">OVR: {p.overall}</div>
+                        </div>
+                        <span className="text-xs text-gray-500">{p.role}</span>
                       </div>
-                      <div className="text-xs text-gray-400">OVR: {p.overall}</div>
-                   </div>
+                    </div>
+                    <button
+                      onClick={() => handleSellPlayer(p)}
+                      className="px-3 py-2 bg-red-800/50 text-red-300 hover:bg-red-700/50 rounded-lg text-xs font-bold transition-colors"
+                      title="Sell Player"
+                    >
+                      Sell
+                    </button>
+                  </div>
                 ))}
                 {gameState.inventory.length === 0 && <div className="text-gray-500 text-center italic mt-10">No players on bench.</div>}
              </div>
@@ -1737,6 +2838,42 @@ export default function App() {
        </div>
     </div>
   );
+
+  const handleSellPlayer = (player: PlayerCard) => {
+    if (gameState.stage !== 'OFF_SEASON') {
+      showNotification('error', 'Sezon ortasında oyuncu satamazsınız.');
+      return;
+    }
+
+    const sell = () => {
+      const salePrice = Math.floor(player.salary * 1.5 + player.overall * 10); 
+      setGameState(prev => ({
+        ...prev,
+        coins: prev.coins + salePrice,
+        inventory: prev.inventory.filter(p => p.id !== player.id),
+        freeAgents: [...prev.freeAgents, { ...player, team: 'FA', contractDuration: 0, price: 0 }]
+      }));
+      showNotification('success', `${player.name} has been sold for ${salePrice}G.`);
+    };
+
+    if ((player.morale ?? 50) > 75) {
+      const salaryReduction = Math.floor(player.salary * 0.25);
+      const newSalary = player.salary - salaryReduction;
+      if (window.confirm(`${player.name} has high morale and wants to stay! They are willing to accept a new salary of ${newSalary}G (a ${salaryReduction}G reduction). Do you want to accept this new salary? (Press 'Cancel' to sell the player instead)`)) {
+        setGameState(prev => ({
+          ...prev,
+          inventory: prev.inventory.map(p => p.id === player.id ? { ...p, salary: newSalary } : p)
+        }));
+        showNotification('success', `${player.name}'s salary has been reduced to ${newSalary}G!`);
+      } else {
+        sell();
+      }
+    } else {
+      if (window.confirm(`Are you sure you want to sell ${player.name}?`)) {
+        sell();
+      }
+    }
+  };
 
   const assignToRoster = (player: PlayerCard) => {
     setGameState(prev => {
@@ -1755,131 +2892,355 @@ export default function App() {
   };
 
   const ScheduleView = () => {
-    if (['PLAY_IN', 'PLAYOFFS', 'LEC_GROUP_STAGE', 'LEC_PLAYOFFS'].includes(gameState.stage)) {
-        return (
-            <div className="space-y-6">
-                <h2 className="text-2xl font-bold font-display text-white">
-                    {gameState.stage === 'PLAY_IN' ? 'Play-In Bracket' : 'Playoff Bracket'}
-                </h2>
-                <BracketView matches={gameState.playoffMatches} stage={gameState.stage} teams={activeLeague.teams} />
-                
-                <h3 className="text-xl font-bold text-gray-400 mt-8">Match List</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {gameState.playoffMatches.map(match => {
-                        const teamA = activeLeague.teams.find(t => t.id === match.teamAId);
-                        const teamB = activeLeague.teams.find(t => t.id === match.teamBId);
-                        return (
-                            <div key={match.id} className="bg-dark-900 border border-dark-800 p-4 rounded-xl flex justify-between items-center">
-                                <div className="text-xs font-bold text-gray-500 uppercase">{match.roundName}</div>
-                                <div className="flex items-center gap-2">
-                                    <span className={match.winnerId === teamA?.id ? 'text-green-400 font-bold' : 'text-white'}>{teamA?.shortName || 'TBD'}</span>
-                                    <span className="text-gray-600">vs</span>
-                                    <span className={match.winnerId === teamB?.id ? 'text-green-400 font-bold' : 'text-white'}>{teamB?.shortName || 'TBD'}</span>
-                                </div>
-                                <div className="font-mono font-bold">{match.seriesScoreA ?? 0} - {match.seriesScoreB ?? 0}</div>
-                            </div>
-                        )
-                    })}
-                </div>
-            </div>
-        )
-    }
-
-    return (
-        <div className="space-y-6">
-           <h2 className="text-2xl font-bold font-display text-white">Season Schedule</h2>
-           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {gameState.schedule.map(match => {
-                 const teamA = activeLeague.teams.find(t => t.id === match.teamAId);
-                 const teamB = activeLeague.teams.find(t => t.id === match.teamBId);
-                 const isUserMatch = match.teamAId === gameState.teamId || match.teamBId === gameState.teamId;
     
-                 return (
-                    <div key={match.id} className={`p-4 rounded-xl border ${match.played ? 'bg-dark-900 border-dark-800 opacity-70' : isUserMatch ? 'bg-blue-900/20 border-blue-500/50' : 'bg-dark-900 border-dark-700'}`}>
-                       <div className="text-xs text-gray-500 font-bold uppercase mb-2 flex justify-between">
-                          <span>Week {match.week}</span>
-                          {match.played && <span className="text-green-400">Final</span>}
-                       </div>
-                       <div className="flex justify-between items-center">
-                          <div className="flex items-center gap-2">
-                             <TeamLogo team={teamA} size="w-6 h-6" />
-                             <span className={`font-bold ${match.winnerId === teamA?.id ? 'text-green-400' : 'text-gray-300'}`}>{teamA?.shortName}</span>
-                          </div>
-                          <div className="flex flex-col items-center px-4">
-                             {match.played ? (
-                                <span className="font-mono font-bold text-white text-lg">{match.seriesScoreA} - {match.seriesScoreB}</span>
-                             ) : (
-                                <span className="text-xs text-gray-600 font-bold">VS</span>
-                             )}
-                          </div>
-                          <div className="flex items-center gap-2 flex-row-reverse">
-                             <TeamLogo team={teamB} size="w-6 h-6" />
-                             <span className={`font-bold ${match.winnerId === teamB?.id ? 'text-green-400' : 'text-gray-300'}`}>{teamB?.shortName}</span>
-                          </div>
-                       </div>
-                    </div>
-                 )
-              })}
-              {gameState.schedule.length === 0 && <div className="col-span-full text-center text-gray-500 py-10">Schedule not yet generated. Start the season first.</div>}
-           </div>
+    // 1. İsimlendirme ve Temizlik Motoru
+    const formatStageLabel = (rawKey: string): string => {
+        // Yılı baştan temizle
+        let label = rawKey.replace(/^\d{4}\s/, ''); 
+
+        // Eğer ham veri MSI içeriyorsa, etrafındaki her şeyi temizle
+        if (label.includes('MSI') && label.includes('Play-In')) return 'MSI Play-In';
+        if (label.includes('MSI')) return 'MSI';
+
+        // LPL ve Genel Düzeltmeler
+        const replacements: Record<string, string> = {
+            'LPL_SPLIT_2_PLACEMENTS': 'Split 2 Placements',
+            'LPL_SPLIT_2_LCQ': 'Split 2 LCQ',
+            'SPLIT_1': 'Split 1',
+            'SPLIT_2': 'Split 2', // LPL'de Split 2 MSI öncesidir
+            'SPLIT_3': 'Split 3', // LPL'de Split 3 MSI sonrasıdır (Summer yerine)
+            'SPRING': 'Spring',
+            'SUMMER': 'Summer',
+            'PLAYOFFS': 'Playoffs',
+            'PRE_SEASON': 'Pre-Season',
+            'OFF_SEASON': 'Off-Season'
+        };
+
+        Object.keys(replacements).forEach(key => {
+            const regex = new RegExp(key, 'gi'); 
+            label = label.replace(regex, replacements[key]);
+        });
+
+        label = label.replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
+        
+        // "Playoffs" kelimesi varsa düzgünleştir (Örn: "Split 1 playoffs" -> "Split 1 Playoffs")
+        if (label.toLowerCase().includes('playoffs')) {
+            label = label.replace(/playoffs/i, 'Playoffs');
+        }
+
+        return label;
+    };
+
+    // 2. Mevcut Sahne Anahtarını Belirle (Fail-Safe Eklendi)
+    const getCurrentStageKey = (gs: GameState): string => {
+      const year = gs.year;
+
+      // MSI için özel kontrol
+      if (gs.stage === 'MSI_PLAY_IN') return `${year} MSI Play-In`;
+      if (gs.stage === 'MSI_BRACKET') return `${year} MSI`;
+
+      // --- FAIL-SAFE (GÜVENLİK KONTROLÜ) ---
+      // State ne derse desin, maçların ID'sine bakarak gerçek sahneyi anla.
+      // Bu, "Split 2 Playoffs" yazan yerde MSI maçları varsa başlığı düzeltir.
+      const hasMsiMatches = gs.playoffMatches.some(m => m.id.includes('msi'));
+      if (hasMsiMatches) {
+          const isPlayIn = gs.playoffMatches.some(m => m.roundName.includes('Play-In') || m.id.includes('pi'));
+          return isPlayIn ? `${year} MSI Play-In` : `${year} MSI`;
+      }
+      // -------------------------------------
+      
+      if (gs.stage === 'LPL_SPLIT_2_PLACEMENTS') return `${year} Split 2 Placements`;
+      if (gs.stage === 'LPL_SPLIT_2_LCQ') return `${year} Split 2 LCQ`;
+
+      switch (gs.stage) {
+        case 'GROUP_STAGE':
+          if (activeLeague.settings.format === 'LPL') {
+              if (gs.currentSplit === 'SPRING') return `${year} Split 1`;
+              if (gs.currentSplit === 'SUMMER' || gs.currentSplit === 'SPLIT_3') return `${year} Split 3`; 
+              return `${year} Split 2`;
+          }
+          return gs.currentSplit === 'SPRING' ? `${year} Spring` : `${year} Summer`;
+        
+        case 'PLAYOFFS':
+          if (activeLeague.settings.format === 'LPL') {
+              if (gs.currentSplit === 'SPRING') return `${year} Split 1 Playoffs`;
+              if (gs.currentSplit === 'SUMMER' || gs.currentSplit === 'SPLIT_3') return `${year} Split 3 Playoffs`;
+              return `${year} Split 2 Playoffs`; // MSI Öncesi
+          }
+          return gs.currentSplit === 'SPRING' ? `${year} Spring Playoffs` : `${year} Summer Playoffs`;
+
+        case 'PRE_SEASON': return `${year} Pre-Season`;
+        case 'OFF_SEASON': return `${year} Off-Season`;
+
+        default: return `${year} ${gs.stage}`;
+      }
+    };
+
+    const currentStageKey = getCurrentStageKey(gameState);
+    
+    // State Tanımları
+    const [selectedYear, setSelectedYear] = useState<number>(gameState.year);
+    const [selectedView, setSelectedView] = useState(currentStageKey);
+    const [isYearDropdownOpen, setIsYearDropdownOpen] = useState(false);
+
+    useEffect(() => {
+      const key = getCurrentStageKey(gameState);
+      if (gameState.year !== selectedYear) setSelectedYear(gameState.year);
+      setSelectedView(key);
+    }, [gameState.year, gameState.currentSplit, gameState.stage, gameState.playoffMatches]); // playoffMatches eklendi
+
+    // 3. Sıralama Mantığı (LPL 2025 Yol Haritası)
+    const { availableYears, stagesForSelectedYear } = useMemo(() => {
+      const allKeys = [...Object.keys(gameState.matchHistory), currentStageKey].filter((v, i, a) => a.indexOf(v) === i);
+      const years = Array.from(new Set(allKeys.map(k => parseInt(k.substring(0, 4))))).sort((a, b) => b - a);
+
+      const keysInYear = allKeys.filter(k => k.startsWith(selectedYear.toString()));
+
+      // BURASI ÇOK ÖNEMLİ: Sekmelerin Soldan Sağa Sırası
+      const sortingOrder = [
+        'Pre-Season',
+        'Split 1', 'Spring', 
+        'Split 1 Playoffs', 'Spring Playoffs',
+        'Split 2 Placements',
+        'Split 2 LCQ',
+        'Split 2', // Grup aşaması (Ascend/Nirvana)
+        'Split 2 Playoffs', // MSI Elemeleri
+        'MSI Play-In', 
+        'MSI', 
+        'Split 3', 'Summer',
+        'Split 3 Playoffs', 'Summer Playoffs',
+        'Regional Finals',
+        'Worlds Play-In',
+        'Worlds',
+        'Off-Season'
+      ];
+
+      const sortedStages = keysInYear.sort((a, b) => {
+          const cleanA = formatStageLabel(a);
+          const cleanB = formatStageLabel(b);
+          
+          let indexA = sortingOrder.findIndex(s => cleanA === s || cleanA.includes(s));
+          let indexB = sortingOrder.findIndex(s => cleanB === s || cleanB.includes(s));
+          
+          if (indexA === -1) indexA = 99;
+          if (indexB === -1) indexB = 99;
+          
+          return indexA - indexB;
+      });
+
+      return { availableYears: years, stagesForSelectedYear: sortedStages };
+    }, [gameState.matchHistory, currentStageKey, selectedYear]);
+
+    // 4. İçerik Render Etme
+    const renderContent = (viewKey: string) => {
+      const isCurrent = viewKey === currentStageKey;
+      const historyData = gameState.matchHistory[viewKey];
+      
+      const schedule = isCurrent ? gameState.schedule : historyData?.schedule;
+      // Düzeltme: Geçmiş playoff verilerini (MSI dahil) doğrudan historyData'dan al.
+      const playoffs = isCurrent ? gameState.playoffMatches : historyData?.playoffs;
+      
+      // Stage tipini belirleme
+      let stage = 'GROUP_STAGE';
+      if (isCurrent) {
+          // Fail-safe: Eğer başlık MSI ise, stage değişkenini de MSI yap
+          if (viewKey.includes('MSI Play-In')) stage = 'MSI_PLAY_IN';
+          else if (viewKey.includes('MSI')) stage = 'MSI_BRACKET';
+          else stage = gameState.stage;
+      } else {
+          // Geçmiş veriyi görüntülerken başlığa bak
+          if (viewKey.includes('MSI Play-In')) stage = 'MSI_PLAY_IN';
+          else if (viewKey.includes('MSI')) stage = 'MSI_BRACKET';
+          else if (viewKey.includes('LCQ')) stage = 'LPL_SPLIT_2_LCQ';
+          else if (viewKey.includes('Playoffs')) stage = 'PLAYOFFS';
+          else if (viewKey.includes('Play-In')) stage = 'PLAY_IN';
+      }
+
+      if (playoffs && playoffs.length > 0) {
+          return (
+              <div className="animate-fade-in">
+                  <BracketView matches={playoffs} stage={stage} teams={allTeams} standings={gameState.standings} userTeamId={gameState.teamId} isCurrent={isCurrent} />
+              </div>
+          );
+      }
+  
+      if (schedule && schedule.length > 0) {
+          const matchesByWeek = schedule.reduce((acc, match) => {
+            (acc[match.week] = acc[match.week] || []).push(match);
+            return acc;
+          }, {} as Record<string, ScheduledMatch[]>);
+
+          return (
+            <div className="space-y-8 animate-fade-in">
+              {Object.entries(matchesByWeek).map(([week, matches]) => (
+                <div key={week}>
+                  <h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-4 border-b border-dark-800 pb-2">Week {week}</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {matches.map(match => {
+                      const teamA = allTeams.find(t => t.id === match.teamAId);
+                      const teamB = allTeams.find(t => t.id === match.teamBId);
+                      const isUserMatch = match.teamAId === gameState.teamId || match.teamBId === gameState.teamId;
+                      
+                      return (
+                        <div key={match.id} className={`relative p-4 rounded-xl border transition-all hover:border-dark-600 ${match.played ? 'bg-dark-900 border-dark-800 opacity-70 hover:opacity-100' : isUserMatch && isCurrent ? 'bg-blue-900/10 border-blue-500/50 shadow-[0_0_15px_rgba(59,130,246,0.1)]' : 'bg-dark-900 border-dark-700'}`}>
+                           <div className="flex justify-between items-center mb-3">
+                              <span className="text-[10px] font-bold text-gray-600 uppercase">
+                                 {match.isBo5 ? 'Best of 5' : 'Best of 1'} • Day {match.round}
+                              </span>
+                              {match.played && <span className="text-[10px] font-bold text-green-500 bg-green-500/10 px-2 py-0.5 rounded">FINAL</span>}
+                           </div>
+                           <div className="flex justify-between items-center">
+                              <div className="flex items-center gap-3 flex-1">
+                                 <TeamLogo team={teamA} size="w-8 h-8" />
+                                 <span className={`font-bold text-sm ${match.winnerId === teamA?.id ? 'text-white' : 'text-gray-400'}`}>{teamA?.shortName}</span>
+                              </div>
+                              <div className="flex flex-col items-center px-2 min-w-[60px]">
+                                 {match.played ? (
+                                    <div className="flex items-center gap-2 font-mono font-bold text-xl text-white">
+                                       <span className={match.winnerId === teamA?.id ? 'text-blue-400' : ''}>{match.seriesScoreA}</span>
+                                       <span className="text-gray-600 text-sm">:</span>
+                                       <span className={match.winnerId === teamB?.id ? 'text-blue-400' : ''}>{match.seriesScoreB}</span>
+                                    </div>
+                                 ) : (
+                                    <span className="text-xs text-gray-600 font-bold bg-dark-800 px-2 py-1 rounded">VS</span>
+                                 )}
+                              </div>
+                              <div className="flex items-center gap-3 flex-1 flex-row-reverse">
+                                 <TeamLogo team={teamB} size="w-8 h-8" />
+                                 <span className={`font-bold text-sm ${match.winnerId === teamB?.id ? 'text-white' : 'text-gray-400'}`}>{teamB?.shortName}</span>
+                              </div>
+                           </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          );
+      }
+  
+      return (
+        <div className="flex flex-col items-center justify-center py-20 text-gray-500">
+            <Search size={48} className="mb-4 opacity-20" />
+            <p>Schedule not yet generated for this stage.</p>
         </div>
+      );
+    };
+  
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-col md:flex-row justify-between items-end md:items-center gap-4 border-b border-dark-800 pb-1">
+          <div className="flex items-center gap-4">
+             <h2 className="text-2xl font-bold font-display text-white">Schedule & Results</h2>
+             
+             <div className="relative">
+                <button 
+                    onClick={() => setIsYearDropdownOpen(!isYearDropdownOpen)}
+                    className={`flex items-center gap-2 bg-dark-900 border text-white px-4 py-2 rounded-lg font-bold transition-all ${isYearDropdownOpen ? 'border-hextech-500 bg-dark-800' : 'border-dark-700 hover:bg-dark-800'}`}
+                >
+                   <span className="text-hextech-400">{selectedYear}</span> Season
+                   <ArrowDownUp size={14} className={`text-gray-500 transition-transform ${isYearDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {isYearDropdownOpen && (
+                    <>
+                        <div className="fixed inset-0 z-40" onClick={() => setIsYearDropdownOpen(false)}></div>
+                        <div className="absolute top-full left-0 mt-2 w-40 bg-dark-900 border border-dark-700 rounded-lg shadow-xl overflow-hidden z-50 animate-fade-in">
+                        {availableYears.map(year => (
+                            <button 
+                                key={year}
+                                onClick={() => {
+                                    setSelectedYear(year);
+                                    setIsYearDropdownOpen(false);
+                                }}
+                                className={`w-full text-left px-4 py-3 text-sm font-bold hover:bg-dark-800 transition-colors ${year === selectedYear ? 'text-hextech-400 bg-dark-800' : 'text-gray-400'}`}
+                            >
+                                {year} Season
+                            </button>
+                        ))}
+                        </div>
+                    </>
+                )}
+             </div>
+          </div>
+        </div>
+  
+        <div className="flex overflow-x-auto gap-1 pb-2 scrollbar-hide">
+          {stagesForSelectedYear.map(key => {
+            const prettyLabel = formatStageLabel(key);
+            const isActive = selectedView === key;
+            return (
+                <button
+                key={key}
+                onClick={() => setSelectedView(key)}
+                className={`whitespace-nowrap px-5 py-3 rounded-lg text-sm font-bold transition-all border ${
+                    isActive 
+                    ? 'bg-hextech-900/20 border-hextech-500 text-hextech-300 shadow-[0_0_10px_rgba(14,165,233,0.1)]' 
+                    : 'bg-dark-900 border-dark-800 text-gray-500 hover:text-gray-300 hover:border-dark-700'
+                }`}
+                >
+                {prettyLabel}
+                </button>
+            )
+          })}
+        </div>
+  
+        <div className="mt-4 min-h-[400px]">
+          {renderContent(selectedView)}
+        </div>
+      </div>
     );
   };
 
-  const StandingsView = () => (
-    <div className="space-y-6">
-       <h2 className="text-2xl font-bold font-display text-white">Standings</h2>
-       {gameState.stage === 'PLAY_IN' && (
-           <div className="mb-8">
-               <h3 className="text-lg font-bold text-gray-400 mb-4">Play-In Stage</h3>
-               <BracketView matches={gameState.playoffMatches} stage={gameState.stage} teams={activeLeague.teams} />
-           </div>
-       )}
-       {gameState.stage === 'PLAYOFFS' && (
-           <div className="mb-8">
-               <h3 className="text-lg font-bold text-gray-400 mb-4">Playoff Bracket</h3>
-               <BracketView matches={gameState.playoffMatches} stage={gameState.stage} teams={activeLeague.teams} />
-           </div>
-       )}
-       
-       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {['A', 'B'].map(group => (
-             <div key={group} className="bg-dark-900 border border-dark-800 rounded-xl overflow-hidden">
-                <div className="p-4 bg-dark-950 border-b border-dark-800 font-bold text-white flex justify-between">
-                    <span>Group {group}</span>
-                    {gameState.winnersGroup === group && <span className="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded">Winners Group</span>}
-                </div>
-                <table className="w-full text-sm text-left">
-                   <thead className="bg-dark-950 text-gray-500 font-bold uppercase text-xs">
-                      <tr>
-                         <th className="px-4 py-3">Team</th>
-                         <th className="px-4 py-3 text-center">W</th>
-                         <th className="px-4 py-3 text-center">L</th>
-                         <th className="px-4 py-3 text-center">+/-</th>
+  const StandingsView = () => {
+    const groupsToShow = activeLeague.settings.format === 'LPL' ? ['A', 'B', 'C', 'D'] : ['A', 'B'];
+
+    return (
+      <div className="space-y-6">
+        <h2 className="text-2xl font-bold font-display text-white">Standings</h2>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {groupsToShow.map(group => (
+            <div key={group} className="bg-dark-900 border border-dark-800 rounded-xl overflow-hidden">
+              <div className="p-4 bg-dark-950 border-b border-dark-800 font-bold text-white flex justify-between">
+                <span>Group {group}</span>
+                {gameState.winnersGroup === group && <span className="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded">Winners Group</span>}
+              </div>
+              <table className="w-full text-sm text-left">
+                <thead className="bg-dark-950 text-gray-500 font-bold uppercase text-xs">
+                  <tr>
+                    <th className="px-4 py-3">Team</th>
+                    <th className="px-4 py-3 text-center">W</th>
+                    <th className="px-4 py-3 text-center">L</th>
+                    <th className="px-4 py-3 text-center">+/-</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-dark-800">
+                  {gameState.standings
+                    .filter(s => s.group === group)
+                    .sort((a, b) => b.wins - a.wins || (b.gameWins - b.gameLosses) - (a.gameWins - a.gameLosses))
+                    .map((s, i) => (
+                      <tr key={s.teamId} className={s.teamId === gameState.teamId ? 'bg-blue-900/10' : ''}>
+                        <td className="px-4 py-3 font-bold text-white flex items-center gap-3">
+                          <span className="text-gray-500 font-mono w-4">{i + 1}</span>
+                          <TeamLogo
+                            team={activeLeague.teams.find(t => t.id === s.teamId)}
+                            streak={s.streak} />
+                          {s.name}
+                        </td>
+                        <td className="px-4 py-3 text-center text-white">{s.wins}</td>
+                        <td className="px-4 py-3 text-center text-gray-400">{s.losses}</td>
+                        <td className="px-4 py-3 text-center text-gray-500">{s.gameWins - s.gameLosses}</td>
                       </tr>
-                   </thead>
-                   <tbody className="divide-y divide-dark-800">
-                      {gameState.standings
-                         .filter(s => s.group === group)
-                         .sort((a,b) => b.wins - a.wins || (b.gameWins - b.gameLosses) - (a.gameWins - a.gameLosses))
-                         .map((s, i) => (
-                            <tr key={s.teamId} className={s.teamId === gameState.teamId ? 'bg-blue-900/10' : ''}>
-                               <td className="px-4 py-3 font-bold text-white flex items-center gap-2">
-                                  <span className="text-gray-500 font-mono w-4">{i + 1}</span>
-                                  {s.name}
-                               </td>
-                               <td className="px-4 py-3 text-center text-white">{s.wins}</td>
-                               <td className="px-4 py-3 text-center text-gray-400">{s.losses}</td>
-                               <td className="px-4 py-3 text-center text-gray-500">{s.gameWins - s.gameLosses}</td>
-                            </tr>
-                         ))}
-                   </tbody>
-                </table>
-             </div>
+                    ))}
+                </tbody>
+              </table>
+            </div>
           ))}
-       </div>
-    </div>
-  );
+        </div>
+      </div>
+    );
+  };
 
   const PlayView = () => (
     <div className="flex flex-col items-center justify-center min-h-[400px] space-y-8">
@@ -1907,7 +3268,7 @@ export default function App() {
                 Start Season {gameState.currentSeason}
              </button>
           </div>
-       ) : (
+       ) : !gameState.stage.startsWith('MSI') ? (
           <div className="w-full max-w-2xl bg-dark-900 border border-dark-800 rounded-2xl p-8 text-center space-y-6">
              <div className="text-xs font-bold text-hextech-400 uppercase tracking-widest">
                 {gameState.stage.replace('_', ' ')} • Week {gameState.week}
@@ -1925,8 +3286,8 @@ export default function App() {
                      if (!nextMatch && matchesToday.some(m => !m.played)) {
                          canSimulate = true;
                      }
-                 } else {
-                     const activeMatch = gameState.playoffMatches.find(m => !m.winnerId && (m.teamAId === gameState.teamId || m.teamBId === gameState.teamId));
+                 } else { 
+                     const activeMatch = gameState.playoffMatches.find(m => !m.winnerId && m.teamAId && m.teamBId && (m.teamAId === gameState.teamId || m.teamBId === gameState.teamId));
                      
                      if (activeMatch) {
                          nextMatch = activeMatch;
@@ -1950,7 +3311,7 @@ export default function App() {
                              <h2 className="text-2xl font-bold text-white mb-2">Season Ended</h2>
                              <p className="text-gray-400 mb-6">Your team has been eliminated from contention.</p>
                              <button 
-                                onClick={() => advanceSeason()} 
+                                onClick={() => advanceToNextStage()} 
                                 className="px-8 py-3 bg-gray-700 hover:bg-gray-600 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 mx-auto"
                              >
                                 <FastForward size={20} /> Finish Season & View Results
@@ -1970,20 +3331,34 @@ export default function App() {
                                       disabled={isPlayingMatch}
                                       className="px-6 py-3 bg-yellow-600 hover:bg-yellow-500 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2"
                                     >
-                                        {isPlayingMatch ? 'Simulating...' : <><FastForward size={20} /> Simulate Day</>}
+                                       {isPlayingMatch ? 'Simulating...' : <><FastForward size={20} /> Simulate Day</>}
                                     </button>
                                     <button 
                                       onClick={() => skipToNextMatch()}
                                       disabled={isPlayingMatch}
                                       className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2"
                                     >
-                                        {isPlayingMatch ? 'Skipping...' : <><SkipForward size={20} /> Skip to Next Match</>}
+                                       {isPlayingMatch ? 'Skipping...' : <><SkipForward size={20} /> Skip to Next Match</>}
                                     </button>
                                  </div>
                              </div>
                          );
                      }
-                     return <div className="text-xl text-gray-400">Waiting for opponent or season processing...</div>;
+                     const isSeasonOver = gameState.playoffMatches.length > 0 && gameState.playoffMatches.every(m => m.winnerId);
+                     return (
+                        <div className="py-8 text-center">
+                            <div className="text-xl text-gray-400 mb-6">Waiting for opponent or season processing...</div>
+                            <button 
+                              onClick={() => {
+                                 if (isSeasonOver) advanceToNextStage();
+                                 else skipToNextMatch();
+                              }} 
+                              className="px-8 py-3 bg-gray-700 hover:bg-gray-600 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 mx-auto"
+                            >
+                               <FastForward size={20} /> {isSeasonOver ? 'Finish Season' : 'Simulate to Next Match'}
+                            </button>
+                        </div>
+                     );
                  }
                  
                  const teamA = activeLeague.teams.find(t => t.id === nextMatch?.teamAId);
@@ -2014,6 +3389,73 @@ export default function App() {
                  )
              })()}
           </div>
+       ) : (
+          <div className="w-full max-w-2xl bg-dark-900 border-2 border-yellow-400 rounded-2xl p-8 text-center space-y-6 shadow-[0_0_30px_rgba(250,204,21,0.3)]">
+             <div className="text-sm font-bold text-yellow-300 uppercase tracking-widest">
+                Mid-Season Invitational
+             </div>
+             
+             {(() => {
+                 const nextMatch = gameState.playoffMatches.find(m => !m.winnerId && (m.teamAId === gameState.teamId || m.teamBId === gameState.teamId));
+
+                 if (!nextMatch) {
+                     const isMsiOver = gameState.playoffMatches.every(m => m.winnerId);
+                     if (isMsiOver) {
+                         return (
+                            <div className="py-8">
+                                <Trophy size={64} className="mx-auto text-yellow-400 mb-4" />
+                                <h2 className="text-2xl font-bold text-white mb-2">MSI Concluded</h2>
+                                <p className="text-gray-400 mb-6">The tournament is over. Time to prepare for the Summer Split.</p>
+                                <button onClick={advanceToNextStage} className="px-8 py-3 bg-gray-700 hover:bg-gray-600 text-white font-bold rounded-xl">
+                                    Continue to Summer Split
+                                </button>
+                            </div>
+                         );
+                     }
+                     const anyPending = gameState.playoffMatches.some(m => !m.winnerId && m.teamAId && m.teamBId);
+                     if (anyPending || (!isMsiOver && !nextMatch)) {
+                         return (
+                             <div className="py-8">
+                                 <div className="text-xl text-gray-400 mb-4">No match scheduled for your team.</div>
+                                 <div className="flex justify-center gap-4">
+                                    <button 
+                                      onClick={() => initiateMatch()}
+                                      disabled={isPlayingMatch}
+                                      className="px-6 py-3 bg-yellow-600 hover:bg-yellow-500 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2"
+                                    >
+                                       {isPlayingMatch ? 'Simulating...' : <><FastForward size={20} /> Simulate Match</>}
+                                    </button>
+                                    <button 
+                                      onClick={() => skipToNextMatch()}
+                                      disabled={isPlayingMatch}
+                                      className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2"
+                                    >
+                                       {isPlayingMatch ? 'Skipping...' : <><SkipForward size={20} /> Skip to Your Match</>}
+                                    </button>
+                                 </div>
+                             </div>
+                         );
+                     }
+                     return <div className="py-8 text-xl text-gray-400">Waiting for tournament processing...</div>;
+                 }
+                 
+                 const teamA = allTeams.find(t => t.id === nextMatch?.teamAId);
+                 const teamB = allTeams.find(t => t.id === nextMatch?.teamBId);
+
+                 return (
+                    <>
+                        <div className="flex items-center justify-center gap-8 py-8">
+                            <TeamLogo team={teamA} size="w-24 h-24" />
+                            <div className="text-4xl font-display font-bold text-gray-600">VS</div>
+                            <TeamLogo team={teamB} size="w-24 h-24" />
+                        </div>
+                        <button onClick={() => initiateMatch()} disabled={isPlayingMatch} className="px-12 py-4 bg-white hover:bg-gray-200 text-black font-bold text-xl rounded-full shadow-[0_0_20px_rgba(255,255,255,0.3)]">
+                            {isPlayingMatch ? 'Simulating...' : 'Play MSI Match'}
+                        </button>
+                    </>
+                 )
+             })()}
+          </div>
        )}
     </div>
   );
@@ -2025,14 +3467,14 @@ export default function App() {
       coins={gameState.coins} 
       week={gameState.week}
       teamData={activeTeamData}
-      managerName={gameState.managerName}
+      managerName={`${gameState.managerName} (${gameState.year} ${gameState.currentSplit})`}
     >
       {!onboardingComplete && <Onboarding onComplete={handleOnboardingComplete} />}
       
       {isSimulating && pendingSimResult && activeTeamData && (
         <MatchSimulationView 
            userTeam={activeTeamData}
-           enemyTeam={activeLeague.teams.find((t: TeamData) => t.id === pendingSimResult.opponentId)}
+           enemyTeam={allTeams.find((t: TeamData) => t.id === pendingSimResult.opponentId)}
            userRoster={gameState.roster}
            enemyRoster={gameState.aiRosters[pendingSimResult.opponentId] || {}} 
            result={pendingSimResult.userResult}
@@ -2060,6 +3502,15 @@ export default function App() {
         />
       )}
 
+      {retiredPlayerModal && (
+        <RetiredPlayerModal
+          player={retiredPlayerModal}
+          isOpen={!!retiredPlayerModal}
+          onClose={() => setRetiredPlayerModal(null)}
+          onHireAsCoach={() => handleHireRetired(retiredPlayerModal, 'coach')}
+          onLureBack={() => handleHireRetired(retiredPlayerModal, 'player')}
+          currentCoins={gameState.coins} />
+      )}
       {notification && (
         <div className={`fixed top-4 right-4 z-[100] px-6 py-3 rounded-xl shadow-2xl font-bold animate-slide-in ${notification.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>
            {notification.message}
@@ -2080,7 +3531,13 @@ export default function App() {
           {tab === 'market' && <MarketView />}
           {tab === 'schedule' && <ScheduleView />}
           {tab === 'standings' && <StandingsView />}
-          {tab === 'stats' && <TeamStatsView teams={activeLeague.teams} userTeamId={gameState.teamId} userRoster={gameState.roster} aiRosters={gameState.aiRosters} />}
+          {tab === 'stats' && <TeamStatsView 
+            teams={activeLeague.teams} 
+            userTeamId={gameState.teamId} 
+            userRoster={gameState.roster} 
+            aiRosters={gameState.aiRosters}
+            getTeamPower={getTeamPower}
+            getActiveSynergies={getActiveSynergies} />}
           {tab === 'play' && <PlayView />}
         </>
       )}

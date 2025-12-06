@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { PlayerCard, MatchResult, TeamData, Role, PlayerStats } from '../types';
 import { TeamLogo } from './TeamLogo';
-import { FastForward, Hexagon, Shield, Circle, Swords, Skull, Users, Zap, Flame, Move, Trophy, Crown, AlertOctagon, Ghost, TreeDeciduous } from 'lucide-react';
+import { FastForward, Hexagon, Shield, Circle, Swords, Skull, Users, Zap, Flame, Move, Trophy, Crown, AlertOctagon, Ghost, TreeDeciduous, Axe, Crosshair, HeartHandshake, Sparkles } from 'lucide-react';
 
 interface MatchSimulationViewProps {
   userTeam: TeamData;
@@ -167,10 +167,10 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
   const [currentScore, setCurrentScore] = useState({ blue: 0, red: 0 });
   const [dragon, setDragon] = useState<ObjectiveState>({ alive: false, nextSpawnTime: 5 });
   const [dragonStacks, setDragonStacks] = useState({ blue: 0, red: 0 });
-  const [nextIsElder, setNextIsElder] = useState(false);
   const [baron, setBaron] = useState<ObjectiveState>({ alive: false, nextSpawnTime: 20 });
   const [gameOver, setGameOver] = useState(false);
-  const [nextMinionSpawn, setNextMinionSpawn] = useState(1.08); // First spawn at 1:05 (1m 5s = 1.083m)
+  const [baronBuff, setBaronBuff] = useState<{ team: 'blue' | 'red' | null, expiresAt: number }>({ team: null, expiresAt: 0 });
+  const [nextMinionSpawn, setNextMinionSpawn] = useState(1.08);
   const [teamPowerDiff, setTeamPowerDiff] = useState(0);
 
   const logContainerRef = useRef<HTMLDivElement>(null);
@@ -239,9 +239,9 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
     if (gameOver) return;
 
     const interval = setInterval(() => {
-      setGameMinutes(prev => prev + 0.10); 
+      setGameMinutes(prev => prev + 0.15); 
       updateGameLogic();
-    }, 100); 
+    }, 80); 
 
     return () => clearInterval(interval);
   }, [gameMinutes, dragon, baron, structures, entities, minions, gameOver, nextMinionSpawn, jungleCamps]);
@@ -294,7 +294,6 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
   };
 
   const getWaypointPath = (currX: number, currY: number, destX: number, destY: number): { x: number, y: number } => {
-      // Top Lane logic: x=5 or y=5
       const onLeftEdge = currX < 15;
       const onTopEdge = currY < 15;
       const destOnTop = destY < 15;
@@ -307,7 +306,6 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
           return POSITIONS.TOP_LEFT_CORNER;
       }
 
-      // Bot Lane Logic: y=95 or x=95
       const onBottomEdge = currY > 85;
       const onRightEdge = currX > 85;
       const destOnBottom = destY > 85;
@@ -331,12 +329,17 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
     let gameEnded = false;
     const pendingScoreUpdates: Record<string, number> = {};
 
+    if (baronBuff.team && gameMinutes >= baronBuff.expiresAt) {
+      addLog(`${baronBuff.team === 'blue' ? 'Blue' : 'Red'} team's Baron Buff has expired.`, 'normal');
+      setBaronBuff({ team: null, expiresAt: 0 });
+    }
+
     const winningTeam = result.victory ? 'blue' : 'red';
     
     let timeScaling = 1.0;
-    if (gameMinutes > 30) timeScaling = 6.0;
-    else if (gameMinutes > 20) timeScaling = 3.5; 
-    else if (gameMinutes > 10) timeScaling = 1.5;
+    if (gameMinutes > 28) timeScaling = 12.0;
+    else if (gameMinutes > 20) timeScaling = 6.0; 
+    else if (gameMinutes > 12) timeScaling = 3.0;
 
     newJungleCamps = newJungleCamps.map(camp => {
         if (!camp.alive && gameMinutes >= camp.respawnTime) {
@@ -346,7 +349,7 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
     });
 
     if (gameMinutes >= nextMinionSpawn) {
-       setNextMinionSpawn(prev => prev + 1.5); // Spawn every 90s (1.5 mins)
+       setNextMinionSpawn(prev => prev + 1.5);
        
        const spawnMinion = (team: 'blue' | 'red', lane: Lane, offsetSeconds: number) => {
           const base = team === 'blue' ? POSITIONS.BLUE_BASE : POSITIONS.RED_BASE;
@@ -381,7 +384,7 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
 
     if (!dragon.alive && gameMinutes >= dragon.nextSpawnTime) {
       setDragon(prev => ({ ...prev, alive: true }));
-      addLog(nextIsElder ? "ELDER DRAGON has spawned!" : "Elemental Drake has spawned", 'obj');
+      addLog("Elemental Drake has spawned", 'obj');
     }
     if (!baron.alive && gameMinutes >= baron.nextSpawnTime) {
       setBaron(prev => ({ ...prev, alive: true }));
@@ -422,10 +425,6 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
              newStructures[sIndex].alive = false;
              newStructures[sIndex].hp = 0;
              addLog(`Minions destroyed ${minion.team === 'blue' ? 'Red' : 'Blue'} ${nearbyEnemyStruct.type}`, 'turret');
-             if (nearbyEnemyStruct.type === 'nexus') {
-                gameEnded = true;
-                addLog(`VICTORY FOR ${minion.team.toUpperCase()} TEAM!`, 'normal');
-             }
           }
        } else if (nearbyEnemyMinion) {
 
@@ -454,7 +453,8 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
                   if (minion.x < corner.x - 1) { targetX = corner.x; targetY = corner.y; }
                   else { targetX = enemyBase.x; targetY = enemyBase.y; }
               } else {
-                  if (minion.y < corner.y - 1) { targetX = corner.x; targetY = corner.y; }
+                  const corner = POSITIONS.BOT_RIGHT_CORNER;
+                  if (minion.x > corner.x - 1) { targetX = corner.x; targetY = corner.y; }
                   else { targetX = enemyBase.x; targetY = enemyBase.y; }
               }
           }
@@ -546,7 +546,7 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
       const fleeThreshold = isFightingForObjective ? 0.10 : 0.25;
       
       const atFountain = distToBase < 8;
-      const needsHealing = hpPercentage < 0.99 && !isBaseSiege; // Only stay to heal if base isn't burning
+      const needsHealing = hpPercentage < 0.99 && !isBaseSiege;
 
       if ((hpPercentage < fleeThreshold && distToBase > 5 && !isClutch) || (atFountain && needsHealing)) {
           action = 'flee';
@@ -556,7 +556,7 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
       else {
           const nearbyEnemies = enemies
               .map(e => ({ ...e, dist: Math.hypot(e.x - entity.x, e.y - entity.y) }))
-              .filter(e => e.dist < 15)
+              .filter(e => e.dist < 18)
               .sort((a, b) => a.dist - b.dist);
 
           const closestEnemy = nearbyEnemies[0];
@@ -567,7 +567,7 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
              .filter(m => m.dist < 8)
              .sort((a,b) => a.dist - b.dist);
 
-          if (closestEnemy && closestEnemy.dist < 8) {
+          if (closestEnemy && closestEnemy.dist < 9) {
               action = 'fight';
               targetX = closestEnemy.x;
               targetY = closestEnemy.y;
@@ -770,7 +770,9 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
       
       if (nearbyEnemyMinions.length > 0) {
          const waveClear = 0.5 + (entity.stats.lane / 150);
-         nearbyEnemyMinions.forEach(m => {
+         const isSlowPushing = action !== 'push' && Math.random() > 0.4;
+         const minionsToClear = isSlowPushing ? nearbyEnemyMinions.slice(0, nearbyEnemyMinions.length - 2) : nearbyEnemyMinions;
+         minionsToClear.forEach(m => {
              m.hp -= (entity.damage * waveClear * dmgMultiplier); 
          });
       }
@@ -785,6 +787,14 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
       if (attackers.length > 0) {
           attackers.forEach(attacker => {
              let rawDmg = attacker.damage * 0.3;
+
+             if (baronBuff.team === attacker.team && gameMinutes < baronBuff.expiresAt) {
+                rawDmg *= 1.20;
+             }
+
+             const dragonBonus = dragonStacks[attacker.team] * 0.10;
+             rawDmg *= (1 + dragonBonus);
+
              rawDmg *= timeScaling;
 
              if (attacker.currentStamina < 30) rawDmg *= 0.8;
@@ -799,16 +809,17 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
              }
 
              if (gameMinutes < 14 && attacker.role === entity.role) {
-                 const diff = attacker.stats.lane - entity.stats.lane;
-                 if (diff > 0) rawDmg *= (1 + (diff / 200)); 
              }
              
-             if (attacker.team === 'blue' && teamPowerDiff > 0) rawDmg *= (1 + (teamPowerDiff / 50));
-             if (attacker.team === 'red' && teamPowerDiff < 0) rawDmg *= (1 + (Math.abs(teamPowerDiff) / 50));
+             const overallDiff = ((attacker.damage - 150)/3) - ((entity.damage - 150)/3);
+             if (overallDiff > 0) {
+                rawDmg *= (1 + (overallDiff / 50));
+             }
 
              rawDmg *= (Math.random() * 0.4 + 0.8); 
 
              newHp -= rawDmg;
+
              attacker.currentStamina = Math.max(0, attacker.currentStamina - 0.2);
           });
       }
@@ -820,6 +831,13 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
           if (sIndex !== -1) {
               let structDmg = (entity.damage * 0.15) * timeScaling;
               
+              if (baronBuff.team === entity.team && gameMinutes < baronBuff.expiresAt) {
+                 structDmg *= 1.20;
+              }
+
+              const dragonBonus = dragonStacks[entity.team] * 0.10;
+              structDmg *= (1 + dragonBonus);
+
               structDmg *= (1 + (entity.stats.lane / 200));
 
               if (gameMinutes > 25) structDmg *= 2.5;
@@ -828,7 +846,7 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
               if (gameMinutes < 14 && nearbyStruct.type === 'outer') structDmg *= 0.15; 
               if (entity.team === winningTeam) structDmg *= 1.5;
               
-              structDmg *= dmgMultiplier; // Team Diff
+              structDmg *= dmgMultiplier;
 
               const newStructHp = newStructures[sIndex].hp - structDmg;
               newStructures[sIndex] = { ...newStructures[sIndex], hp: newStructHp, lastAttackedTime: gameMinutes };
@@ -845,13 +863,12 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
                   else if (nearbyStruct.type === 'inhibitor') logMsg += 'Inhibitor';
                   else if (nearbyStruct.type === 'nexus_turret') logMsg += 'Nexus Turret';
                   else if (nearbyStruct.type === 'nexus') logMsg += 'Nexus!';
-                  
-                  addLog(logMsg, 'turret');
 
                   if (nearbyStruct.type === 'nexus') {
-                    gameEnded = true;
-                    addLog(`VICTORY FOR ${entity.team.toUpperCase()} TEAM!`, 'normal');
+                     gameEnded = true;
                   }
+                  addLog(logMsg, 'turret');
+
               }
           }
       }
@@ -861,28 +878,29 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
       const distBaronMoved = Math.hypot(moveX - POSITIONS.BARON.x, moveY - POSITIONS.BARON.y);
       if (baron.alive && distBaronMoved < 8) {
           const alliesNearby = entities.filter(e => e.team === entity.team && !e.isDead && Math.hypot(e.x - POSITIONS.BARON.x, e.y - POSITIONS.BARON.y) < 15).length;
-          
-          if (alliesNearby >= 3) {
-             if (Math.random() < 0.2) { 
-                const captureBaseChance = 0.05; 
+
+          if (alliesNearby >= 2) {
+             if (Math.random() < 0.3) { 
+                const captureBaseChance = 0.15;
                 const clutchMod = isClutch ? 0.02 : 0;
-                
+
                 if (Math.random() < (captureBaseChance + clutchMod)) {
                      setBaron({ alive: false, nextSpawnTime: gameMinutes + 6 });
+                     setBaronBuff({ team: entity.team, expiresAt: gameMinutes + 3.0 });
                      currentContribution += 50;
-                     addLog(`${entity.name} secured Baron! (+50 pts)`, 'obj');
+                     addLog(`${entity.team === 'blue' ? 'Blue' : 'Red'} team has slain Baron Nashor and gained Hand of Baron!`, 'obj');
                 }
              }
           }
       }
-      
+
       const distDragonMoved = Math.hypot(moveX - POSITIONS.DRAGON.x, moveY - POSITIONS.DRAGON.y);
       if (dragon.alive && distDragonMoved < 8) {
            const alliesNearby = entities.filter(e => e.team === entity.team && !e.isDead && Math.hypot(e.x - POSITIONS.DRAGON.x, e.y - POSITIONS.DRAGON.y) < 15).length;
 
-          if (alliesNearby >= 2) {
-            if (Math.random() < 0.2) {
-                const captureBaseChance = 0.15;
+          if (alliesNearby >= 1) {
+            if (Math.random() < 0.35) {
+                const captureBaseChance = 0.25;
                 const clutchMod = isClutch ? 0.05 : 0;
 
                 if (Math.random() < (captureBaseChance + clutchMod)) {
@@ -894,13 +912,7 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
                     else newStacks.red += 1;
                     setDragonStacks(newStacks);
 
-                    const isElderKill = nextIsElder;
-                    
-                    if (newStacks[entity.team] >= 4) {
-                    setNextIsElder(true);
-                    }
-
-                    addLog(`${entity.name} secured ${isElderKill ? 'ELDER DRAGON' : 'Dragon'}! (+50 pts)`, 'obj');
+                    addLog(`${entity.team === 'blue' ? 'Blue' : 'Red'} team has slain the Dragon!`, 'obj');
                 }
             }
           }
@@ -925,7 +937,7 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
 
             const isSolo = attackers.length === 1;
             if (isSolo) {
-                addLog(`SOLO KILL! ${killer.name} executed ${entity.name} (+${points} pts)`, 'kill');
+                addLog(`SOLO KILL! ${killer.name} killed ${entity.name} (+${points} pts)`, 'kill');
             } else {
                 addLog(`${killer.name} killed ${entity.name} (+${points} pts)`, 'kill');
             }
@@ -961,9 +973,18 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
     setCurrentScore(newScore);
     setJungleCamps(newJungleCamps);
 
+    const blueNexus = newStructures.find(s => s.id === 'b-nexus');
+    const redNexus = newStructures.find(s => s.id === 'r-nexus');
+
+    if (!blueNexus?.alive || !redNexus?.alive) {
+        gameEnded = true;
+    }
+    else if ((result.victory && !redNexus?.alive) || (!result.victory && !blueNexus?.alive)) {
+        gameEnded = true;
+    }
+
     if (gameEnded) {
       setGameOver(true);
-      setTimeout(onComplete, 3000);
     }
   };
 
@@ -1016,6 +1037,24 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
      );
   };
 
+  const RoleIcon = ({ role, size }: { role: Role, size: number }) => {
+    const commonProps = { size, className: "text-white/80 opacity-80" };
+    switch (role) {
+      case Role.TOP:
+        return <Axe {...commonProps} />;
+      case Role.JUNGLE:
+        return <Sparkles {...commonProps} />;
+      case Role.MID:
+        return <Flame {...commonProps} />;
+      case Role.ADC:
+        return <Crosshair {...commonProps} />;
+      case Role.SUPPORT:
+        return <HeartHandshake {...commonProps} />;
+      default:
+        return null;
+    }
+  };
+
   const PlayerHUD = ({ entities, team, teamName }: { entities: MapEntity[], team: 'blue' | 'red', teamName: string }) => {
     return (
        <div className={`flex flex-col gap-2 p-3 bg-dark-900/80 rounded-xl border ${team === 'blue' ? 'border-blue-500/30' : 'border-red-500/30'}`}>
@@ -1031,8 +1070,8 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
              return (
                <div key={e.id} className="relative flex items-center gap-2 group">
                   <div className={`relative w-10 h-10 rounded-full border-2 overflow-hidden shrink-0 ${team === 'blue' ? 'border-blue-600 bg-blue-900' : 'border-red-600 bg-red-900'} ${e.isDead ? 'grayscale brightness-50' : ''}`}>
-                      <div className="flex items-center justify-center w-full h-full text-white font-bold text-[10px] uppercase">
-                         {e.role.substring(0,3)}
+                      <div className="flex items-center justify-center w-full h-full">
+                         <RoleIcon role={e.role} size={20} />
                       </div>
                       {e.isDead && (
                          <div className="absolute inset-0 flex items-center justify-center bg-black/60 font-mono text-white text-sm font-bold z-10">
@@ -1061,13 +1100,12 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/95 flex flex-col items-center justify-center p-4 overflow-hidden">
+    <div className="fixed inset-0 z-50 bg-dark-950 flex flex-col items-center justify-center p-4 overflow-hidden bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-dark-900/80 via-dark-950 to-black">
       <style>
          {`
            @keyframes shake {
-             0%, 100% { transform: translate(-50%, -50%) rotate(0deg); }
-             25% { transform: translate(-52%, -52%) rotate(-5deg); }
-             75% { transform: translate(-48%, -48%) rotate(5deg); }
+             0%, 100% { transform: translate(-50%, -50%) scale(1); }
+             50% { transform: translate(-50%, -50%) scale(1.1); }
            }
            .animate-shake {
              animation: shake 0.3s cubic-bezier(.36,.07,.19,.97) both;
@@ -1076,35 +1114,35 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
       </style>
 
       <div className="w-full max-w-[90rem] flex justify-between items-center mb-4 text-white shrink-0">
-        <div className="flex items-center gap-4 bg-blue-900/20 p-2 pr-6 rounded-r-full border-l-4 border-blue-500 min-w-[300px]">
+        <div className="flex items-center gap-4 bg-gradient-to-r from-blue-900/30 to-transparent p-2 pr-8 min-w-[350px] [clip-path:polygon(0_0,100%_0,90%_100%,0%_100%)]">
            <TeamLogo team={userTeam} size="w-12 h-12" />
            <div className="text-left flex-1">
              <div className="flex items-center justify-between gap-4">
-                 <div className="font-bold text-2xl leading-none">{userTeam.shortName}</div>
-                 <div className="text-blue-400 font-mono text-xl">{currentScore.blue}</div>
+                 <div className="font-bold text-2xl leading-none tracking-wider">{userTeam.shortName}</div>
+                 <div className="text-blue-300 font-mono text-3xl font-bold drop-shadow-[0_0_8px_rgba(59,130,246,0.8)]">{currentScore.blue}</div>
              </div>
-             <div className="mt-1">
+             <div className="mt-2">
                  <DragonHUD stacks={dragonStacks.blue} />
              </div>
            </div>
         </div>
 
         <div className="flex flex-col items-center">
-           <div className="bg-dark-800 px-6 py-2 rounded-lg text-gray-200 font-mono text-2xl font-bold shadow-lg border border-white/10 min-w-[100px] text-center">
+           <div className="bg-dark-900/50 px-6 py-2 rounded-lg text-gray-200 font-mono text-3xl font-bold shadow-lg border-2 border-dark-700 min-w-[120px] text-center">
              {getCurrentGameTimeStr()}
            </div>
-           {gameMinutes < 14 && <div className="text-[10px] text-yellow-500 uppercase font-bold mt-1">Turret Plating Active</div>}
-           {gameMinutes > 30 && <div className="text-[10px] text-red-500 uppercase font-bold mt-1 animate-pulse">SUDDEN DEATH</div>}
+           {gameMinutes < 14 && <div className="text-xs text-gold-400 uppercase font-bold mt-2 tracking-widest">Turret Plating Active</div>}
+           {gameMinutes > 30 && <div className="text-xs text-red-500 uppercase font-bold mt-2 animate-pulse tracking-widest">SUDDEN DEATH</div>}
         </div>
 
-        <div className="flex items-center gap-4 bg-red-900/20 p-2 pl-6 rounded-l-full border-r-4 border-red-500 min-w-[300px] flex-row-reverse">
+        <div className="flex items-center gap-4 bg-gradient-to-l from-red-900/30 to-transparent p-2 pl-8 min-w-[350px] flex-row-reverse [clip-path:polygon(10%_0,100%_0,100%_100%,0%_100%)]">
            <TeamLogo team={enemyTeam} size="w-12 h-12" />
            <div className="text-right flex-1">
              <div className="flex items-center justify-between gap-4 flex-row-reverse">
-                 <div className="font-bold text-2xl leading-none">{enemyTeam?.shortName || 'ENEMY'}</div>
-                 <div className="text-red-400 font-mono text-xl">{currentScore.red}</div>
+                 <div className="font-bold text-2xl leading-none tracking-wider">{enemyTeam?.shortName || 'ENEMY'}</div>
+                 <div className="text-red-300 font-mono text-3xl font-bold drop-shadow-[0_0_8px_rgba(239,68,68,0.8)]">{currentScore.red}</div>
              </div>
-             <div className="mt-1 flex justify-end">
+             <div className="mt-2 flex justify-end">
                  <DragonHUD stacks={dragonStacks.red} />
              </div>
            </div>
@@ -1113,7 +1151,7 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
 
       <div className="flex gap-4 w-full max-w-[90rem] h-[75vh] items-stretch">
           
-          <div className="w-48 flex flex-col gap-4 overflow-y-auto shrink-0">
+          <div className="w-56 flex flex-col gap-4 overflow-y-auto shrink-0">
              <PlayerHUD entities={entities.filter(e => e.team === 'blue')} team="blue" teamName={userTeam.shortName} />
              <div className="flex-1"></div>
              <PlayerHUD entities={entities.filter(e => e.team === 'red')} team="red" teamName={enemyTeam?.shortName || 'ENEMY'} />
@@ -1121,7 +1159,7 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
 
           <div className="flex-1 relative aspect-square bg-[#0f1923] border-4 border-dark-700 rounded-xl overflow-hidden shadow-2xl mx-auto">
              <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-20">
-                <path d="M 5 95 L 5 5 L 95 5" fill="none" stroke="#64748b" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M 5 95 L 5 5 L 95 5" fill="none" stroke="#64748b" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="10 15"/>
                 
                 <line x1="5" y1="95" x2="95" y2="5" stroke="#64748b" strokeWidth="6" strokeLinecap="round" />
                 
@@ -1158,7 +1196,7 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
                 {!baron.alive && baron.nextSpawnTime - gameMinutes < 1 && (
                     <div className="absolute inset-0 border-2 border-dashed border-purple-400 rounded-full animate-spin"></div>
                 )}
-                <div className="w-8 h-8 rounded-full bg-purple-900 border-2 border-purple-500 flex items-center justify-center shadow-[0_0_15px_purple]">
+                <div className="w-8 h-8 rounded-full bg-purple-900 border-2 border-purple-500 flex items-center justify-center shadow-[0_0_15px_rgba(192,132,252,0.7)]">
                     <span className="font-bold text-purple-300 text-xs">B</span>
                 </div>
              </div>
@@ -1167,8 +1205,8 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
                 {!dragon.alive && dragon.nextSpawnTime - gameMinutes < 1 && (
                     <div className="absolute inset-0 border-2 border-dashed border-orange-400 rounded-full animate-spin"></div>
                 )}
-                <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center shadow-[0_0_15px_orange] ${nextIsElder ? 'bg-white border-gray-300' : 'bg-orange-900 border-orange-500'}`}>
-                    <span className={`font-bold text-xs ${nextIsElder ? 'text-black' : 'text-orange-300'}`}>{nextIsElder ? 'E' : 'D'}</span>
+                <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center shadow-[0_0_15px_rgba(251,146,60,0.7)] bg-orange-900 border-orange-500`}>
+                    <span className={`font-bold text-xs text-orange-300`}>D</span>
                 </div>
              </div>
 
@@ -1177,7 +1215,7 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
                  return (
                      <div 
                         key={m.id}
-                        className={`absolute w-1.5 h-1.5 rounded-full z-20 ${m.team === 'blue' ? 'bg-blue-300' : 'bg-red-300'}`}
+                        className={`absolute w-1.5 h-1.5 rounded-full z-20 shadow-[0_0_4px] ${m.team === 'blue' ? 'bg-blue-400 shadow-blue-400' : 'bg-red-400 shadow-red-400'}`}
                         style={{ left: `${m.x}%`, top: `${m.y}%` }}
                      ></div>
                  )
@@ -1212,7 +1250,7 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
                            <div className={`h-full transition-all duration-300 ${barColor}`} style={{ width: `${hpPercent}%` }}></div>
                         </div>
 
-                        <div className={`w-full h-full rounded-full border border-white shadow-sm flex items-center justify-center ${e.team === 'blue' ? 'bg-blue-600' : 'bg-red-600'} ${isLow ? 'animate-pulse ring-2 ring-red-500' : ''} ${e.isClutching ? 'ring-2 ring-yellow-400' : ''}`}>
+                        <div className={`w-full h-full rounded-full border-2 border-black/50 shadow-sm flex items-center justify-center ${e.team === 'blue' ? 'bg-blue-600' : 'bg-red-600'} ${isLow ? 'animate-pulse ring-2 ring-red-500' : ''} ${e.isClutching ? 'ring-2 ring-yellow-400' : ''}`}>
                             <span className="text-[8px] font-bold text-white leading-none">{e.role[0]}</span>
                         </div>
                      </div>
@@ -1220,7 +1258,7 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
              })}
           </div>
 
-          <div className="w-80 bg-dark-900 border border-dark-700 rounded-xl overflow-hidden flex flex-col shadow-xl shrink-0">
+          <div className="w-96 bg-dark-900/80 border border-dark-700 rounded-xl overflow-hidden flex flex-col shadow-xl shrink-0 backdrop-blur-sm">
              <div className="p-3 bg-dark-800 border-b border-dark-700 font-bold text-gray-300 flex items-center gap-2">
                 <Swords size={16} /> Match Events
              </div>
@@ -1244,10 +1282,39 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
       </div>
 
       <div className="mt-6 flex gap-4">
-         <button onClick={onComplete} className="flex items-center gap-2 px-6 py-3 bg-white hover:bg-gray-200 text-black font-bold rounded-lg shadow-xl transition-all">
+         <button onClick={onComplete} className="flex items-center gap-2 px-6 py-3 bg-hextech-600 hover:bg-hextech-500 text-white font-bold rounded-lg shadow-xl shadow-hextech-600/20 hover:shadow-hextech-500/40 transform hover:-translate-y-0.5 transition-all">
             <FastForward size={20} /> End Simulation
          </button>
       </div>
+
+      {gameOver && (
+        <div className="absolute inset-0 z-[100] flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm animate-fade-in">
+          <div className="text-center">
+            {result.victory ? (
+              <div className="transform scale-100 animate-in zoom-in-50 duration-1000">
+                <h1 className="text-9xl font-display font-bold text-blue-400 drop-shadow-[0_0_20px_rgba(59,130,246,0.7)]">
+                  VICTORY
+                </h1>
+                <TeamLogo team={userTeam} size="w-32 h-32 mt-8 mx-auto" />
+              </div>
+            ) : (
+              <div className="transform scale-100 animate-in zoom-in-50 duration-1000">
+                <h1 className="text-9xl font-display font-bold text-red-500 drop-shadow-[0_0_20px_rgba(239,68,68,0.7)]">
+                  DEFEAT
+                </h1>
+                {enemyTeam && <TeamLogo team={enemyTeam} size="w-32 h-32 mt-8 mx-auto" />}
+              </div>
+            )}
+            <button 
+              onClick={onComplete} 
+              className="mt-12 px-8 py-4 bg-white/10 hover:bg-white/20 text-white font-bold rounded-lg shadow-xl backdrop-blur-sm border border-white/20 transform hover:-translate-y-0.5 transition-all animate-fade-in-up"
+              style={{ animationDelay: '1000ms' }}
+            >
+              Continue
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

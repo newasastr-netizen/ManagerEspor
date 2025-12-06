@@ -12,7 +12,6 @@ export const TeamLogo: React.FC<TeamLogoProps> = ({ team, size = "w-8 h-8", clas
 
   if (!team) return <div className={`${size} bg-dark-800 rounded-lg ${className}`}></div>;
 
-  // If we have a logo and it hasn't errored, show the image on transparent background
   if (team.logoUrl && !imgError) {
     return (
       <div className={`${size} relative flex items-center justify-center shrink-0 ${className}`}>
@@ -27,8 +26,6 @@ export const TeamLogo: React.FC<TeamLogoProps> = ({ team, size = "w-8 h-8", clas
     );
   }
 
-  // Fallback: Colored Box with Letter
-  // className passes through text styling like text-xl, text-white etc.
   return (
     <div 
       className={`${size} relative rounded flex items-center justify-center shrink-0 overflow-hidden shadow-lg border border-white/10 ${className}`} 
@@ -39,4 +36,32 @@ export const TeamLogo: React.FC<TeamLogoProps> = ({ team, size = "w-8 h-8", clas
        </span>
     </div>
   );
+};
+
+export const getTeamTier = (teamId: string): 'S' | 'A' | 'B' | 'C' => {
+  const sTiers = [
+    't1', 'geng', 
+    'blg', 'jdg'
+  ];
+  const aTiers = [
+    'hle', 'dk', 'kt',
+    'g2', 'fnc', 'bds', 'mad',
+    'tes', 'lng', 'wbg'
+  ];
+  const bTiers = [
+    'kdf', 'drx', 'fox',
+    'th', 'sk', 'kc',
+    'rng', 'ig', 'fpx', 'omg', 'sup'
+  ];
+  
+  if (sTiers.includes(teamId)) {
+    return 'S';
+  }
+  if (aTiers.includes(teamId)) {
+    return 'A';
+  }
+  if (bTiers.includes(teamId)) {
+    return 'B';
+  }
+  return 'C';
 };

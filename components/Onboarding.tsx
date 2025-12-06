@@ -38,7 +38,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
   
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-dark-950 p-4">
-      <div className="w-full max-w-lg bg-dark-900 border border-dark-800 rounded-2xl p-8 shadow-2xl space-y-8 animate-fade-in">
+      <div className="w-full max-w-2xl bg-dark-900 border border-dark-800 rounded-2xl p-8 shadow-2xl shadow-hextech-500/10 space-y-8 animate-fade-in">
         
         <div className="text-center">
             <Crown className="mx-auto text-hextech-500 mb-4" size={32} />
@@ -51,33 +51,36 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
         </div>
 
         {/* Step 1: Manager Name */}
-        <div style={{ display: step === 1 ? 'block' : 'none' }} className="space-y-6">
+        {step === 1 && (
+          <div className="space-y-6 animate-fade-in">
             <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Manager Name</label>
                 <input 
                     type="text" 
                     value={managerName} 
                     onChange={(e) => setManagerName(e.target.value)}
-                    placeholder="e.g. FakerSlayer99"
-                    className="w-full p-4 bg-dark-950 border border-dark-700 rounded-lg text-white focus:border-hextech-500 focus:outline-none transition-colors"
+                    placeholder="e.g., kkOma"
+                    className="w-full p-4 bg-dark-950 border-2 border-dark-700 rounded-lg text-white focus:border-hextech-500 focus:ring-2 focus:ring-hextech-500/50 focus:outline-none transition-all duration-300"
                     onKeyPress={(e) => e.key === 'Enter' && handleContinue()}
                 />
             </div>
             <button 
                 onClick={handleContinue} 
-                className="w-full py-4 bg-hextech-600 hover:bg-hextech-500 text-white font-bold text-lg rounded-xl shadow-lg transition-all flex items-center justify-center gap-2"
+                className="w-full py-4 bg-hextech-600 hover:bg-hextech-500 text-white font-bold text-lg rounded-xl shadow-lg shadow-hextech-600/20 hover:shadow-hextech-500/40 transform hover:-translate-y-1 transition-all duration-300 flex items-center justify-center gap-2"
             >
                 Continue <ArrowRight size={20} />
             </button>
-        </div>
+          </div>
+        )}
 
         {/* Step 2: Select League */}
-        <div style={{ display: step === 2 ? 'block' : 'none' }} className="space-y-6 animate-fade-in">
+        {step === 2 && (
+          <div className="space-y-6 animate-fade-in">
              <div className="text-center">
                 <h2 className="text-xl font-bold font-display text-white">Select Your League</h2>
                 <p className="text-gray-400 text-sm">Which region will you compete in?</p>
              </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-4 gap-4">
                 {(Object.keys(LEAGUES) as LeagueKey[]).map(key => (
                     <button 
                         key={key} 
@@ -85,16 +88,18 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
                             setSelectedLeague(key);
                             setStep(3);
                         }} 
-                        className={`p-4 flex flex-col items-center justify-center gap-2 rounded-lg border-2 transition-all border-dark-700 bg-dark-800 hover:border-hextech-500 hover:bg-hextech-500/10`}
+                        className={`p-4 flex flex-col items-center justify-center gap-2 rounded-lg border-2 transition-all duration-300 border-dark-700 bg-dark-800 hover:border-hextech-500 hover:bg-hextech-500/10 transform hover:-translate-y-1`}
                     >
                         <span className="text-2xl font-bold text-white">{LEAGUES[key].name}</span>
                     </button>
                 ))}
             </div>
-        </div>
+          </div>
+        )}
 
         {/* Step 3: Select Team */}
-        <div style={{ display: step === 3 ? 'block' : 'none' }} className="space-y-6 animate-fade-in">
+        {step === 3 && (
+          <div className="space-y-6 animate-fade-in">
              <div className="text-center">
                 <h2 className="text-xl font-bold font-display text-white">Select Your Team</h2>
                 <p className="text-gray-400 text-sm">Which organization will you lead to glory?</p>
@@ -108,7 +113,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
                     <button 
                         key={team.id} 
                         onClick={() => setSelectedTeamId(team.id)} 
-                        className={`p-2 flex flex-col items-center justify-center gap-2 rounded-lg border-2 transition-all ${selectedTeamId === team.id ? 'border-hextech-500 bg-hextech-500/20' : 'border-dark-700 bg-dark-800 hover:border-dark-600'}`}
+                        className={`p-2 flex flex-col items-center justify-center gap-2 rounded-lg border-2 transition-all duration-200 transform hover:scale-105 ${selectedTeamId === team.id ? 'border-hextech-500 bg-hextech-500/20 ring-2 ring-hextech-500/50' : 'border-dark-700 bg-dark-800 hover:border-dark-600'}`}
                     >
                         <TeamLogo team={team} size="w-12 h-12" />
                         <span className="text-xs font-bold text-gray-300">{team.shortName}</span>
@@ -118,11 +123,12 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
             <button 
                 onClick={handleSubmit} 
                 disabled={!selectedTeamId}
-                className="w-full py-4 bg-white disabled:bg-gray-500 disabled:cursor-not-allowed text-black font-bold uppercase rounded-xl hover:bg-gray-200 transition-colors"
+                className="w-full py-4 bg-hextech-600 disabled:bg-gray-500 disabled:cursor-not-allowed text-white font-bold text-lg rounded-xl shadow-lg shadow-hextech-600/20 hover:bg-hextech-500 hover:shadow-hextech-500/40 transform hover:-translate-y-1 transition-all duration-300"
             >
                 Sign Contract with Team
             </button>
-        </div>
+          </div>
+        )}
 
       </div>
     </div>
