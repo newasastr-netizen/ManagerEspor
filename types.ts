@@ -1,3 +1,5 @@
+import { LeagueKey } from './data/leagues';
+
 export enum Role {
   TOP = 'TOP',
   JUNGLE = 'JGL',
@@ -15,10 +17,10 @@ export enum Rarity {
 }
 
 export interface PlayerStats {
-  mechanics: number; // 0-100
-  macro: number;    // 0-100
-  lane: number;     // 0-100
-  teamfight: number; // 0-100
+  mechanics: number;
+  macro: number;
+  lane: number;
+  teamfight: number;
 }
 
 export interface PlayerEvent {
@@ -26,40 +28,43 @@ export interface PlayerEvent {
   type: 'INJURY' | 'MORALE' | 'DRAMA' | 'CONTRACT';
   title: string;
   description: string;
-  duration: number; // Number of matches/days remaining
-  penalty: Partial<PlayerStats>; // The stats deducted
+  duration: number;
+  penalty: Partial<PlayerStats>;
 }
 
 export interface PlayerCard {
   id: string;
   name: string;
-  team: string; // LCK Team Name (T1, Gen.G, etc.) or 'FA'
+  team: string;
   role: Role;
   stats: PlayerStats;
   overall: number;
-  previousOverall?: number; // To track growth/decline across seasons
-  age: number; // Player age
-  price: number; // This acts as "Transfer Fee" (Bonservis)
-  salary: number; // Cost per season
-  contractDuration: number; // Seasons remaining
+  previousOverall?: number;
+  age: number;
+  price: number;
+  salary: number;
+  contractDuration: number;
   rarity: Rarity;
-  imageParams?: string; // For placeholder generation
-  events?: PlayerEvent[]; // Active random events
-  signatureChampions?: string[]; // İmza şampiyonlar
+  imageParams?: string;
+  events?: PlayerEvent[];
+  signatureChampions?: string[];
   imageUrl?: string;
   status?: 'active' | 'retired';
-  morale?: number; // 0-100 arası moral değeri
+  morale?: number;
+  nationality?: string;
+  potential?: 'S' | 'A' | 'B' | 'C';
 }
 
 export interface MatchResult {
   victory: boolean;
-  scoreUser: number; // Series Score (e.g. 2)
-  scoreEnemy: number; // Series Score (e.g. 1)
-  gameScores: {user: number, enemy: number}[]; // Kills per game
+  scoreUser: number;
+  scoreEnemy: number;
+  gameScores: {user: number, enemy: number}[];
   enemyTeam: string;
   reward: number;
   commentary: string;
   isBo5: boolean;
+  playerStats: any[];
 }
 
 export interface TeamData {
@@ -67,19 +72,19 @@ export interface TeamData {
   name: string;
   shortName: string;
   primaryColor: string;
-  secondaryColor: string;
+  secondaryColor?: string;
   logoUrl?: string;
 }
 
 export interface Standing {
   teamId: string;
   name: string;
-  wins: number; // Series Wins
-  losses: number; // Series Losses
-  gameWins: number; // Individual Game Wins
-  gameLosses: number; // Individual Game Losses
-  streak: number; // Positive for win streak, negative for loss streak
-  group: 'A' | 'B' | null;
+  wins: number;
+  losses: number;
+  gameWins: number;
+  gameLosses: number;
+  streak: number;
+  group: 'A' | 'B' | 'C' | 'D' | null;
 }
 
 export interface ScheduledMatch {
@@ -90,8 +95,8 @@ export interface ScheduledMatch {
   teamBId: string;
   played: boolean;
   winnerId?: string;
-  seriesScoreA?: number; // Sets won
-  seriesScoreB?: number; // Sets won
+  seriesScoreA?: number;
+  seriesScoreB?: number;
   isBo5?: boolean;
 }
 
@@ -103,38 +108,51 @@ export interface PlayoffMatch {
   winnerId?: string;
   seriesScoreA?: number;
   seriesScoreB?: number;
-  nextMatchId?: string; // Where the winner goes
+  nextMatchId?: string;
   nextMatchSlot?: 'A' | 'B';
-  loserMatchId?: string; // Where the loser goes (if double elim)
+  loserMatchId?: string;
   loserMatchSlot?: 'A' | 'B';
   isBo5: boolean;
 }
 
-export type GameStage = 'PRE_SEASON' | 'GROUP_STAGE' | 'PLAY_IN' | 'PLAYOFFS' | 'OFF_SEASON' | 'LEC_GROUP_STAGE' | 'LEC_PLAYOFFS';
+// --- YENİ EKLENEN: Görünüm Tipi ---
+export type HistoryViewType = 'LEAGUE' | 'BRACKET' | 'LIST';
+
+export interface HistoryEntry {
+  id: string;
+  title: string;          
+  viewType: HistoryViewType; // <-- ARTIK BU ALAN ZORUNLU
+  year: number;
+  split: string;
+  schedule?: ScheduledMatch[];
+  standings?: Standing[];
+  playoffs?: PlayoffMatch[];
+}
+
+export type GameStage = 'PRE_SEASON' | 'GROUP_STAGE' | 'PLAY_IN' | 'PLAYOFFS' | 'OFF_SEASON' | 'MSI_PLAY_IN' | 'MSI_BRACKET' | 'LPL_SPLIT_2_PLACEMENTS' | 'LPL_SPLIT_2_LCQ' | 'LEC_GROUP_STAGE';
 
 export interface GameState {
   managerName: string;
   teamId: string;
+  leagueKey: LeagueKey; 
   coins: number;
   year: number; 
-  currentSeason: number; // 1, 2, or 3
+  currentSeason: number;
+  currentSplit: string;
   week: number;
   currentDay: number; 
-  stage: GameStage;
-  
+  difficulty: string;
+  stage: GameStage | string;
   inventory: PlayerCard[];
   roster: Record<Role, PlayerCard | null>;
-  // Map of TeamID -> { Role -> PlayerCard }
   aiRosters: Record<string, Record<Role, PlayerCard>>; 
-  
-  // Standings & Format
-  groups: { A: string[], B: string[] }; // Team IDs in Group A and B
-  winnersGroup: 'A' | 'B' | null; // Which group won the group stage
+  groups: { A: string[], B: string[], C?: string[], D?: string[] }; 
+  winnersGroup: 'A' | 'B' | null; 
   standings: Standing[];
-  
   schedule: ScheduledMatch[];
   playoffMatches: PlayoffMatch[];
-  
-  freeAgents: PlayerCard[]; // Track players who became FA
-  trainingSlotsUsed: number; // New: Tracks weekly training activity
-}
+  msiBracketContenders?: string[];
+  freeAgents: PlayerCard[]; 
+  trainingSlotsUsed: number;
+  matchHistory: HistoryEntry[]; 
+} 

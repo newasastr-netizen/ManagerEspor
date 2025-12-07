@@ -6,10 +6,11 @@ import { TeamStatsView } from './components/TeamStatsView';
 import { MatchSimulationView } from './components/MatchSimulationView';
 import { TrainingView } from './components/TrainingView';
 import { Onboarding } from './components/Onboarding';
-import { Role, PlayerCard, GameState, MatchResult, Rarity, TeamData, ScheduledMatch, PlayoffMatch, Standing, PlayerEvent } from './types';
 import { LEAGUES, LeagueKey, LeagueDefinition } from './data/leagues';
 import { drawGroups, generateGroupStageSchedule } from './utils/scheduler';
 import { Trophy, RotateCcw, AlertTriangle, Play, Handshake, Wand2, FastForward, SkipForward, XCircle, ArrowDownUp, Search } from 'lucide-react';
+import { Role, PlayerCard, GameState, MatchResult, Rarity, TeamData, ScheduledMatch, PlayoffMatch, Standing, PlayerEvent, HistoryEntry, HistoryViewType } from './types';
+import { MainMenu } from './components/MainMenu';
 
 const ACTIVITIES = [
   { id: 'scrim', name: 'Scrimmage', cost: 50, slots: 2, description: 'Play a practice match against a random team.', gains: { teamfight: 2, macro: 1 } },
@@ -312,6 +313,32 @@ const BracketMatch: React.FC<{
 };
 
 const BracketView: React.FC<{ matches: PlayoffMatch[], stage: string, teams: TeamData[], standings: Standing[], userTeamId: string, isCurrent: boolean }> = ({ matches, stage, teams, standings, userTeamId, isCurrent }) => {
+    const renderRound = (roundName: string, matchIds: string[], customClass: string = '') => {
+        return (
+            <div key={roundName} className="flex flex-col space-y-6 flex-shrink-0 w-72">
+                <h3 className="text-center font-bold text-lg text-hextech-300">{roundName}</h3>
+                <div className={`flex flex-col gap-12 justify-center ${customClass}`}>
+                    {matchIds.map(id => {
+                        const match = getMatch(id);
+                        if (!match) return null;
+                        const isUserMatch = match.teamAId === userTeamId || match.teamBId === userTeamId;
+                        return (
+                            <div key={id} className="relative group">
+                                <div className={`absolute -inset-0.5 bg-gradient-to-r from-red-600 to-purple-600 rounded-lg blur opacity-25 group-hover:opacity-50 transition duration-1000 animate-tilt ${!match.winnerId && isUserMatch ? 'opacity-75' : ''}`}></div>
+                                <BracketMatch
+                                    match={match}
+                                    teams={teams}
+                                    standings={standings}
+                                    onHoverTeam={isCurrent ? setHighlightedTeam : () => {}}
+                                    highlightedPath={highlightedPath}
+                                />
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        );
+    };
     const [highlightedTeam, setHighlightedTeam] = useState<string | null>(null);
     const getMatch = (id: string) => matches.find(m => m.id === id);
     
@@ -346,24 +373,7 @@ const BracketView: React.FC<{ matches: PlayoffMatch[], stage: string, teams: Tea
 
         return (
             <div className="flex space-x-8 overflow-x-auto p-4 bg-dark-950 rounded-xl">
-                {Object.entries(rounds).map(([roundName, matchIds]) => (
-                    <div key={roundName} className="flex flex-col space-y-6 flex-shrink-0 w-72">
-                        <h3 className="text-center font-bold text-lg text-hextech-300">{roundName}</h3>
-                        <div className={`flex flex-col gap-12 justify-center ${roundName.includes('Final') ? 'h-full' : ''}`}>
-                            {matchIds.map(id => {
-                                const match = getMatch(id);
-                                if (!match) return null;
-                                const isUserMatch = match.teamAId === userTeamId || match.teamBId === userTeamId;
-                                return (
-                                    <div key={id} className="relative group">
-                                        <div className={`absolute -inset-0.5 bg-gradient-to-r from-red-600 to-purple-600 rounded-lg blur opacity-25 group-hover:opacity-50 transition duration-1000 animate-tilt ${!match.winnerId && isUserMatch ? 'opacity-75' : ''}`}></div>
-                                        <BracketMatch match={match} teams={teams} standings={standings} onHoverTeam={isCurrent ? setHighlightedTeam : () => {}} highlightedPath={highlightedPath} />
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-                ))}
+                {Object.entries(rounds).map(([roundName, matchIds]) => renderRound(roundName, matchIds, roundName.includes('Final') ? 'h-full' : ''))}
             </div>
         );
     }
@@ -376,24 +386,7 @@ const BracketView: React.FC<{ matches: PlayoffMatch[], stage: string, teams: Tea
         };
         return (
             <div className="flex justify-center space-x-8 overflow-x-auto p-4 bg-dark-950 rounded-xl">
-                {Object.entries(playInRounds).map(([roundName, matchIds]) => (
-                    <div key={roundName} className="flex flex-col space-y-6 flex-shrink-0 w-72">
-                        <h3 className="text-center font-bold text-lg text-hextech-300">{roundName}</h3>
-                        <div className="flex flex-col gap-12 justify-center h-full">
-                            {matchIds.map(id => {
-                                const match = getMatch(id);
-                                if (!match) return null;
-                                const isUserMatch = match.teamAId === userTeamId || match.teamBId === userTeamId;
-                                return (
-                                    <div key={id} className="relative group">
-                                        <div className={`absolute -inset-0.5 bg-gradient-to-r from-red-600 to-purple-600 rounded-lg blur opacity-25 group-hover:opacity-50 transition duration-1000 animate-tilt ${!match.winnerId && isUserMatch ? 'opacity-75' : ''}`}></div>
-                                        <BracketMatch key={id} match={match} teams={teams} standings={standings} onHoverTeam={isCurrent ? setHighlightedTeam : () => {}} highlightedPath={highlightedPath} />
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-                ))}
+                {Object.entries(playInRounds).map(([roundName, matchIds]) => renderRound(roundName, matchIds, 'h-full'))}
             </div>
         );
     }
@@ -401,20 +394,7 @@ const BracketView: React.FC<{ matches: PlayoffMatch[], stage: string, teams: Tea
     if (stage === 'PLAY_IN') {
         return (
             <div className="flex justify-center space-x-8 overflow-x-auto p-4 bg-dark-950 rounded-xl min-h-[500px]">
-                <div className="flex flex-col space-y-6 flex-shrink-0 w-72">
-                    <h3 className="text-center font-bold text-lg text-hextech-300">Play-In Qualifiers</h3>
-                    <div className="flex flex-col gap-12 justify-center h-full">
-                        {matches.map(match => {
-                            const isUserMatch = match.teamAId === userTeamId || match.teamBId === userTeamId;
-                            return (
-                                <div key={match.id} className="relative group">
-                                    <div className={`absolute -inset-0.5 bg-gradient-to-r from-red-600 to-purple-600 rounded-lg blur opacity-25 group-hover:opacity-50 transition duration-1000 animate-tilt ${!match.winnerId && isUserMatch ? 'opacity-75' : ''}`}></div>
-                                    <BracketMatch match={match} teams={teams} standings={standings} onHoverTeam={isCurrent ? setHighlightedTeam : () => {}} highlightedPath={highlightedPath} />
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
+                {renderRound('Play-In Qualifiers', matches.map(m => m.id), 'h-full')}
             </div>
         )
     }
@@ -427,21 +407,9 @@ const BracketView: React.FC<{ matches: PlayoffMatch[], stage: string, teams: Tea
     return (
       <div className="flex space-x-8 overflow-x-auto p-4 bg-dark-950 rounded-xl">
           {rounds.map(roundName => {
-             const roundMatches = matches.filter(m => m.roundName === roundName);
-             if(roundMatches.length === 0) return null;
-             return (
-                <div key={roundName} className="flex flex-col space-y-6 flex-shrink-0 w-72">
-                    <h3 className="text-center font-bold text-lg text-hextech-300">{roundName}</h3>
-                    <div className="flex flex-col gap-12 justify-center h-full">
-                        {roundMatches.map(match => (
-                            <div key={match.id} className="relative group">
-                                 <div className={`absolute -inset-0.5 bg-gradient-to-r from-red-600 to-purple-600 rounded-lg blur opacity-25 group-hover:opacity-50 transition duration-1000 animate-tilt ${!match.winnerId && (match.teamAId === userTeamId || match.teamBId === userTeamId) ? 'opacity-75' : ''}`}></div>
-                                 <BracketMatch match={match} teams={teams} standings={standings} onHoverTeam={isCurrent ? setHighlightedTeam : () => {}} highlightedPath={highlightedPath} />
-                            </div>
-                        ))}
-                    </div>
-                </div>
-             );
+             const roundMatchIds = matches.filter(m => m.roundName === roundName).map(m => m.id);
+             if(roundMatchIds.length === 0) return null;
+             return renderRound(roundName, roundMatchIds, 'h-full');
           })}
       </div>
     )
@@ -454,6 +422,44 @@ interface IncomingOffer {
   offerAmount: number;
   playerOpinion: string;
 }
+
+const MatchListView: React.FC<{ matches: PlayoffMatch[], teams: TeamData[], userTeamId: string }> = ({ matches, teams, userTeamId }) => {
+  return (
+      <div className="w-full max-w-5xl mx-auto space-y-4 animate-fade-in">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {matches.map(match => {
+                  const teamA = teams.find(t => t.id === match.teamAId);
+                  const teamB = teams.find(t => t.id === match.teamBId);
+                  return (
+                      <div key={match.id} className="bg-dark-900 border border-dark-700 rounded-xl p-4 flex justify-between items-center">
+                          <div className="text-xs font-bold text-gray-500 w-20">{match.roundName}</div>
+                          <div className="flex-1 flex justify-between items-center px-4">
+                              <div className="flex items-center gap-2"><TeamLogo team={teamA} size="w-6 h-6" /><span className="text-white font-bold">{teamA?.shortName}</span></div>
+                              <div className="font-mono text-xl font-bold text-white">{match.winnerId ? `${match.seriesScoreA} - ${match.seriesScoreB}` : 'VS'}</div>
+                              <div className="flex items-center gap-2"><span className="text-white font-bold">{teamB?.shortName}</span><TeamLogo team={teamB} size="w-6 h-6" /></div>
+                          </div>
+                      </div>
+                  );
+              })}
+          </div>
+      </div>
+  );
+};
+
+const saveToHistory = (currentGs: GameState, title: string, viewType: HistoryViewType): HistoryEntry[] => {
+    const newEntry: HistoryEntry = {
+        id: `${title.replace(/\s/g, '-')}-${Date.now()}`,
+        title: title,
+        viewType: viewType,
+        year: currentGs.year,
+        split: currentGs.currentSplit,
+        schedule: currentGs.schedule.length > 0 ? JSON.parse(JSON.stringify(currentGs.schedule)) : undefined,
+        standings: currentGs.standings.length > 0 ? JSON.parse(JSON.stringify(currentGs.standings)) : undefined,
+        playoffs: currentGs.playoffMatches.length > 0 ? JSON.parse(JSON.stringify(currentGs.playoffMatches)) : undefined,
+    };
+    const currentHistory = Array.isArray(currentGs.matchHistory) ? currentGs.matchHistory : [];
+    return [...currentHistory, newEntry];
+};
 
 export default function App() {
   const [onboardingComplete, setOnboardingComplete] = useState(false);
@@ -487,7 +493,7 @@ export default function App() {
     playoffMatches: [],
     freeAgents: [],
     trainingSlotsUsed: 0,
-    matchHistory: {}
+    matchHistory: [],
   });
 
   const [market, setMarket] = useState<PlayerCard[]>([]);
@@ -523,7 +529,7 @@ export default function App() {
   const [retiredPlayerModal, setRetiredPlayerModal] = useState<PlayerCard | null>(null);
   const [incomingOffers, setIncomingOffers] = useState<IncomingOffer[]>([]);
 
-  const activeTeamData = activeLeague.teams.find(t => t.id === gameState.teamId) || null;
+  const activeTeamData = activeLeague.teams.find(t => t && t.id === gameState?.teamId) || null;
 
   const allTeams = useMemo(() => {
     return Object.values(LEAGUES).flatMap(league => league.teams);
@@ -565,6 +571,26 @@ export default function App() {
       setGameState(prev => ({ ...prev, standings: initialStandings }));
     }
   }, [onboardingComplete, activeLeague]);
+
+  const handleNewGame = () => {
+    localStorage.removeItem('lck_manager_save_v1');
+    // Sayfayı yenileyerek her şeyi sıfırlar
+    window.location.reload(); 
+  };
+
+  const handleContinueGame = () => {
+    const savedData = localStorage.getItem('lck_manager_save_v1');
+    if (savedData) {
+      const parsed = JSON.parse(savedData);
+      setGameState(parsed);
+      // Eğer kayıtlı lig varsa onu aktif et
+      if (parsed.leagueKey && LEAGUES[parsed.leagueKey as LeagueKey]) {
+          setActiveLeague(LEAGUES[parsed.leagueKey as LeagueKey]);
+      }
+      setOnboardingComplete(true);
+      setView('GAME');
+    }
+  };
 
   const handleOnboardingComplete = (name: string, team: TeamData, leagueKey: LeagueKey, difficulty?: Difficulty) => {
     const selectedLeague = LEAGUES[leagueKey];
@@ -913,35 +939,26 @@ export default function App() {
   const handleTraining = (playerId: string, activityId: string, cost: number, gains: Partial<PlayerCard['stats']>) => {
     setGameState(prev => {
       const newRoster = { ...prev.roster };
-      const newInventory = [...prev.inventory];
-      let playerFoundAndUpdated = false;
+      const newInventory = [...prev.inventory];      
+      let playerToUpdate: PlayerCard | null | undefined = null;
+      let playerLocation: 'roster' | 'inventory' | null = null;
+      let playerRoleOrIndex: Role | number | null = null;
 
-      const updatePlayerStats = (player: PlayerCard): PlayerCard => {
-        const newStats = { ...player.stats };
-        for (const stat in gains) {
-          const key = stat as keyof PlayerCard['stats'];
-          const gainValue = gains[key] || 0;
-          newStats[key] = Math.min(99, (newStats[key] || 0) + gainValue);
-        }
-        const newOverall = Math.round((newStats.mechanics + newStats.macro + newStats.lane + newStats.teamfight) / 4);
-        return { ...player, stats: newStats, overall: newOverall, previousOverall: player.overall };
-      };
+      Object.entries(newRoster).forEach(([role, p]) => {
+          if (p?.id === playerId) {
+              playerToUpdate = p;
+              playerLocation = 'roster';
+              playerRoleOrIndex = role as Role;
+          }
+      });
 
-      for (const role in newRoster) {
-        const player = newRoster[role as Role];
-        if (player && player.id === playerId) {
-          newRoster[role as Role] = updatePlayerStats(player);
-          playerFoundAndUpdated = true;
-          break;
-        }
-      }
-
-      if (!playerFoundAndUpdated) {
-        const inventoryIndex = newInventory.findIndex(p => p.id === playerId);
-        if (inventoryIndex > -1) {
-          newInventory[inventoryIndex] = updatePlayerStats(newInventory[inventoryIndex]);
-          playerFoundAndUpdated = true;
-        }
+      if (!playerToUpdate) {
+          const inventoryIndex = newInventory.findIndex(p => p.id === playerId);
+          if (inventoryIndex !== -1) {
+              playerToUpdate = newInventory[inventoryIndex];
+              playerLocation = 'inventory';
+              playerRoleOrIndex = inventoryIndex;
+          }
       }
 
       return {
@@ -950,7 +967,7 @@ export default function App() {
         trainingSlotsUsed: prev.trainingSlotsUsed + (ACTIVITIES.find(a => a.id === activityId)?.slots || 1),
         roster: newRoster,
         inventory: newInventory,
-      };
+      };      
     });
 };
 
@@ -1288,7 +1305,6 @@ export default function App() {
 
   const startLPLSplit1Playoffs = (prev: GameState): GameState => {
     const { standings, groups } = prev;
-    if (!groups) return prev;
 
     const getGroupRankings = (groupKey: string) => {
         return standings
@@ -1334,14 +1350,14 @@ export default function App() {
         ...prev,
         stage: 'PLAYOFFS',
         week: 10,
-        matchHistory: { ...prev.matchHistory, [`${prev.year} ${prev.currentSplit}`]: { schedule: prev.schedule, standings: prev.standings, groups: prev.groups } },
+        matchHistory: saveToHistory(prev, `${prev.year} ${prev.currentSplit}`, 'LEAGUE'),
         playoffMatches: matches
     };
   };
 
   const startLPLSplit2 = (prev: GameState): GameState => {
-    const split1HistoryKey = `${prev.year} Split 1 Playoffs`; // Anahtar ismini düzelttik
-    const split1Playoffs = prev.matchHistory[split1HistoryKey]?.playoffs;
+    const historyList = Array.isArray(prev.matchHistory) ? prev.matchHistory : [];
+    const split1Playoffs = historyList.find(h => h.title === `${prev.year} Split 1 Playoffs`)?.playoffs;
 
     let finalRankings: { teamId: string, rank: number }[] = [];
     
@@ -1351,10 +1367,8 @@ export default function App() {
         const gfLoser = gf?.winnerId === gf?.teamAId ? gf?.teamBId : gf?.teamAId;
         if (gfLoser) finalRankings.push({ teamId: gfLoser, rank: 2 });
 
-        const groupStageLosers = prev.matchHistory[`${prev.year} Split 1`]?.standings // Anahtar ismini düzelttik
-            ?.filter(s => !finalRankings.some(r => r.teamId === s.teamId))
-            .sort((a, b) => b.wins - a.wins)
-            .map(s => s.teamId) || [];
+        const groupStageStandings = historyList.find(h => h.title === `${prev.year} SPRING`)?.standings || [];
+        const groupStageLosers = groupStageStandings.filter(s => !finalRankings.some(r => r.teamId === s.teamId)).sort((a, b) => b.wins - a.wins).map(s => s.teamId);
         
         groupStageLosers.forEach((teamId, index) => {
              if (!finalRankings.some(r => r.teamId === teamId)) {
@@ -1431,10 +1445,10 @@ export default function App() {
         if (grp[2]) lcqTeams.push(grp[2].teamId);
     });
 
-    initializeLPLLCQ(lcqTeams);
+    return initializeLPLLCQ(currentGameState, lcqTeams);
   };
 
-  const initializeLPLLCQ = (lcqTeams: string[]) => {
+  const initializeLPLLCQ = (prevGameState: GameState, lcqTeams: string[]): GameState => {
       const teams = [...lcqTeams].sort(() => 0.5 - Math.random());
       const matches: PlayoffMatch[] = [
           { id: 'lcq-r1-1', roundName: 'LCQ Round 1', teamAId: teams[0], teamBId: teams[1], nextMatchId: 'lcq-winner-match', nextMatchSlot: 'A', loserMatchId: 'lcq-loser-match', loserMatchSlot: 'A', isBo5: true },
@@ -1444,18 +1458,18 @@ export default function App() {
           { id: 'lcq-decider', roundName: 'LCQ Decider Match', teamAId: null, teamBId: null, isBo5: true } 
       ];
 
-      setGameState(prev => ({
-          ...prev,
-          stage: 'LPL_SPLIT_2_LCQ',
-          matchHistory: { ...prev.matchHistory, [`${prev.year} Split 2 Placements`]: { schedule: prev.schedule, standings: prev.standings } },
-          playoffMatches: matches,
-          schedule: [],
-      }));
       setTab('play');
       showNotification('success', 'Placements concluded! Proceeding to Last Chance Qualifier.');
+      return {
+          ...prevGameState,
+          stage: 'LPL_SPLIT_2_LCQ',
+          matchHistory: saveToHistory(prevGameState, `${prevGameState.year} Split 2 Placements`, 'LEAGUE'),
+          playoffMatches: matches,
+          schedule: [],
+      };
   };
 
-  const startLPLSplit2Playoffs = (prev: GameState): void => { 
+  const startLPLSplit2Playoffs = (prev: GameState): GameState => { 
       // LPL Split 2 Playoffları: Buradan çıkan en iyi takımlar MSI'a gidecek.
       // Basitlik adına LCQ ve Group Ascend'den gelen en iyi 4 takımı alıyoruz.
       
@@ -1471,14 +1485,14 @@ export default function App() {
           { id: 'lpl-s2-final', roundName: 'Grand Final', teamAId: null, teamBId: null, isBo5: true }
       ];
 
-      setGameState(p => ({
-          ...p,
+      setTab('play');
+      showNotification('success', 'LPL Split 2 Playoffs Started! Top 2 go to MSI.');
+      return {
+          ...prev,
           stage: 'PLAYOFFS',
           currentSplit: 'SPLIT_2', // Artık resmen Split 2 Playofflarındayız
           playoffMatches: matches
-      }));
-      setTab('play');
-      showNotification('success', 'LPL Split 2 Playoffs Started! Top 2 go to MSI.');
+      };
   };
 
   const initializeMSI = (isUserQualified: boolean) => {
@@ -1552,7 +1566,6 @@ export default function App() {
 
     setGameState(prev => ({
       ...prev,
-      matchHistory: { ...prev.matchHistory, [`${prev.year} ${prev.currentSplit} Playoffs`]: { playoffs: prev.playoffMatches } }, 
       stage: 'MSI_PLAY_IN', // Önce Play-In Başlatıyoruz
       playoffMatches: playInMatches,
       msiBracketContenders: bracketContenders, // Bracket'a direkt gidenleri burada saklıyoruz
@@ -1587,12 +1600,11 @@ export default function App() {
 
       if (isStandardSpringEnd || isLPLSplit2End) {
           const splitName = leagueFormat === 'LPL' ? 'Split 2' : 'Spring';
-          const historyKey = `${gameState.year} ${splitName} Playoffs`;
-          const newHistory = { ...gameState.matchHistory, [historyKey]: { playoffs: gameState.playoffMatches } };
+          // BURAYI DEĞİŞTİRİYORUZ: Normal sezon playoff'larını kaydediyoruz.
+          const newHistory = saveToHistory(gameState, `${gameState.year} ${splitName} Playoffs`, 'BRACKET');
 
           const userRank = getUserTeamRank(gameState);
           
-          // SENİN İSTEDİĞİN GÜNCEL SLOT SAYILARI (LCS YOK)
           const msiSlots: Record<string, number> = { 
               LCK: 4, 
               LPL: 3, 
@@ -1603,30 +1615,34 @@ export default function App() {
           const limit = msiSlots[activeLeague.name] || 1;
           const didQualifyMSI = userRank <= limit;
 
-          // Kullanıcı katılsın ya da katılmasın MSI başlat
-          // ÖNCE state'i MSI'a hazırla, SONRA initializeMSI'ı çağır.
-          // Bu, "Spring Playoffs" sekmesinin çiftlenmesini önler.
           setGameState(prev => ({ 
               ...prev, 
               matchHistory: newHistory,
-              stage: 'MSI_PLAY_IN', // Hemen bir sonraki aşamaya geç
-              currentSplit: 'MSI' // Mevsimi de güncelle
+              stage: 'MSI_PLAY_IN', 
+              currentSplit: 'MSI' 
           }));
           initializeMSI(didQualifyMSI);
           return;
       }
 
-      // --- 2. MSI BİTİMİ -> YAZ SEZONU / SPLIT 3 GEÇİŞİ ---
-      if (currentStage === 'MSI_BRACKET') {
-           let newHistory = { ...gameState.matchHistory };
-           newHistory[`${gameState.year} MSI`] = { playoffs: gameState.playoffMatches };
+      // --- 2. MSI PLAY-IN BİTİMİ -> MSI BRACKET GEÇİŞİ (YENİ EKLEME GEREKEBİLİR) ---
+      // Eğer kodunda bu geçiş "skipToNextMatch" içinde otomatik oluyorsa, 
+      // oraya da kayıt eklememiz gerekebilir. Ancak genellikle MSI Play-In bittiğinde
+      // direkt stage değişiyor. Eğer Play-In geçmişini de ayrı görmek istiyorsan,
+      // Play-In bittiğinde bir kayıt almalısın. 
+      // (Mevcut kodunda bu "skipToNextMatch" içinde yapılıyor olabilir, orayı da kontrol edelim).
 
+      // --- 3. MSI BİTİMİ -> YAZ SEZONU / SPLIT 3 GEÇİŞİ ---
+      if (currentStage === 'MSI_BRACKET') {
+           // İsmi netleştiriyoruz: "MSI Bracket"
+           const newHistory = saveToHistory(gameState, `${gameState.year} MSI Bracket`, 'BRACKET');
+           
            if (leagueFormat === 'LPL') {
                setGameState(prev => ({
                    ...prev,
                    matchHistory: newHistory,
                    stage: 'PRE_SEASON', 
-                   currentSplit: 'SPLIT_3', // LPL Split 3 Başlıyor
+                   currentSplit: 'SPLIT_3', 
                    playoffMatches: [],
                    schedule: [],
                    week: 1,
@@ -1638,7 +1654,7 @@ export default function App() {
                    ...prev,
                    matchHistory: newHistory,
                    stage: 'PRE_SEASON',
-                   currentSplit: 'SUMMER', // Diğerleri Summer'a geçiyor
+                   currentSplit: 'SUMMER', 
                    playoffMatches: [],
                    schedule: [],
                    week: 1,
@@ -1652,22 +1668,21 @@ export default function App() {
 
       // --- LPL ÖZEL GEÇİŞLERİ ---
       if (currentStage === 'LPL_SPLIT_2_PLACEMENTS') {
-          const historyKey = `${gameState.year} Split 2 Placements`;
-          const newHistory = { ...gameState.matchHistory, [historyKey]: { schedule: gameState.schedule, standings: gameState.standings } };
-          endLPLPlacementStage({ ...gameState, matchHistory: newHistory });
+          setGameState(prev => endLPLPlacementStage(prev));
           return;
       }
       
       if (currentStage === 'LPL_SPLIT_2_LCQ') {
           const historyKey = `${gameState.year} Split 2 LCQ`;
           const newHistory = { ...gameState.matchHistory, [historyKey]: { playoffs: gameState.playoffMatches } };
-          startLPLSplit2Playoffs({ ...gameState, matchHistory: newHistory }); 
+          // The function now returns state, so we must use setGameState
+          setGameState(startLPLSplit2Playoffs({ ...gameState, matchHistory: newHistory })); 
           return;
       }
 
       if (leagueFormat === 'LPL' && currentSplit === 'SPRING' && currentStage === 'PLAYOFFS') {
            const historyKey = `${gameState.year} Split 1 Playoffs`;
-           const newHistory = { ...gameState.matchHistory, [historyKey]: { playoffs: gameState.playoffMatches } };
+           const newHistory = saveToHistory(gameState, historyKey, 'BRACKET');
            const split2State = startLPLSplit2({ ...gameState, matchHistory: newHistory });
            setGameState({ ...split2State, currentSplit: 'SPLIT_2' });
            setTab('schedule');
@@ -1793,7 +1808,7 @@ export default function App() {
       setGameState(prev => ({
           ...prev, 
           stage: 'OFF_SEASON', 
-          matchHistory: { ...prev.matchHistory, [`${prev.year} ${prev.currentSplit} Playoffs`]: { playoffs: prev.playoffMatches } },
+          matchHistory: saveToHistory(prev, `${prev.year} ${prev.currentSplit} Playoffs`, 'BRACKET'),
           year: prev.year + 1,
           currentSplit: 'SPRING',
           week: 0,
@@ -1914,52 +1929,51 @@ export default function App() {
       return { winnerId: winsA > winsB ? teamAId : teamBId, scoreA: winsA, scoreB: winsB, gameScores };
   };
 
-  const endGroupStage = (standings: Standing[]) => {
-      const winsA = standings.filter(s => s.group === 'A').reduce((acc, s) => acc + s.wins, 0);
-      const winsB = standings.filter(s => s.group === 'B').reduce((acc, s) => acc + s.wins, 0);
+  const endGroupStage = (currentState: GameState): GameState => {
+      if (currentState.stage !== 'GROUP_STAGE') return currentState;
+      const winsA = currentState.standings.filter(s => s.group === 'A').reduce((acc, s) => acc + s.wins, 0);
+      const winsB = currentState.standings.filter(s => s.group === 'B').reduce((acc, s) => acc + s.wins, 0);
       const winnersGroup = winsA >= winsB ? 'A' : 'B';
       const losersGroup = winnersGroup === 'A' ? 'B' : 'A';
-
       const getSortedGroup = (grp: 'A' | 'B') => {
-          return standings.filter(s => s.group === grp).sort((a, b) => {
+          return currentState.standings.filter(s => s.group === grp).sort((a, b) => {
               if (b.wins !== a.wins) return b.wins - a.wins;
               return (b.gameWins - b.gameLosses) - (a.gameWins - a.gameLosses);
           });
       };
-
       const sortedWinners = getSortedGroup(winnersGroup);
       const sortedLosers = getSortedGroup(losersGroup);
       const playInTeams = [ ...sortedWinners.slice(3, 5), ...sortedLosers.slice(0, 4) ];
-
       playInTeams.sort((a, b) => b.wins - a.wins);
-      initializePlayIns(playInTeams);
-
-      setGameState(prev => ({ ...prev, stage: 'PLAY_IN', winnersGroup, week: 10 }));
+      const playInMatches = initializePlayIns(playInTeams);
       showNotification('success', `Group Stage Ended! ${winnersGroup} is the Winners Group.`);
+      setTab('play');
+      return {
+        ...currentState,
+        stage: 'PLAY_IN', 
+        winnersGroup, 
+        week: 10,
+        matchHistory: saveToHistory(currentState, `${currentState.year} ${currentState.currentSplit} Regular Season`, 'LEAGUE'),
+        playoffMatches: playInMatches
+      };
   };
 
-  const initializePlayIns = (teams: Standing[]) => {
+  const initializePlayIns = (teams: Standing[]): PlayoffMatch[] => {
       if (teams.length < 6) console.warn("Not enough teams for play-in:", teams.length);
       const matches: PlayoffMatch[] = [
           { id: 'pi-1', roundName: 'Play-In Qualifier A', teamAId: teams[0]?.teamId || null, teamBId: teams[5]?.teamId || null, isBo5: true },
           { id: 'pi-2', roundName: 'Play-In Qualifier B', teamAId: teams[1]?.teamId || null, teamBId: teams[4]?.teamId || null, isBo5: true },
           { id: 'pi-3', roundName: 'Play-In Qualifier C', teamAId: teams[2]?.teamId || null, teamBId: teams[3]?.teamId || null, isBo5: true },
       ];
-
-      setGameState(prev => ({
-          ...prev,
-          matchHistory: { ...prev.matchHistory, [`${prev.year} ${prev.currentSplit}`]: { schedule: prev.schedule } },
-          playoffMatches: matches
-      }));
-      setTab('play');
+      return matches;
   };
 
-  const initializeSimplePlayoffs = (standings: Standing[]) => {
-    const sortedStandings = [...standings].sort((a, b) => {
+  const initializeSimplePlayoffs = (currentState: GameState): GameState => {
+    if (currentState.stage !== 'GROUP_STAGE') return currentState;
+    const sortedStandings = [...currentState.standings].sort((a, b) => {
       if (b.wins !== a.wins) return b.wins - a.wins;
       return (b.gameWins - b.gameLosses) - (a.gameWins - a.gameLosses);
     });
-
     const top6 = sortedStandings.slice(0, 6).map(s => s.teamId);
     const matches: PlayoffMatch[] = [
       { id: 'qf-1', roundName: 'Quarterfinals', teamAId: top6[2], teamBId: top6[5], nextMatchId: 'sf-1', nextMatchSlot: 'B', isBo5: true },
@@ -1968,20 +1982,19 @@ export default function App() {
       { id: 'sf-2', roundName: 'Semifinals', teamAId: top6[1], teamBId: null, nextMatchId: 'f-1', nextMatchSlot: 'B', isBo5: true },
       { id: 'f-1', roundName: 'Grand Final', teamAId: null, teamBId: null, isBo5: true },
     ];
-
-    setGameState(prev => ({ 
-      ...prev, 
-      matchHistory: { ...prev.matchHistory, [`${prev.year} ${prev.currentSplit}`]: { schedule: prev.schedule } },
-      stage: 'PLAYOFFS', playoffMatches: matches, week: 10 
-    }));
     showNotification('success', 'Regular Season has ended! The top 6 teams advance to Playoffs.');
+    return {
+      ...currentState,
+      matchHistory: saveToHistory(currentState, `${currentState.year} ${currentState.currentSplit} Regular Season`, 'LEAGUE'),
+      stage: 'PLAYOFFS', playoffMatches: matches, week: 10 
+    };
   };
 
-  const startLECGroupStage = (standings: Standing[]) => {
-    const top8 = standings.slice(0, 8).map(s => s.teamId);
+  const startLECGroupStage = (currentState: GameState): GameState => {
+    if (currentState.stage !== 'GROUP_STAGE') return currentState;
+    const top8 = currentState.standings.slice(0, 8).map(s => s.teamId);
     const groupA = [top8[0], top8[3], top8[4], top8[7]];
     const groupB = [top8[1], top8[2], top8[5], top8[6]];
-
     const createGroupMatches = (group: string[], prefix: string): PlayoffMatch[] => [
         { id: `${prefix}-ub-1`, roundName: `Group ${prefix.toUpperCase()} UB Semis`, teamAId: group[0], teamBId: group[3], nextMatchId: `${prefix}-ub-final`, nextMatchSlot: 'A', loserMatchId: `${prefix}-lb-1`, loserMatchSlot: 'A', isBo5: false },
         { id: `${prefix}-ub-2`, roundName: `Group ${prefix.toUpperCase()} UB Semis`, teamAId: group[1], teamBId: group[2], nextMatchId: `${prefix}-ub-final`, nextMatchSlot: 'B', loserMatchId: `${prefix}-lb-1`, loserMatchSlot: 'B', isBo5: false },
@@ -1989,26 +2002,30 @@ export default function App() {
         { id: `${prefix}-ub-final`, roundName: `Group ${prefix.toUpperCase()} UB Final`, teamAId: null, teamBId: null, nextMatchId: `${prefix}-playoff-qual`, nextMatchSlot: 'A', loserMatchId: `${prefix}-lb-final`, loserMatchSlot: 'B', isBo5: false },
         { id: `${prefix}-lb-final`, roundName: `Group ${prefix.toUpperCase()} LB Final`, teamAId: null, teamBId: null, nextMatchId: `${prefix}-playoff-qual`, nextMatchSlot: 'B', isBo5: false },
     ];
-
     const matches = [...createGroupMatches(groupA, 'a'), ...createGroupMatches(groupB, 'b')];
-    setGameState(prev => ({ 
-      ...prev, 
-      matchHistory: { ...prev.matchHistory, [`${prev.year} ${prev.currentSplit}`]: { schedule: prev.schedule } },
-      stage: 'LEC_GROUP_STAGE', playoffMatches: matches, week: 10 
-    }));
     showNotification('success', 'LEC Regular Season ended! Top 8 advance to the Group Stage.');
     setTab('play');
+    return {
+      ...currentState,
+      matchHistory: saveToHistory(currentState, `${currentState.year} ${currentState.currentSplit} Regular Season`, 'LEAGUE'),
+      stage: 'LEC_GROUP_STAGE', playoffMatches: matches, week: 10 
+    };
   };
 
-  const initializePlayoffs = (playInWinners: string[]) => {
-      setGameState(prev => {
-          const { standings, winnersGroup } = prev;
-          const sortedWinners = standings.filter(s => s.group === winnersGroup).sort((a, b) => b.wins - a.wins);
-          const directQualifiers = sortedWinners.slice(0, 3).map(s => s.teamId);
-          const allQualifiers = [...directQualifiers, ...playInWinners];
-          const seeds = allQualifiers; 
+  const initializePlayoffs = (currentState: GameState): GameState => {
+      if (currentState.stage !== 'PLAY_IN') return currentState;
 
-          const matches: PlayoffMatch[] = [
+      const playInWinners = currentState.playoffMatches
+          .map(m => m.winnerId)
+          .filter((id): id is string => !!id);
+
+      const { standings, winnersGroup } = currentState;
+      const sortedWinners = standings.filter(s => s.group === winnersGroup).sort((a, b) => b.wins - a.wins);
+      const directQualifiers = sortedWinners.slice(0, 3).map(s => s.teamId);
+      const allQualifiers = [...directQualifiers, ...playInWinners];
+      const seeds = allQualifiers;
+
+      const matches: PlayoffMatch[] = [
               { id: 'qf-1', roundName: 'Quarterfinals 1', teamAId: seeds[2], teamBId: seeds[5], nextMatchId: 'sf-1', nextMatchSlot: 'B', isBo5: true },
               { id: 'qf-2', roundName: 'Quarterfinals 2', teamAId: seeds[3], teamBId: seeds[4], nextMatchId: 'sf-2', nextMatchSlot: 'B', isBo5: true },
               { id: 'sf-1', roundName: 'Semifinals 1', teamAId: seeds[0], teamBId: null, nextMatchId: 'f-1', nextMatchSlot: 'A', isBo5: true },
@@ -2017,12 +2034,11 @@ export default function App() {
           ];
 
           return {
-              ...prev,
-              matchHistory: { ...prev.matchHistory, [`${prev.year} ${prev.currentSplit} Play-In`]: { playoffs: prev.playoffMatches } },
+              ...currentState,
+              matchHistory: saveToHistory(currentState, `${currentState.year} ${currentState.currentSplit} Play-In`, 'LIST'),
               stage: 'PLAYOFFS',
               playoffMatches: matches
           };
-      });
   };
 
   const skipToNextMatch = () => {
@@ -2142,45 +2158,28 @@ export default function App() {
           }
         }
 
-        // --- DÜZELTME BURADA ---
-        // BİTİŞ KONTROLLERİ (Aşama geçişleri)
         if ((newState.stage === 'GROUP_STAGE' || newState.stage === 'LPL_SPLIT_2_PLACEMENTS') && newState.schedule.every(m => m.played)) {
-             
-             // LPL için özel işlem (Fonksiyonlar state döndürdüğü için 'return' ile yakalıyoruz)
              if (activeLeague.settings.format === 'LPL') {
                 if (newState.stage === 'LPL_SPLIT_2_PLACEMENTS') {
-                    // Bu fonksiyon side-effect (setGameState) yapıyor, o yüzden setTimeout ile döngü dışına atıyoruz
-                    setTimeout(() => endLPLPlacementStage(newState), 0);
-                    return newState;
+                    return endLPLPlacementStage(newState);
                 } else if (newState.currentSplit === 'SUMMER') {
-                    // Summer sonu (Boş şimdilik)
                     return newState;
                 } else {
-                    // LPL Split 1 Sonu -> Playoff'a geçiş
-                    // startLPLSplit1Playoffs bir STATE nesnesi döndürüyor.
-                    // Bunu direkt return ederek state'i güncelliyoruz!
                     return startLPLSplit1Playoffs(newState);
                 }
-             } 
-             
-             // Diğer ligler (Side-effect kullanan fonksiyonlar)
-             else {
-                 setTimeout(() => {
-                    if (activeLeague.settings.format === 'LEC') {
-                        startLECGroupStage(newState.standings);
-                    } else if (activeLeague.settings.format === 'LCK') {
-                        endGroupStage(newState.standings);
-                    } else {
-                        initializeSimplePlayoffs(newState.standings);
-                    }
-                 }, 0);
-                 return newState;
+             } else {
+                 if (activeLeague.settings.format === 'LEC') {
+                     return startLECGroupStage(newState);
+                 } else if (activeLeague.settings.format === 'LCK') {
+                     return endGroupStage(newState);
+                 } else {
+                     return initializeSimplePlayoffs(newState);
+                 }
              }
         }
         
         if (newState.stage === 'PLAY_IN' && newState.playoffMatches.every(m => m.winnerId)) {
-            const qualifiers = newState.playoffMatches.map(m => m.winnerId!);
-            setTimeout(() => initializePlayoffs(qualifiers), 100);
+            return initializePlayoffs(newState);
         }
 
         return newState;
@@ -2329,19 +2328,18 @@ export default function App() {
            const allTodayPlayed = matchesToday.every(m => newSchedule.find(s => s.id === m.id)?.played);
 
            if (allSeasonPlayed) {
-                 setTimeout(() => { 
-                   if (activeLeague.settings.format === 'LPL') {
-                       if (nextState.currentSplit === 'SUMMER') setGameState(prev => startLPLSplit2(prev)); 
-                       else setGameState(prev => startLPLSplit1Playoffs(prev));
-                   } else if (activeLeague.settings.format === 'LEC') {
-                     startLECGroupStage(updatedStandings);
-                   } else if (activeLeague.settings.format === 'LCK') {
-                     endGroupStage(updatedStandings);
-                   } else {
-                     initializeSimplePlayoffs(updatedStandings);
-                   }
-                 }, 100);
-                 return { ...nextState, schedule: newSchedule, standings: updatedStandings, roster: newRosterForMorale };
+                let finalState = { ...nextState, schedule: newSchedule, standings: updatedStandings, roster: newRosterForMorale };
+                if (activeLeague.settings.format === 'LPL') {
+                    if (finalState.currentSplit === 'SUMMER') finalState = startLPLSplit2(finalState);
+                    else finalState = startLPLSplit1Playoffs(finalState);
+                } else if (activeLeague.settings.format === 'LEC') {
+                  finalState = startLECGroupStage(finalState);
+                } else if (activeLeague.settings.format === 'LCK') {
+                  finalState = endGroupStage(finalState);
+                } else {
+                  finalState = initializeSimplePlayoffs(finalState);
+                }
+                return finalState;
            }
 
            const newDay = allTodayPlayed ? nextState.currentDay + 1 : nextState.currentDay;
@@ -2412,53 +2410,53 @@ export default function App() {
            }
 
            if (nextState.stage === 'PLAY_IN' && newMatches.every(m => m.winnerId)) {
-               const qualifiers = newMatches.map(m => m.winnerId!);
-               setTimeout(() => initializePlayoffs(qualifiers), 100);
+               return initializePlayoffs({ ...nextState, playoffMatches: newMatches });
            }
            
-           if (nextState.stage === 'MSI_PLAY_IN' && newMatches.filter(m => m.roundName.includes('Final')).every(m => m.winnerId)) {
-               const ubFinalWinner = newMatches.find(m => m.id === 'msi-pi-ub-final')!.winnerId!;
-               const lbFinalWinner = newMatches.find(m => m.id === 'msi-pi-lb-final')!.winnerId!;
-               const qualifiers = [ubFinalWinner, lbFinalWinner];
-               showNotification('success', `MSI Play-In has concluded! ${qualifiers.join(' and ')} advance.`);
-               
-               const bracketContenders = [...(nextState.msiBracketContenders || []), ...qualifiers].sort(() => 0.5 - Math.random());
-               const bracketMatches: PlayoffMatch[] = [
-                 { id: 'msi-b-r1-1', roundName: 'UB Round 1', teamAId: bracketContenders[0], teamBId: bracketContenders[7], nextMatchId: 'msi-b-sf-1', nextMatchSlot: 'A', loserMatchId: 'msi-b-lb1-1', loserMatchSlot: 'A', isBo5: true },
-                 { id: 'msi-b-r1-2', roundName: 'UB Round 1', teamAId: bracketContenders[3], teamBId: bracketContenders[4], nextMatchId: 'msi-b-sf-1', nextMatchSlot: 'B', loserMatchId: 'msi-b-lb1-1', loserMatchSlot: 'B', isBo5: true },
-                 { id: 'msi-b-r1-3', roundName: 'UB Round 1', teamAId: bracketContenders[1], teamBId: bracketContenders[6], nextMatchId: 'msi-b-sf-2', nextMatchSlot: 'A', loserMatchId: 'msi-b-lb1-2', loserMatchSlot: 'A', isBo5: true },
-                 { id: 'msi-b-r1-4', roundName: 'UB Round 1', teamAId: bracketContenders[2], teamBId: bracketContenders[5], nextMatchId: 'msi-b-sf-2', nextMatchSlot: 'B', loserMatchId: 'msi-b-lb1-2', loserMatchSlot: 'B', isBo5: true },
-                 { id: 'msi-b-sf-1', roundName: 'UB Semifinals', teamAId: null, teamBId: null, nextMatchId: 'msi-b-ubf', nextMatchSlot: 'A', loserMatchId: 'msi-b-lbsf', loserMatchSlot: 'B', isBo5: true },
-                 { id: 'msi-b-sf-2', roundName: 'UB Semifinals', teamAId: null, teamBId: null, nextMatchId: 'msi-b-ubf', nextMatchSlot: 'B', loserMatchId: 'msi-b-lbsf', loserMatchSlot: 'A', isBo5: true },
-                 { id: 'msi-b-ubf', roundName: 'UB Final', teamAId: null, teamBId: null, nextMatchId: 'msi-final', nextMatchSlot: 'A', loserMatchId: 'msi-b-lbf', loserMatchSlot: 'B', isBo5: true },
-                 { id: 'msi-b-lb1-1', roundName: 'LB Round 1', teamAId: null, teamBId: null, nextMatchId: 'msi-b-lbsf', nextMatchSlot: 'A', isBo5: true },
-                 { id: 'msi-b-lb1-2', roundName: 'LB Round 1', teamAId: null, teamBId: null, nextMatchId: 'msi-b-lbsf', nextMatchSlot: 'B', isBo5: true },
-                 { id: 'msi-b-lbsf', roundName: 'LB Semifinal', teamAId: null, teamBId: null, nextMatchId: 'msi-b-lbf', nextMatchSlot: 'A', isBo5: true },
-                 { id: 'msi-b-lbf', roundName: 'LB Final', teamAId: null, teamBId: null, nextMatchId: 'msi-final', nextMatchSlot: 'B', isBo5: true },
-                 { id: 'msi-final', roundName: 'Grand Final', teamAId: null, teamBId: null, isBo5: true },
-               ];
+           if (newState.stage === 'MSI_PLAY_IN' && newMatches.filter(m => m.roundName.includes('Final')).every(m => m.winnerId)) {
+              const ubFinalWinner = newMatches.find(m => m.id === 'msi-pi-ub-final')!.winnerId!;
+              const lbFinalWinner = newMatches.find(m => m.id === 'msi-pi-lb-final')!.winnerId!;
+              const qualifiers = [ubFinalWinner, lbFinalWinner];
+              showNotification('success', `MSI Play-In has concluded! ${qualifiers.join(' and ')} advance.`);
+              
+              const bracketContenders = [...(nextState.msiBracketContenders || []), ...qualifiers].sort(() => 0.5 - Math.random());
+              const bracketMatches: PlayoffMatch[] = [
+                { id: 'msi-b-r1-1', roundName: 'UB Round 1', teamAId: bracketContenders[0], teamBId: bracketContenders[7], nextMatchId: 'msi-b-sf-1', nextMatchSlot: 'A', loserMatchId: 'msi-b-lb1-1', loserMatchSlot: 'A', isBo5: true },
+                { id: 'msi-b-r1-2', roundName: 'UB Round 1', teamAId: bracketContenders[3], teamBId: bracketContenders[4], nextMatchId: 'msi-b-sf-1', nextMatchSlot: 'B', loserMatchId: 'msi-b-lb1-1', loserMatchSlot: 'B', isBo5: true },
+                { id: 'msi-b-r1-3', roundName: 'UB Round 1', teamAId: bracketContenders[1], teamBId: bracketContenders[6], nextMatchId: 'msi-b-sf-2', nextMatchSlot: 'A', loserMatchId: 'msi-b-lb1-2', loserMatchSlot: 'A', isBo5: true },
+                { id: 'msi-b-r1-4', roundName: 'UB Round 1', teamAId: bracketContenders[2], teamBId: bracketContenders[5], nextMatchId: 'msi-b-sf-2', nextMatchSlot: 'B', loserMatchId: 'msi-b-lb1-2', loserMatchSlot: 'B', isBo5: true },
+                { id: 'msi-b-sf-1', roundName: 'UB Semifinals', teamAId: null, teamBId: null, nextMatchId: 'msi-b-ubf', nextMatchSlot: 'A', loserMatchId: 'msi-b-lbsf', loserMatchSlot: 'B', isBo5: true },
+                { id: 'msi-b-sf-2', roundName: 'UB Semifinals', teamAId: null, teamBId: null, nextMatchId: 'msi-b-ubf', nextMatchSlot: 'B', loserMatchId: 'msi-b-lbsf', loserMatchSlot: 'A', isBo5: true },
+                { id: 'msi-b-ubf', roundName: 'UB Final', teamAId: null, teamBId: null, nextMatchId: 'msi-final', nextMatchSlot: 'A', loserMatchId: 'msi-b-lbf', loserMatchSlot: 'B', isBo5: true },
+                { id: 'msi-b-lb1-1', roundName: 'LB Round 1', teamAId: null, teamBId: null, nextMatchId: 'msi-b-lbsf', nextMatchSlot: 'A', isBo5: true },
+                { id: 'msi-b-lb1-2', roundName: 'LB Round 1', teamAId: null, teamBId: null, nextMatchId: 'msi-b-lbsf', nextMatchSlot: 'B', isBo5: true },
+                { id: 'msi-b-lbsf', roundName: 'LB Semifinal', teamAId: null, teamBId: null, nextMatchId: 'msi-b-lbf', nextMatchSlot: 'A', isBo5: true },
+                { id: 'msi-b-lbf', roundName: 'LB Final', teamAId: null, teamBId: null, nextMatchId: 'msi-final', nextMatchSlot: 'B', isBo5: true },
+                { id: 'msi-final', roundName: 'Grand Final', teamAId: null, teamBId: null, isBo5: true },
+              ];
+
+               const finishedState = { ...nextState, playoffMatches: newMatches };
+
+               const playInHistory = saveToHistory(nextState, `${nextState.year} MSI Play-In`, 'BRACKET');
 
                return {
-                 ...nextState,
-                 stage: 'MSI_BRACKET',
-                 matchHistory: { ...nextState.matchHistory, [`${nextState.year} MSI Play-In`]: { playoffs: newMatches } },
-                 playoffMatches: bracketMatches,
-               };
-           }
+                ...nextState,
+                stage: 'MSI_BRACKET',
+                matchHistory: playInHistory, // Güncel geçmişi state'e yaz
+                playoffMatches: bracketMatches, // Yeni maçları yükle
+              };
+            }
            
            if (nextState.stage === 'MSI_BRACKET' && newMatches.every(m => m.winnerId)) {
                const msiWinnerId = newMatches.find(m => m.roundName.includes('Grand Final'))!.winnerId;
                const isMsiChampion = msiWinnerId === nextState.teamId;
                const reward = isMsiChampion ? 50000 : 10000;
                showNotification('success', `MSI has concluded! You earned ${reward}G.`);
+               
                return {
                    ...nextState,
                    coins: nextState.coins + reward,
-                   matchHistory: { 
-                       ...nextState.matchHistory, 
-                       [`${nextState.year} MSI Play-In`]: nextState.matchHistory[`${nextState.year} MSI Play-In`] || {},
-                       [`${nextState.year} MSI`]: { playoffs: newMatches } 
-                   },
+                   matchHistory: saveToHistory(nextState, `${nextState.year} MSI Bracket`, 'BRACKET'),
                    stage: 'PRE_SEASON',
                    currentSplit: 'SUMMER',
                };
@@ -2693,6 +2691,16 @@ export default function App() {
     );
   };
 
+  const processMatchPlayerStats = (
+    currentRoster: Record<Role, PlayerCard | null>,
+    currentInventory: PlayerCard[],
+    matchStats: any[]
+  ) => {
+    // Basit bir versiyon (Gerçek istatistik işleme mantığınızı buraya koyabilirsiniz)
+    // Şimdilik değişiklik yapmadan geri döndürüyoruz ki hata vermesin.
+    return { newRoster: currentRoster, newInventory: currentInventory };
+  };
+
   const handleOfferResponse = (offer: IncomingOffer, accepted: boolean) => {
     if (accepted) {
       setGameState(prev => {
@@ -2892,302 +2900,176 @@ export default function App() {
   };
 
   const ScheduleView = () => {
+    const [filterYear, setFilterYear] = useState<number>(gameState.year);
+    const [viewId, setViewId] = useState<string>('CURRENT');
     
-    // 1. İsimlendirme ve Temizlik Motoru
-    const formatStageLabel = (rawKey: string): string => {
-        // Yılı baştan temizle
-        let label = rawKey.replace(/^\d{4}\s/, ''); 
+    const historyList = useMemo(() => Array.isArray(gameState.matchHistory) ? gameState.matchHistory : [], [gameState.matchHistory]);
 
-        // Eğer ham veri MSI içeriyorsa, etrafındaki her şeyi temizle
-        if (label.includes('MSI') && label.includes('Play-In')) return 'MSI Play-In';
-        if (label.includes('MSI')) return 'MSI';
+    const availableYears = useMemo(() => {
+        const years = new Set([gameState.year]); 
+        historyList.forEach(h => years.add(h.year));
+        return Array.from(years).sort((a, b) => b - a);
+    }, [gameState.year, historyList]);
 
-        // LPL ve Genel Düzeltmeler
-        const replacements: Record<string, string> = {
-            'LPL_SPLIT_2_PLACEMENTS': 'Split 2 Placements',
-            'LPL_SPLIT_2_LCQ': 'Split 2 LCQ',
-            'SPLIT_1': 'Split 1',
-            'SPLIT_2': 'Split 2', // LPL'de Split 2 MSI öncesidir
-            'SPLIT_3': 'Split 3', // LPL'de Split 3 MSI sonrasıdır (Summer yerine)
-            'SPRING': 'Spring',
-            'SUMMER': 'Summer',
-            'PLAYOFFS': 'Playoffs',
-            'PRE_SEASON': 'Pre-Season',
-            'OFF_SEASON': 'Off-Season'
-        };
+    const tabs = useMemo(() => {
+        const yearHistory = historyList.filter(h => h.year === filterYear).reverse();
+        const tabsList = [];
 
-        Object.keys(replacements).forEach(key => {
-            const regex = new RegExp(key, 'gi'); 
-            label = label.replace(regex, replacements[key]);
-        });
+        // Current Tab
+        if (filterYear === gameState.year) {
+            let currentTitle = "Current Stage";
+            if (gameState.stage === 'MSI_PLAY_IN') currentTitle = "MSI Play-In (Current)";
+            else if (gameState.stage === 'MSI_BRACKET') currentTitle = "MSI Bracket (Current)";
+            else if (gameState.stage.includes('PLAYOFFS')) currentTitle = "Playoffs (Current)";
+            else if (gameState.stage.includes('GROUP')) currentTitle = "Regular Season (Current)";
 
-        label = label.replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
-        
-        // "Playoffs" kelimesi varsa düzgünleştir (Örn: "Split 1 playoffs" -> "Split 1 Playoffs")
-        if (label.toLowerCase().includes('playoffs')) {
-            label = label.replace(/playoffs/i, 'Playoffs');
+            // ViewType Belirleme
+            let cViewType: HistoryViewType = 'LEAGUE';
+            if (['PLAYOFFS', 'MSI_BRACKET', 'MSI_PLAY_IN', 'PLAY_IN'].includes(gameState.stage)) cViewType = 'BRACKET';
+            else if (['LPL_SPLIT_2_LCQ'].includes(gameState.stage)) cViewType = 'LIST';
+
+            tabsList.push({ 
+                id: 'CURRENT', 
+                title: currentTitle, 
+                viewType: cViewType,
+                schedule: gameState.schedule,
+                playoffs: gameState.playoffMatches,
+                standings: gameState.standings,
+                stage: gameState.stage
+            });
         }
 
-        return label;
-    };
+        // History Tabs
+        yearHistory.forEach(h => {
+            // İsimlendirme düzeltmesi (Eski bozuk kayıtlar varsa diye koruma)
+            let displayTitle = h.title;
+            let derivedStage = 'PLAYOFFS';
 
-    // 2. Mevcut Sahne Anahtarını Belirle (Fail-Safe Eklendi)
-    const getCurrentStageKey = (gs: GameState): string => {
-      const year = gs.year;
+            if (h.title.includes('MSI')) {
+                if (h.title.includes('Play-In')) {
+                    displayTitle = "MSI Play-In";
+                    derivedStage = 'MSI_PLAY_IN';
+                } else {
+                    displayTitle = "MSI Bracket";
+                    derivedStage = 'MSI_BRACKET';
+                }
+            } else if (h.title.includes('Play-In')) {
+                derivedStage = 'PLAY_IN';
+            }
 
-      // MSI için özel kontrol
-      if (gs.stage === 'MSI_PLAY_IN') return `${year} MSI Play-In`;
-      if (gs.stage === 'MSI_BRACKET') return `${year} MSI`;
+            // ViewType Kontrolü
+            let viewType = h.viewType;
+            if (displayTitle.includes('Regular') || displayTitle.includes('Season')) viewType = 'LEAGUE';
+            else viewType = 'BRACKET';
 
-      // --- FAIL-SAFE (GÜVENLİK KONTROLÜ) ---
-      // State ne derse desin, maçların ID'sine bakarak gerçek sahneyi anla.
-      // Bu, "Split 2 Playoffs" yazan yerde MSI maçları varsa başlığı düzeltir.
-      const hasMsiMatches = gs.playoffMatches.some(m => m.id.includes('msi'));
-      if (hasMsiMatches) {
-          const isPlayIn = gs.playoffMatches.some(m => m.roundName.includes('Play-In') || m.id.includes('pi'));
-          return isPlayIn ? `${year} MSI Play-In` : `${year} MSI`;
-      }
-      // -------------------------------------
-      
-      if (gs.stage === 'LPL_SPLIT_2_PLACEMENTS') return `${year} Split 2 Placements`;
-      if (gs.stage === 'LPL_SPLIT_2_LCQ') return `${year} Split 2 LCQ`;
+            tabsList.push({
+                ...h,
+                title: displayTitle,
+                stage: derivedStage,
+                viewType: viewType
+            });
+        });
 
-      switch (gs.stage) {
-        case 'GROUP_STAGE':
-          if (activeLeague.settings.format === 'LPL') {
-              if (gs.currentSplit === 'SPRING') return `${year} Split 1`;
-              if (gs.currentSplit === 'SUMMER' || gs.currentSplit === 'SPLIT_3') return `${year} Split 3`; 
-              return `${year} Split 2`;
-          }
-          return gs.currentSplit === 'SPRING' ? `${year} Spring` : `${year} Summer`;
-        
-        case 'PLAYOFFS':
-          if (activeLeague.settings.format === 'LPL') {
-              if (gs.currentSplit === 'SPRING') return `${year} Split 1 Playoffs`;
-              if (gs.currentSplit === 'SUMMER' || gs.currentSplit === 'SPLIT_3') return `${year} Split 3 Playoffs`;
-              return `${year} Split 2 Playoffs`; // MSI Öncesi
-          }
-          return gs.currentSplit === 'SPRING' ? `${year} Spring Playoffs` : `${year} Summer Playoffs`;
-
-        case 'PRE_SEASON': return `${year} Pre-Season`;
-        case 'OFF_SEASON': return `${year} Off-Season`;
-
-        default: return `${year} ${gs.stage}`;
-      }
-    };
-
-    const currentStageKey = getCurrentStageKey(gameState);
-    
-    // State Tanımları
-    const [selectedYear, setSelectedYear] = useState<number>(gameState.year);
-    const [selectedView, setSelectedView] = useState(currentStageKey);
-    const [isYearDropdownOpen, setIsYearDropdownOpen] = useState(false);
+        return tabsList;
+    }, [filterYear, gameState.year, gameState.stage, historyList, gameState.schedule, gameState.playoffMatches, gameState.standings]);
 
     useEffect(() => {
-      const key = getCurrentStageKey(gameState);
-      if (gameState.year !== selectedYear) setSelectedYear(gameState.year);
-      setSelectedView(key);
-    }, [gameState.year, gameState.currentSplit, gameState.stage, gameState.playoffMatches]); // playoffMatches eklendi
+        if (!tabs.some(t => t.id === viewId) && tabs.length > 0) setViewId(tabs[0].id);
+    }, [filterYear, tabs, viewId]);
 
-    // 3. Sıralama Mantığı (LPL 2025 Yol Haritası)
-    const { availableYears, stagesForSelectedYear } = useMemo(() => {
-      const allKeys = [...Object.keys(gameState.matchHistory), currentStageKey].filter((v, i, a) => a.indexOf(v) === i);
-      const years = Array.from(new Set(allKeys.map(k => parseInt(k.substring(0, 4))))).sort((a, b) => b - a);
+    const activeData = tabs.find(t => t.id === viewId);
 
-      const keysInYear = allKeys.filter(k => k.startsWith(selectedYear.toString()));
+    const displayTeams = useMemo(() => {
+        if (!activeData || !activeData.standings) return allTeams;
+        const combinedTeams = [...allTeams];
+        const teamIds = new Set(allTeams.map(t => t.id));
+        activeData.standings.forEach((s: any) => {
+            if (!teamIds.has(s.teamId)) {
+                combinedTeams.push({ id: s.teamId, name: s.name, shortName: s.name, tier: 'C', region: 'KR', logoUrl: '', colors: { primary: '#333', secondary: '#000' } } as any);
+                teamIds.add(s.teamId);
+            }
+        });
+        return combinedTeams;
+    }, [activeData, allTeams]);
 
-      // BURASI ÇOK ÖNEMLİ: Sekmelerin Soldan Sağa Sırası
-      const sortingOrder = [
-        'Pre-Season',
-        'Split 1', 'Spring', 
-        'Split 1 Playoffs', 'Spring Playoffs',
-        'Split 2 Placements',
-        'Split 2 LCQ',
-        'Split 2', // Grup aşaması (Ascend/Nirvana)
-        'Split 2 Playoffs', // MSI Elemeleri
-        'MSI Play-In', 
-        'MSI', 
-        'Split 3', 'Summer',
-        'Split 3 Playoffs', 'Summer Playoffs',
-        'Regional Finals',
-        'Worlds Play-In',
-        'Worlds',
-        'Off-Season'
-      ];
-
-      const sortedStages = keysInYear.sort((a, b) => {
-          const cleanA = formatStageLabel(a);
-          const cleanB = formatStageLabel(b);
-          
-          let indexA = sortingOrder.findIndex(s => cleanA === s || cleanA.includes(s));
-          let indexB = sortingOrder.findIndex(s => cleanB === s || cleanB.includes(s));
-          
-          if (indexA === -1) indexA = 99;
-          if (indexB === -1) indexB = 99;
-          
-          return indexA - indexB;
-      });
-
-      return { availableYears: years, stagesForSelectedYear: sortedStages };
-    }, [gameState.matchHistory, currentStageKey, selectedYear]);
-
-    // 4. İçerik Render Etme
-    const renderContent = (viewKey: string) => {
-      const isCurrent = viewKey === currentStageKey;
-      const historyData = gameState.matchHistory[viewKey];
-      
-      const schedule = isCurrent ? gameState.schedule : historyData?.schedule;
-      // Düzeltme: Geçmiş playoff verilerini (MSI dahil) doğrudan historyData'dan al.
-      const playoffs = isCurrent ? gameState.playoffMatches : historyData?.playoffs;
-      
-      // Stage tipini belirleme
-      let stage = 'GROUP_STAGE';
-      if (isCurrent) {
-          // Fail-safe: Eğer başlık MSI ise, stage değişkenini de MSI yap
-          if (viewKey.includes('MSI Play-In')) stage = 'MSI_PLAY_IN';
-          else if (viewKey.includes('MSI')) stage = 'MSI_BRACKET';
-          else stage = gameState.stage;
-      } else {
-          // Geçmiş veriyi görüntülerken başlığa bak
-          if (viewKey.includes('MSI Play-In')) stage = 'MSI_PLAY_IN';
-          else if (viewKey.includes('MSI')) stage = 'MSI_BRACKET';
-          else if (viewKey.includes('LCQ')) stage = 'LPL_SPLIT_2_LCQ';
-          else if (viewKey.includes('Playoffs')) stage = 'PLAYOFFS';
-          else if (viewKey.includes('Play-In')) stage = 'PLAY_IN';
-      }
-
-      if (playoffs && playoffs.length > 0) {
-          return (
-              <div className="animate-fade-in">
-                  <BracketView matches={playoffs} stage={stage} teams={allTeams} standings={gameState.standings} userTeamId={gameState.teamId} isCurrent={isCurrent} />
-              </div>
-          );
-      }
-  
-      if (schedule && schedule.length > 0) {
-          const matchesByWeek = schedule.reduce((acc, match) => {
-            (acc[match.week] = acc[match.week] || []).push(match);
-            return acc;
-          }, {} as Record<string, ScheduledMatch[]>);
-
-          return (
-            <div className="space-y-8 animate-fade-in">
-              {Object.entries(matchesByWeek).map(([week, matches]) => (
-                <div key={week}>
-                  <h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-4 border-b border-dark-800 pb-2">Week {week}</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {matches.map(match => {
-                      const teamA = allTeams.find(t => t.id === match.teamAId);
-                      const teamB = allTeams.find(t => t.id === match.teamBId);
-                      const isUserMatch = match.teamAId === gameState.teamId || match.teamBId === gameState.teamId;
-                      
-                      return (
-                        <div key={match.id} className={`relative p-4 rounded-xl border transition-all hover:border-dark-600 ${match.played ? 'bg-dark-900 border-dark-800 opacity-70 hover:opacity-100' : isUserMatch && isCurrent ? 'bg-blue-900/10 border-blue-500/50 shadow-[0_0_15px_rgba(59,130,246,0.1)]' : 'bg-dark-900 border-dark-700'}`}>
-                           <div className="flex justify-between items-center mb-3">
-                              <span className="text-[10px] font-bold text-gray-600 uppercase">
-                                 {match.isBo5 ? 'Best of 5' : 'Best of 1'} • Day {match.round}
-                              </span>
-                              {match.played && <span className="text-[10px] font-bold text-green-500 bg-green-500/10 px-2 py-0.5 rounded">FINAL</span>}
-                           </div>
-                           <div className="flex justify-between items-center">
-                              <div className="flex items-center gap-3 flex-1">
-                                 <TeamLogo team={teamA} size="w-8 h-8" />
-                                 <span className={`font-bold text-sm ${match.winnerId === teamA?.id ? 'text-white' : 'text-gray-400'}`}>{teamA?.shortName}</span>
-                              </div>
-                              <div className="flex flex-col items-center px-2 min-w-[60px]">
-                                 {match.played ? (
-                                    <div className="flex items-center gap-2 font-mono font-bold text-xl text-white">
-                                       <span className={match.winnerId === teamA?.id ? 'text-blue-400' : ''}>{match.seriesScoreA}</span>
-                                       <span className="text-gray-600 text-sm">:</span>
-                                       <span className={match.winnerId === teamB?.id ? 'text-blue-400' : ''}>{match.seriesScoreB}</span>
-                                    </div>
-                                 ) : (
-                                    <span className="text-xs text-gray-600 font-bold bg-dark-800 px-2 py-1 rounded">VS</span>
-                                 )}
-                              </div>
-                              <div className="flex items-center gap-3 flex-1 flex-row-reverse">
-                                 <TeamLogo team={teamB} size="w-8 h-8" />
-                                 <span className={`font-bold text-sm ${match.winnerId === teamB?.id ? 'text-white' : 'text-gray-400'}`}>{teamB?.shortName}</span>
-                              </div>
-                           </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
-          );
-      }
-  
-      return (
-        <div className="flex flex-col items-center justify-center py-20 text-gray-500">
-            <Search size={48} className="mb-4 opacity-20" />
-            <p>Schedule not yet generated for this stage.</p>
-        </div>
-      );
-    };
-  
     return (
       <div className="space-y-6">
-        <div className="flex flex-col md:flex-row justify-between items-end md:items-center gap-4 border-b border-dark-800 pb-1">
-          <div className="flex items-center gap-4">
-             <h2 className="text-2xl font-bold font-display text-white">Schedule & Results</h2>
-             
-             <div className="relative">
-                <button 
-                    onClick={() => setIsYearDropdownOpen(!isYearDropdownOpen)}
-                    className={`flex items-center gap-2 bg-dark-900 border text-white px-4 py-2 rounded-lg font-bold transition-all ${isYearDropdownOpen ? 'border-hextech-500 bg-dark-800' : 'border-dark-700 hover:bg-dark-800'}`}
-                >
-                   <span className="text-hextech-400">{selectedYear}</span> Season
-                   <ArrowDownUp size={14} className={`text-gray-500 transition-transform ${isYearDropdownOpen ? 'rotate-180' : ''}`} />
-                </button>
-
-                {isYearDropdownOpen && (
-                    <>
-                        <div className="fixed inset-0 z-40" onClick={() => setIsYearDropdownOpen(false)}></div>
-                        <div className="absolute top-full left-0 mt-2 w-40 bg-dark-900 border border-dark-700 rounded-lg shadow-xl overflow-hidden z-50 animate-fade-in">
-                        {availableYears.map(year => (
-                            <button 
-                                key={year}
-                                onClick={() => {
-                                    setSelectedYear(year);
-                                    setIsYearDropdownOpen(false);
-                                }}
-                                className={`w-full text-left px-4 py-3 text-sm font-bold hover:bg-dark-800 transition-colors ${year === selectedYear ? 'text-hextech-400 bg-dark-800' : 'text-gray-400'}`}
-                            >
-                                {year} Season
-                            </button>
-                        ))}
-                        </div>
-                    </>
-                )}
-             </div>
-          </div>
+        <div className="flex justify-between items-end">
+            <h2 className="text-2xl font-bold font-display text-white">Schedule & Results</h2>
+            <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-gray-500 uppercase">Year:</span>
+                <select value={filterYear} onChange={(e) => setFilterYear(Number(e.target.value))} className="bg-dark-950 border border-dark-700 text-white text-sm font-bold px-3 py-1.5 rounded-lg focus:outline-none focus:border-hextech-500 cursor-pointer">
+                    {availableYears.map(year => <option key={year} value={year}>{year}</option>)}
+                </select>
+            </div>
         </div>
-  
-        <div className="flex overflow-x-auto gap-1 pb-2 scrollbar-hide">
-          {stagesForSelectedYear.map(key => {
-            const prettyLabel = formatStageLabel(key);
-            const isActive = selectedView === key;
-            return (
-                <button
-                key={key}
-                onClick={() => setSelectedView(key)}
-                className={`whitespace-nowrap px-5 py-3 rounded-lg text-sm font-bold transition-all border ${
-                    isActive 
-                    ? 'bg-hextech-900/20 border-hextech-500 text-hextech-300 shadow-[0_0_10px_rgba(14,165,233,0.1)]' 
-                    : 'bg-dark-900 border-dark-800 text-gray-500 hover:text-gray-300 hover:border-dark-700'
-                }`}
-                >
-                {prettyLabel}
-                </button>
-            )
-          })}
+        
+        <div className="flex overflow-x-auto gap-2 pb-2 scrollbar-hide border-b border-dark-800">
+          {tabs.length === 0 && <div className="text-gray-500 text-sm py-2 px-2">No records found.</div>}
+          {tabs.map((item: any) => (
+            <button key={item.id} onClick={() => setViewId(item.id)} className={`whitespace-nowrap px-4 py-2 rounded-t-lg text-sm font-bold transition-all border-t border-x border-b-0 ${viewId === item.id ? 'bg-hextech-600/20 text-hextech-300 border-hextech-500' : 'bg-dark-900 text-gray-500 border-dark-700 hover:bg-dark-800 hover:text-gray-300'}`}>
+              {item.title}
+            </button>
+          ))}
         </div>
   
         <div className="mt-4 min-h-[400px]">
-          {renderContent(selectedView)}
+           {!activeData && <div className="text-center text-gray-500 py-10">Select a tab.</div>}
+
+           {activeData && activeData.viewType === 'LIST' && (
+               <MatchListView matches={activeData.playoffs || []} teams={displayTeams} userTeamId={gameState.teamId} />
+           )}
+
+           {activeData && activeData.viewType === 'BRACKET' && (
+               <div className="animate-fade-in overflow-x-auto">
+                   <BracketView 
+                      matches={activeData.playoffs || []} 
+                      stage={activeData.stage} 
+                      teams={displayTeams} 
+                      standings={activeData.standings || []} 
+                      userTeamId={gameState.teamId} 
+                      isCurrent={viewId === 'CURRENT'} 
+                   />
+               </div>
+           )}
+
+           {activeData && activeData.viewType === 'LEAGUE' && activeData.schedule && (
+                <div className="space-y-8">
+                    {Array.from(new Set(activeData.schedule.map((m: any) => m.week))).sort((a: any, b: any) => a - b).map((week: any) => (
+                        <div key={week} className="space-y-4">
+                            <h3 className="text-xl font-bold font-display text-hextech-300 border-b-2 border-hextech-700/50 pb-2">Week {week}</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                                {(activeData.schedule as any[]).filter(m => m.week === week).map((m: ScheduledMatch) => {
+                                    const teamA = displayTeams.find(t => t.id === m.teamAId);
+                                    const teamB = displayTeams.find(t => t.id === m.teamBId);
+                                    const isUserMatch = m.teamAId === gameState.teamId || m.teamBId === gameState.teamId;
+                                    const winner = m.winnerId ? (m.winnerId === teamA?.id ? teamA : teamB) : null;
+                                    const loser = m.winnerId ? (m.winnerId === teamA?.id ? teamB : teamA) : null;
+                                    return (
+                                        <div key={m.id} className={`bg-dark-900 border rounded-xl p-4 flex flex-col gap-3 transition-all hover:border-dark-600 ${isUserMatch ? 'border-blue-500/30' : 'border-dark-700'}`}>
+                                            <div className="flex justify-between items-center">
+                                                <div className={`flex items-center gap-3 flex-1 justify-end transition-opacity ${loser === teamA ? 'opacity-40' : 'opacity-100'}`}>
+                                                    <span className={`font-bold text-sm ${winner === teamA ? 'text-white' : 'text-gray-300'}`}>{teamA?.shortName || m.teamAId}</span>
+                                                    <TeamLogo team={teamA} size="w-8 h-8" />
+                                                </div>
+                                                <div className="text-center px-4">
+                                                    <span className={`font-mono text-xl font-bold ${m.played ? 'text-white' : 'text-gray-600'}`}>
+                                                        {m.played ? `${m.seriesScoreA} - ${m.seriesScoreB}` : 'VS'}
+                                                    </span>
+                                                </div>
+                                                <div className={`flex items-center gap-3 flex-1 justify-start transition-opacity ${loser === teamB ? 'opacity-40' : 'opacity-100'}`}>
+                                                    <TeamLogo team={teamB} size="w-8 h-8" />
+                                                    <span className={`font-bold text-sm ${winner === teamB ? 'text-white' : 'text-gray-300'}`}>{teamB?.shortName || m.teamBId}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+           )}
         </div>
       </div>
     );
