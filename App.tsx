@@ -46,12 +46,16 @@ const NegotiationModal: React.FC<NegotiationModalProps> = ({ player, isOpen, onC
   const [offerSalary, setOfferSalary] = useState(player.salary);
   const [offerDuration, setOfferDuration] = useState(1);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [view, setView] = useState<'MENU' | 'ONBOARDING' | 'GAME'>('MENU');
+  const [hasSaveFile, setHasSaveFile] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
         setOfferSalary(player.salary);
         setOfferDuration(1);
         setLocalError(null);
+        const saveExists = localStorage.getItem('lck_manager_save_v1');
+        setHasSaveFile(!!saveExists);
     }
   }, [isOpen, player]);
 
@@ -461,10 +465,37 @@ const saveToHistory = (currentGs: GameState, title: string, viewType: HistoryVie
     return [...currentHistory, newEntry];
 };
 
+const INITIAL_STATE: GameState = {
+  managerName: '',
+  teamId: '',
+  leagueKey: 'LCK',
+  coins: 10000, // Difficulty ayarlarında ezilecek ama default değer
+  year: 2025,
+  currentSeason: 1,
+  currentSplit: 'SPRING',
+  week: 0,
+  difficulty: 'Normal',
+  currentDay: 1,
+  stage: 'PRE_SEASON',
+  groups: { A: [], B: [] },
+  winnersGroup: null,
+  inventory: [],
+  roster: { [Role.TOP]: null, [Role.JUNGLE]: null, [Role.MID]: null, [Role.ADC]: null, [Role.SUPPORT]: null, [Role.COACH]: null },
+  aiRosters: {},
+  standings: [],
+  schedule: [],
+  playoffMatches: [],
+  freeAgents: [],
+  trainingSlotsUsed: 0,
+  matchHistory: []
+};
+
 export default function App() {
   const [onboardingComplete, setOnboardingComplete] = useState(false);
   const [tab, setTab] = useState('dashboard');
   const [activeLeague, setActiveLeague] = useState<LeagueDefinition>(LEAGUES.LCK);
+  const [view, setView] = useState<'MENU' | 'ONBOARDING' | 'GAME'>('MENU');
+  const [hasSaveFile, setHasSaveFile] = useState(false);
   
   const [gameState, setGameState] = useState<GameState>({
     managerName: '',
@@ -573,9 +604,11 @@ export default function App() {
   }, [onboardingComplete, activeLeague]);
 
   const handleNewGame = () => {
-    localStorage.removeItem('lck_manager_save_v1');
-    // Sayfayı yenileyerek her şeyi sıfırlar
-    window.location.reload(); 
+  localStorage.removeItem('lck_manager_save_v1');
+  setGameState(INITIAL_STATE);
+  setOnboardingComplete(false);
+  setHasSaveFile(false); 
+  setView('ONBOARDING'); // Artık hata vermeyecek
   };
 
   const handleContinueGame = () => {
@@ -641,6 +674,7 @@ export default function App() {
     
     setMarket(marketPlayers);
     setOnboardingComplete(true);
+    setView('GAME');
     setTab('market'); 
   };
 
@@ -1600,7 +1634,6 @@ export default function App() {
 
       if (isStandardSpringEnd || isLPLSplit2End) {
           const splitName = leagueFormat === 'LPL' ? 'Split 2' : 'Spring';
-          // BURAYI DEĞİŞTİRİYORUZ: Normal sezon playoff'larını kaydediyoruz.
           const newHistory = saveToHistory(gameState, `${gameState.year} ${splitName} Playoffs`, 'BRACKET');
 
           const userRank = getUserTeamRank(gameState);
@@ -1625,17 +1658,11 @@ export default function App() {
           return;
       }
 
-      // --- 2. MSI PLAY-IN BİTİMİ -> MSI BRACKET GEÇİŞİ (YENİ EKLEME GEREKEBİLİR) ---
-      // Eğer kodunda bu geçiş "skipToNextMatch" içinde otomatik oluyorsa, 
-      // oraya da kayıt eklememiz gerekebilir. Ancak genellikle MSI Play-In bittiğinde
-      // direkt stage değişiyor. Eğer Play-In geçmişini de ayrı görmek istiyorsan,
-      // Play-In bittiğinde bir kayıt almalısın. 
-      // (Mevcut kodunda bu "skipToNextMatch" içinde yapılıyor olabilir, orayı da kontrol edelim).
-
-      // --- 3. MSI BİTİMİ -> YAZ SEZONU / SPLIT 3 GEÇİŞİ ---
-      if (currentStage === 'MSI_BRACKET') {
-           // İsmi netleştiriyoruz: "MSI Bracket"
-           const newHistory = saveToHistory(gameState, `${gameState.year} MSI Bracket`, 'BRACKET');
+      // --- 2. MSI BİTİMİ -> YAZ SEZONU / SPLIT 3 GEÇİŞİ ---
+      // DÜZELTME: MSI_BRACKET veya MSI_PLAY_IN ise Summer'a geç
+      if (currentStage === 'MSI_BRACKET' || currentStage === 'MSI_PLAY_IN') {
+           const historyTitle = currentStage === 'MSI_PLAY_IN' ? 'MSI Play-In' : 'MSI Bracket';
+           const newHistory = saveToHistory(gameState, `${gameState.year} ${historyTitle}`, 'BRACKET');
            
            if (leagueFormat === 'LPL') {
                setGameState(prev => ({
@@ -1675,7 +1702,6 @@ export default function App() {
       if (currentStage === 'LPL_SPLIT_2_LCQ') {
           const historyKey = `${gameState.year} Split 2 LCQ`;
           const newHistory = { ...gameState.matchHistory, [historyKey]: { playoffs: gameState.playoffMatches } };
-          // The function now returns state, so we must use setGameState
           setGameState(startLPLSplit2Playoffs({ ...gameState, matchHistory: newHistory })); 
           return;
       }
@@ -1689,6 +1715,7 @@ export default function App() {
            return;
       }
 
+      // Eğer yukarıdaki hiçbir şart sağlanmazsa (Örn: Yaz sezonu playoffları bitti) yıl atlanır.
       advanceYear(); 
   };
 
@@ -2148,16 +2175,23 @@ export default function App() {
 
              newState.playoffMatches = newMatches;
              
+             // Döngüyü kırma kontrolleri
              if (newState.stage === 'LPL_SPLIT_2_LCQ' && newMatches.every(m => m.winnerId)) stopSkipping = true;
              if (newState.stage === 'PLAY_IN' && newMatches.every(m => m.winnerId)) stopSkipping = true;
+             
              const finalMatch = newMatches.find(m => m.roundName === 'Grand Final');
              if (newState.stage === 'PLAYOFFS' && finalMatch && finalMatch.winnerId) stopSkipping = true;
+             
              if (newState.stage === 'MSI_PLAY_IN' && newMatches.filter(m => m.roundName.includes('Final')).every(m => m.winnerId)) stopSkipping = true;
+             
              const msiFinal = newMatches.find(m => m.id === 'msi-final');
              if (newState.stage === 'MSI_BRACKET' && msiFinal && msiFinal.winnerId) stopSkipping = true;
           }
         }
 
+        // --- STAGE GEÇİŞLERİ VE TARİHÇE KAYDI ---
+
+        // 1. Group Stage Sonu
         if ((newState.stage === 'GROUP_STAGE' || newState.stage === 'LPL_SPLIT_2_PLACEMENTS') && newState.schedule.every(m => m.played)) {
              if (activeLeague.settings.format === 'LPL') {
                 if (newState.stage === 'LPL_SPLIT_2_PLACEMENTS') {
@@ -2178,8 +2212,62 @@ export default function App() {
              }
         }
         
+        // 2. Play-In Sonu
         if (newState.stage === 'PLAY_IN' && newState.playoffMatches.every(m => m.winnerId)) {
             return initializePlayoffs(newState);
+        }
+
+        // 3. MSI Play-In Sonu -> MSI Bracket Başlangıcı
+        if (newState.stage === 'MSI_PLAY_IN' && newState.playoffMatches.length > 0 && newState.playoffMatches.filter(m => m.roundName.includes('Final')).every(m => m.winnerId)) {
+             // Geçmişi kaydet
+             const playInHistory = saveToHistory(newState, `${newState.year} MSI Play-In`, 'BRACKET');
+             
+             // MSI Bracket'ı başlat (Bu kısım initializeMSIBracket mantığının aynısıdır)
+             const ubFinalWinner = newState.playoffMatches.find(m => m.id === 'msi-pi-ub-final')!.winnerId!;
+             const lbFinalWinner = newState.playoffMatches.find(m => m.id === 'msi-pi-lb-final')!.winnerId!;
+             const qualifiers = [ubFinalWinner, lbFinalWinner];
+             const bracketContenders = [...(newState.msiBracketContenders || []), ...qualifiers].sort(() => 0.5 - Math.random());
+             
+             // Bracket maçlarını oluştur
+             const bracketMatches: PlayoffMatch[] = [
+                { id: 'msi-b-r1-1', roundName: 'UB Round 1', teamAId: bracketContenders[0], teamBId: bracketContenders[7], nextMatchId: 'msi-b-sf-1', nextMatchSlot: 'A', loserMatchId: 'msi-b-lb1-1', loserMatchSlot: 'A', isBo5: true },
+                { id: 'msi-b-r1-2', roundName: 'UB Round 1', teamAId: bracketContenders[3], teamBId: bracketContenders[4], nextMatchId: 'msi-b-sf-1', nextMatchSlot: 'B', loserMatchId: 'msi-b-lb1-1', loserMatchSlot: 'B', isBo5: true },
+                { id: 'msi-b-r1-3', roundName: 'UB Round 1', teamAId: bracketContenders[1], teamBId: bracketContenders[6], nextMatchId: 'msi-b-sf-2', nextMatchSlot: 'A', loserMatchId: 'msi-b-lb1-2', loserMatchSlot: 'A', isBo5: true },
+                { id: 'msi-b-r1-4', roundName: 'UB Round 1', teamAId: bracketContenders[2], teamBId: bracketContenders[5], nextMatchId: 'msi-b-sf-2', nextMatchSlot: 'B', loserMatchId: 'msi-b-lb1-2', loserMatchSlot: 'B', isBo5: true },
+                { id: 'msi-b-sf-1', roundName: 'UB Semifinals', teamAId: null, teamBId: null, nextMatchId: 'msi-b-ubf', nextMatchSlot: 'A', loserMatchId: 'msi-b-lbsf', loserMatchSlot: 'B', isBo5: true },
+                { id: 'msi-b-sf-2', roundName: 'UB Semifinals', teamAId: null, teamBId: null, nextMatchId: 'msi-b-ubf', nextMatchSlot: 'B', loserMatchId: 'msi-b-lbsf', loserMatchSlot: 'A', isBo5: true },
+                { id: 'msi-b-ubf', roundName: 'UB Final', teamAId: null, teamBId: null, nextMatchId: 'msi-final', nextMatchSlot: 'A', loserMatchId: 'msi-b-lbf', loserMatchSlot: 'B', isBo5: true },
+                { id: 'msi-b-lb1-1', roundName: 'LB Round 1', teamAId: null, teamBId: null, nextMatchId: 'msi-b-lbsf', nextMatchSlot: 'A', isBo5: true },
+                { id: 'msi-b-lb1-2', roundName: 'LB Round 1', teamAId: null, teamBId: null, nextMatchId: 'msi-b-lbsf', nextMatchSlot: 'B', isBo5: true },
+                { id: 'msi-b-lbsf', roundName: 'LB Semifinal', teamAId: null, teamBId: null, nextMatchId: 'msi-b-lbf', nextMatchSlot: 'A', isBo5: true },
+                { id: 'msi-b-lbf', roundName: 'LB Final', teamAId: null, teamBId: null, nextMatchId: 'msi-final', nextMatchSlot: 'B', isBo5: true },
+                { id: 'msi-final', roundName: 'Grand Final', teamAId: null, teamBId: null, isBo5: true },
+             ];
+             
+             return {
+                 ...newState,
+                 matchHistory: playInHistory,
+                 stage: 'MSI_BRACKET',
+                 playoffMatches: bracketMatches,
+             };
+        }
+
+        // 4. MSI Bracket Sonu -> Summer Season Başlangıcı
+        if (newState.stage === 'MSI_BRACKET' && newState.playoffMatches.every(m => m.winnerId)) {
+            // ÖNEMLİ: Geçmişi kaydet ve YENİ state'e ata
+            // "title" kısmını 'MSI Bracket' yaparak ScheduleView ile uyumlu hale getiriyoruz.
+            const bracketHistory = saveToHistory(newState, `${newState.year} MSI Bracket`, 'BRACKET');
+            
+            return {
+                ...newState,
+                matchHistory: bracketHistory,
+                stage: 'PRE_SEASON',
+                currentSplit: 'SUMMER',
+                playoffMatches: [], // Maçları temizle ki yeni sezonda karışmasın
+                schedule: [], 
+                week: 1,
+                currentDay: 1
+            };
         }
 
         return newState;
@@ -2355,7 +2443,7 @@ export default function App() {
                trainingSlotsUsed: newWeek > nextState.week ? 0 : nextState.trainingSlotsUsed
            };
        }
-       else if (['PLAY_IN', 'PLAYOFFS', 'MSI_PLAY_IN', 'MSI_BRACKET'].includes(nextState.stage)) {
+       else if (['PLAY_IN', 'PLAYOFFS', 'MSI_PLAY_IN', 'MSI_BRACKET', 'LPL_SPLIT_2_LCQ'].includes(nextState.stage)) {
            const newMatches = [...nextState.playoffMatches];
            const matchIdToProcess = userResult ? pendingSimResult?.matchId : newMatches.find(m => !m.winnerId && m.teamAId && m.teamBId)?.id;
            let activeMatch = matchIdToProcess ? newMatches.find(m => m.id === matchIdToProcess) : undefined;
@@ -2413,7 +2501,7 @@ export default function App() {
                return initializePlayoffs({ ...nextState, playoffMatches: newMatches });
            }
            
-           if (newState.stage === 'MSI_PLAY_IN' && newMatches.filter(m => m.roundName.includes('Final')).every(m => m.winnerId)) {
+           if (nextState.stage === 'MSI_PLAY_IN' && newMatches.filter(m => m.roundName.includes('Final')).every(m => m.winnerId)) {
               const ubFinalWinner = newMatches.find(m => m.id === 'msi-pi-ub-final')!.winnerId!;
               const lbFinalWinner = newMatches.find(m => m.id === 'msi-pi-lb-final')!.winnerId!;
               const qualifiers = [ubFinalWinner, lbFinalWinner];
@@ -2435,15 +2523,15 @@ export default function App() {
                 { id: 'msi-final', roundName: 'Grand Final', teamAId: null, teamBId: null, isBo5: true },
               ];
 
-               const finishedState = { ...nextState, playoffMatches: newMatches };
-
-               const playInHistory = saveToHistory(nextState, `${nextState.year} MSI Play-In`, 'BRACKET');
+               // Geçmişi kaydetmek için doğru durum: newMatches (kazananlı) ile birlikte
+               const stateForHistory = { ...nextState, playoffMatches: newMatches };
+               const playInHistory = saveToHistory(stateForHistory, `${nextState.year} MSI Play-In`, 'BRACKET');
 
                return {
                 ...nextState,
                 stage: 'MSI_BRACKET',
-                matchHistory: playInHistory, // Güncel geçmişi state'e yaz
-                playoffMatches: bracketMatches, // Yeni maçları yükle
+                matchHistory: playInHistory,
+                playoffMatches: bracketMatches,
               };
             }
            
@@ -2453,12 +2541,20 @@ export default function App() {
                const reward = isMsiChampion ? 50000 : 10000;
                showNotification('success', `MSI has concluded! You earned ${reward}G.`);
                
+               // *** DÜZELTME BURADA: Maçlar bittiğinde, güncel maçları (newMatches) tarihçeye kaydetmeliyiz ***
+               const stateForHistory = { ...nextState, playoffMatches: newMatches };
+               const finalHistory = saveToHistory(stateForHistory, `${nextState.year} MSI Bracket`, 'BRACKET');
+
                return {
                    ...nextState,
                    coins: nextState.coins + reward,
-                   matchHistory: saveToHistory(nextState, `${nextState.year} MSI Bracket`, 'BRACKET'),
-                   stage: 'PRE_SEASON',
+                   matchHistory: finalHistory,
+                   stage: 'PRE_SEASON', // Yaz sezonuna hazırlık
                    currentSplit: 'SUMMER',
+                   playoffMatches: [], // Playoff maçlarını temizle
+                   schedule: [], // Fikstürü temizle
+                   week: 1,
+                   currentDay: 1
                };
            }
 
@@ -2911,37 +3007,14 @@ export default function App() {
         return Array.from(years).sort((a, b) => b - a);
     }, [gameState.year, historyList]);
 
+    // --- BURASI DEĞİŞTİ ---
     const tabs = useMemo(() => {
-        const yearHistory = historyList.filter(h => h.year === filterYear).reverse();
+        // 1. .reverse() KALDIRILDI: Kronolojik sıra (Eskiden yeniye) korundu
+        const yearHistory = historyList.filter(h => h.year === filterYear); 
         const tabsList = [];
 
-        // Current Tab
-        if (filterYear === gameState.year) {
-            let currentTitle = "Current Stage";
-            if (gameState.stage === 'MSI_PLAY_IN') currentTitle = "MSI Play-In (Current)";
-            else if (gameState.stage === 'MSI_BRACKET') currentTitle = "MSI Bracket (Current)";
-            else if (gameState.stage.includes('PLAYOFFS')) currentTitle = "Playoffs (Current)";
-            else if (gameState.stage.includes('GROUP')) currentTitle = "Regular Season (Current)";
-
-            // ViewType Belirleme
-            let cViewType: HistoryViewType = 'LEAGUE';
-            if (['PLAYOFFS', 'MSI_BRACKET', 'MSI_PLAY_IN', 'PLAY_IN'].includes(gameState.stage)) cViewType = 'BRACKET';
-            else if (['LPL_SPLIT_2_LCQ'].includes(gameState.stage)) cViewType = 'LIST';
-
-            tabsList.push({ 
-                id: 'CURRENT', 
-                title: currentTitle, 
-                viewType: cViewType,
-                schedule: gameState.schedule,
-                playoffs: gameState.playoffMatches,
-                standings: gameState.standings,
-                stage: gameState.stage
-            });
-        }
-
-        // History Tabs
+        // 2. ÖNCE GEÇMİŞ SEKMELER EKLENİYOR (Spring -> MSI -> ...)
         yearHistory.forEach(h => {
-            // İsimlendirme düzeltmesi (Eski bozuk kayıtlar varsa diye koruma)
             let displayTitle = h.title;
             let derivedStage = 'PLAYOFFS';
 
@@ -2957,7 +3030,6 @@ export default function App() {
                 derivedStage = 'PLAY_IN';
             }
 
-            // ViewType Kontrolü
             let viewType = h.viewType;
             if (displayTitle.includes('Regular') || displayTitle.includes('Season')) viewType = 'LEAGUE';
             else viewType = 'BRACKET';
@@ -2969,6 +3041,29 @@ export default function App() {
                 viewType: viewType
             });
         });
+
+        // 3. EN SONA MEVCUT (CURRENT) SEKME EKLENİYOR
+        if (filterYear === gameState.year) {
+            let currentTitle = "Current Stage";
+            if (gameState.stage === 'MSI_PLAY_IN') currentTitle = "MSI Play-In (Current)";
+            else if (gameState.stage === 'MSI_BRACKET') currentTitle = "MSI Bracket (Current)";
+            else if (gameState.stage.includes('PLAYOFFS')) currentTitle = "Playoffs (Current)";
+            else if (gameState.stage.includes('GROUP')) currentTitle = "Regular Season (Current)";
+
+            let cViewType: HistoryViewType = 'LEAGUE';
+            if (['PLAYOFFS', 'MSI_BRACKET', 'MSI_PLAY_IN', 'PLAY_IN'].includes(gameState.stage)) cViewType = 'BRACKET';
+            else if (['LPL_SPLIT_2_LCQ'].includes(gameState.stage)) cViewType = 'LIST';
+
+            tabsList.push({ 
+                id: 'CURRENT', 
+                title: currentTitle, 
+                viewType: cViewType,
+                schedule: gameState.schedule,
+                playoffs: gameState.playoffMatches,
+                standings: gameState.standings,
+                stage: gameState.stage
+            });
+        }
 
         return tabsList;
     }, [filterYear, gameState.year, gameState.stage, historyList, gameState.schedule, gameState.playoffMatches, gameState.standings]);
@@ -3342,6 +3437,10 @@ export default function App() {
     </div>
   );
 
+  if (view === 'MENU') {
+    return <MainMenu onNewGame={handleNewGame} onContinue={handleContinueGame} hasSave={hasSaveFile} />;
+  }
+
   return (
     <Layout 
       currentTab={tab} 
@@ -3351,62 +3450,71 @@ export default function App() {
       teamData={activeTeamData}
       managerName={`${gameState.managerName} (${gameState.year} ${gameState.currentSplit})`}
     >
-      {!onboardingComplete && <Onboarding onComplete={handleOnboardingComplete} />}
-      
-      {isSimulating && pendingSimResult && activeTeamData && (
-        <MatchSimulationView 
-           userTeam={activeTeamData}
-           enemyTeam={allTeams.find((t: TeamData) => t.id === pendingSimResult.opponentId)}
-           userRoster={gameState.roster}
-           enemyRoster={gameState.aiRosters[pendingSimResult.opponentId] || {}} 
-           result={pendingSimResult.userResult}
-           onComplete={() => finalizeDaySimulation(pendingSimResult.userResult)}
-        />
+      {/* ONBOARDING MODU: Yeni oyun başlatıldığında */}
+      {view === 'ONBOARDING' && (
+        <Onboarding onComplete={handleOnboardingComplete} />
       )}
       
-      {negotiationSession && (
-        <NegotiationModal
-          player={negotiationSession.player}
-          isOpen={!!negotiationSession}
-          onClose={() => setNegotiationSession(null)}
-          onOffer={handleNegotiationOffer}
-          currentCoins={gameState.coins}
-          serverFeedback={negotiationFeedback}
-          attemptsLeft={negotiationSession.patience}
-        />
-      )}
-
-      {activeEventModal && (
-        <EventModal
-          event={activeEventModal.event}
-          player={activeEventModal.player}
-          onClose={() => setActiveEventModal(null)}
-        />
-      )}
-
-      {retiredPlayerModal && (
-        <RetiredPlayerModal
-          player={retiredPlayerModal}
-          isOpen={!!retiredPlayerModal}
-          onClose={() => setRetiredPlayerModal(null)}
-          onHireAsCoach={() => handleHireRetired(retiredPlayerModal, 'coach')}
-          onLureBack={() => handleHireRetired(retiredPlayerModal, 'player')}
-          currentCoins={gameState.coins} />
-      )}
-      {notification && (
-        <div className={`fixed top-4 right-4 z-[100] px-6 py-3 rounded-xl shadow-2xl font-bold animate-slide-in ${notification.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>
-           {notification.message}
-        </div>
-      )}
-
-      {error && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] px-6 py-3 bg-red-600 text-white rounded-xl shadow-2xl font-bold animate-bounce-in">
-           {error}
-        </div>
-      )}
-
-      {onboardingComplete && (
+      {/* OYUN MODU: Onboarding bittiğinde veya devam et dendiğinde */}
+      {view === 'GAME' && (
         <>
+          {/* Simülasyon Ekranı */}
+          {isSimulating && pendingSimResult && activeTeamData && (
+            <MatchSimulationView 
+               userTeam={activeTeamData}
+               enemyTeam={allTeams.find((t: TeamData) => t.id === pendingSimResult.opponentId)}
+               userRoster={gameState.roster}
+               enemyRoster={gameState.aiRosters[pendingSimResult.opponentId] || {}} 
+               result={pendingSimResult.userResult}
+               onComplete={() => finalizeDaySimulation(pendingSimResult.userResult)}
+            />
+          )}
+          
+          {/* Modallar */}
+          {negotiationSession && (
+            <NegotiationModal
+              player={negotiationSession.player}
+              isOpen={!!negotiationSession}
+              onClose={() => setNegotiationSession(null)}
+              onOffer={handleNegotiationOffer}
+              currentCoins={gameState.coins}
+              serverFeedback={negotiationFeedback}
+              attemptsLeft={negotiationSession.patience}
+            />
+          )}
+
+          {activeEventModal && (
+            <EventModal
+              event={activeEventModal.event}
+              player={activeEventModal.player}
+              onClose={() => setActiveEventModal(null)}
+            />
+          )}
+
+          {retiredPlayerModal && (
+            <RetiredPlayerModal
+              player={retiredPlayerModal}
+              isOpen={!!retiredPlayerModal}
+              onClose={() => setRetiredPlayerModal(null)}
+              onHireAsCoach={() => handleHireRetired(retiredPlayerModal, 'coach')}
+              onLureBack={() => handleHireRetired(retiredPlayerModal, 'player')}
+              currentCoins={gameState.coins} />
+          )}
+
+          {/* Bildirimler */}
+          {notification && (
+            <div className={`fixed top-4 right-4 z-[100] px-6 py-3 rounded-xl shadow-2xl font-bold animate-slide-in ${notification.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>
+               {notification.message}
+            </div>
+          )}
+
+          {error && (
+            <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] px-6 py-3 bg-red-600 text-white rounded-xl shadow-2xl font-bold animate-bounce-in">
+               {error}
+            </div>
+          )}
+
+          {/* Sekmeler (Tabs) */}
           {tab === 'dashboard' && <DashboardView />}
           {tab === 'roster' && <RosterView />}
           {tab === 'training' && <TrainingView roster={gameState.roster} inventory={gameState.inventory} coins={gameState.coins} trainingSlotsUsed={gameState.trainingSlotsUsed} onTrainPlayer={handleTraining} />}
