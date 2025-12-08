@@ -560,6 +560,23 @@ export default function App() {
   const [retiredPlayerModal, setRetiredPlayerModal] = useState<PlayerCard | null>(null);
   const [incomingOffers, setIncomingOffers] = useState<IncomingOffer[]>([]);
 
+  useEffect(() => {
+    // Uygulama ilk açıldığında kayıt dosyası var mı kontrol et
+    const savedData = localStorage.getItem('lck_manager_save_v1');
+    if (savedData) {
+      setHasSaveFile(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    // Oyun sadece onboarding tamamlandıysa ve bir takım seçildiyse kaydedilsin
+    if (onboardingComplete && gameState.teamId) {
+      localStorage.setItem('lck_manager_save_v1', JSON.stringify(gameState));
+      // Kayıt yapıldığı an "Devam Et" butonunun aktif olması için state'i güncelle
+      setHasSaveFile(true);
+    }
+  }, [gameState, onboardingComplete]);
+
   const activeTeamData = activeLeague.teams.find(t => t && t.id === gameState?.teamId) || null;
 
   const allTeams = useMemo(() => {
