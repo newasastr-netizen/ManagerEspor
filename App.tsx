@@ -11,6 +11,9 @@ import { drawGroups, generateGroupStageSchedule, generateLPLSplit2Schedule } fro
 import { Trophy, RotateCcw, AlertTriangle, Play, Handshake, Wand2, FastForward, SkipForward, XCircle, ArrowDownUp, Search, Mail, Newspaper, MessageSquare, Heart, HeartCrack } from 'lucide-react';
 import { Role, PlayerCard, GameState, MatchResult, Rarity, TeamData, ScheduledMatch, PlayoffMatch, Standing, PlayerEvent, HistoryEntry, HistoryViewType } from './types';
 import { MainMenu } from './components/MainMenu';
+import { SponsorsView } from './components/SponsorsView'; 
+import { simulateMatchSeries, calculateTeamPower, processPlayerGrowth, calculateWeeklyExpenses } from './utils/engine';
+
 
 const ACTIVITIES = [
   { id: 'scrim', name: 'Scrimmage', cost: 50, slots: 2, description: 'Play a practice match against a random team.', gains: { teamfight: 2, macro: 1 } },
@@ -543,6 +546,8 @@ export default function App() {
   const [activeLeague, setActiveLeague] = useState<LeagueDefinition>(LEAGUES.LCK);
   const [view, setView] = useState<'MENU' | 'ONBOARDING' | 'GAME'>('MENU');
   const [hasSaveFile, setHasSaveFile] = useState(false);
+  const [isDrafting, setIsDrafting] = useState(false); // Draft ekranını açıp kapatmak için
+  const [draftMatchInfo, setDraftMatchInfo] = useState<{matchId: string, opponentId: string, isBo5: boolean} | null>(null);
   
   const [gameState, setGameState] = useState<GameState>({
     managerName: '',
@@ -576,6 +581,7 @@ export default function App() {
     playerMessages: [],
   });
 
+  const [currentSponsor, setCurrentSponsor] = useState<any>(null);
   const [market, setMarket] = useState<PlayerCard[]>([]);
   const [isScouting, setIsScouting] = useState(false);
   const [lastMatch, setLastMatch] = useState<MatchResult | null>(null);
@@ -744,6 +750,16 @@ export default function App() {
     setView('GAME');
     setTab('market'); 
   };
+
+  const handleSignSponsor = (sponsor: any) => {
+    if (currentSponsor) {
+        showNotification('error', "You already have an active sponsor.");
+        return;
+    }
+    setCurrentSponsor(sponsor);
+    setGameState(prev => ({ ...prev, coins: prev.coins + sponsor.signingBonus }));
+    showNotification('success', `Signed with ${sponsor.name}! +${sponsor.signingBonus}G`);
+};
 
   const processPlayerProgression = (player: PlayerCard, clutchFactor: number) => {
       let newStats = { ...player.stats };
@@ -2644,55 +2660,100 @@ const startLPLSplit3 = (prev: GameState): GameState => {
     }, 100);
   };
 
-  const initiateMatch = () => {
-     setIsPlayingMatch(true);
-     let userMatch: { teamAId: string, teamBId: string, id: string, isBo5?: boolean } | undefined;
+  const handleDraftComplete = (draftBonus: number) => {
+      setIsDrafting(false); 
+      setIsPlayingMatch(true); 
 
-     if (gameState.stage === 'GROUP_STAGE') {
-        const matchesToday = gameState.schedule.filter(m => m.round === gameState.currentDay);
-        const regularMatch = matchesToday.find(m => (m.teamAId === gameState.teamId || m.teamBId === gameState.teamId) && !m.played);
-        if (regularMatch) userMatch = { ...regularMatch, isBo5: false };
+      if (!draftMatchInfo) return;
+
+      const { matchId, opponentId, isBo5 } = draftMatchInfo;
+      const enemyRoster = gameState.aiRosters[opponentId] || {};
+
+      // YENİ: Bonusu doğrudan motora gönderiyoruz!
+      const result = simulateMatchSeries(
+           gameState.teamId,
+           opponentId,
+           gameState.roster, 
+           enemyRoster,
+           isBo5,
+           draftBonus // <--- İŞTE BU YENİ PARAMETRE
+       );
+
+       result.enemyTeam = allTeams.find(t => t.id === opponentId)?.shortName || 'Enemy';
+
+       setPendingSimResult({ userResult: result, matchId, opponentId });
+       setIsSimulating(true);
+  };
+
+  const initiateMatch = () => {
+     // 1. Sıradaki maçı bul
+     let nextMatch: any;
+     if (gameState.stage === 'GROUP_STAGE' || gameState.stage.includes('LPL')) {
+        // Lig maçları
+        nextMatch = gameState.schedule.find(m => !m.played && m.round === gameState.currentDay && (m.teamAId === gameState.teamId || m.teamBId === gameState.teamId));
      } else {
-        const match = gameState.playoffMatches.find(m => (m.teamAId === gameState.teamId || m.teamBId === gameState.teamId) && !m.winnerId);
-        if (match && match.teamAId && match.teamBId) userMatch = match;
+        // Playoff maçları
+        nextMatch = gameState.playoffMatches.find(m => !m.winnerId && (m.teamAId === gameState.teamId || m.teamBId === gameState.teamId));
      }
 
-     if (userMatch) {
-        const seriesResult = simulateSeries(userMatch.teamAId, userMatch.teamBId, !!userMatch.isBo5);
-        const won = seriesResult.winnerId === gameState.teamId;
-        const opponentId = userMatch.teamAId === gameState.teamId ? userMatch.teamBId : userMatch.teamAId;        
-
-        let finalScoreUser, finalScoreEnemy;
-        if (userMatch.teamAId === gameState.teamId) {
-          finalScoreUser = seriesResult.scoreA;
-          finalScoreEnemy = seriesResult.scoreB;
-        } else {
-          finalScoreUser = seriesResult.scoreB;
-          finalScoreEnemy = seriesResult.scoreA;
-        }
-
-         const resultObj: MatchResult = {
-             victory: won,
-             scoreUser: finalScoreUser,
-             scoreEnemy: finalScoreEnemy,
-             playerStats: [],
-             gameScores: seriesResult.gameScores,
-             enemyTeam: activeLeague.teams.find(t => t.id === opponentId)?.shortName || '',
-             reward: won ? 300 : 100,
-             commentary: '',
-             isBo5: !!userMatch.isBo5
-         };
-
-        setPendingSimResult({ userResult: resultObj, matchId: userMatch.id, opponentId });
-        setIsSimulating(true);
+     if (nextMatch) {
+        const oppId = nextMatch.teamAId === gameState.teamId ? nextMatch.teamBId : nextMatch.teamAId;
+        
+        // 2. Simülasyonu hemen başlatma! Önce Draft bilgilerini kaydet ve ekranı aç.
+        setDraftMatchInfo({
+            matchId: nextMatch.id,
+            opponentId: oppId,
+            isBo5: !!nextMatch.isBo5
+        });
+        
+        // İşte burası eksikti: Draft ekranını tetikliyoruz
+        setIsDrafting(true); 
      } else {
-        finalizeDaySimulation(null);
+        showNotification('error', "No scheduled match found for today.");
      }
   };
 
-  const finalizeDaySimulation = async (userResult: MatchResult | null) => {
-     setIsSimulating(false);
-     setPendingSimResult(null);
+  const finalizeDaySimulation = (userResult: MatchResult | null) => {
+    // --- YENİ: FİNANSAL HESAPLAMALAR ---
+    let income = 0;
+    let expenses = 0;
+    const financialLogs: string[] = [];
+
+    // 1. Maç Geliri (Bilet, Yayın vb.)
+    if (userResult) {
+        const matchIncome = userResult.victory ? 300 : 100; // Galibiyet primi
+        income += matchIncome;
+        financialLogs.push(`Match Income: +${matchIncome}G`);
+    }
+
+    // 2. Sponsor Geliri
+    if (currentSponsor) {
+        income += currentSponsor.weeklyIncome;
+        financialLogs.push(`Sponsor (${currentSponsor.name}): +${currentSponsor.weeklyIncome}G`);
+
+        // Süre düşme mantığı (Opsiyonel: Sponsor süresini state'te tutup azaltabilirsin)
+    }
+
+    // 3. Haftalık Giderler (Her hafta 1 kez düşülmeli)
+    // Oyun "Day" bazlı ilerliyor. Her 2 maçta bir (Day 1, Day 3, vb.) veya hafta değişince kesebilirsin.
+    // Basitlik için: Her maç günü, "operasyonel gider" keselim (Haftalığın 1/2'si gibi)
+    const weeklyCosts = calculateWeeklyExpenses(gameState.roster, gameState.teamId);
+    const dailyUpkeep = Math.round(weeklyCosts.total / 2); // Haftada 2 maç var varsayımıyla
+
+    expenses += dailyUpkeep;
+    financialLogs.push(`Daily Operations: -${dailyUpkeep}G`);
+
+    // Bildirim Göster (Net Durum)
+    const netChange = income - expenses;
+    const netColor = netChange >= 0 ? 'success' : 'error';
+    const netSign = netChange >= 0 ? '+' : '';
+    showNotification(netColor, `Daily Finances: ${netSign}${netChange}G`);
+
+    // Kasayı Güncelle
+    setGameState(prev => ({ ...prev, coins: prev.coins + netChange }));
+
+    setIsSimulating(false);
+    setPendingSimResult(null);
 
      if (userResult && userResult.playerStats.length > 0) {
       const { newRoster, newInventory } = processMatchPlayerStats(
@@ -3095,6 +3156,159 @@ const startLPLSplit3 = (prev: GameState): GameState => {
     );
   };
 
+  interface DraftPhaseProps {
+  userTeam: TeamData;
+  enemyTeam: TeamData;
+  onDraftComplete: (draftScore: number) => void;
+}
+
+const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftComplete }) => {
+  const [step, setStep] = useState<'SELECT' | 'REVEAL' | 'RESULT'>('SELECT');
+  const [selectedStratId, setSelectedStratId] = useState<string | null>(null);
+  const [enemyStrat, setEnemyStrat] = useState<any>(null);
+  const [resultData, setResultData] = useState<{ bonus: number, msg: string } | null>(null);
+
+  const strategies = [
+    { id: 'AGGRESSIVE', name: 'Aggressive', sub: 'Early Game', icon: '🗡️', color: 'from-red-600 to-orange-600', beats: 'SCALING', loseTo: 'CONTROL' },
+    { id: 'CONTROL', name: 'Control', sub: 'Macro Play', icon: '🛡️', color: 'from-blue-600 to-cyan-600', beats: 'AGGRESSIVE', loseTo: 'SCALING' },
+    { id: 'SCALING', name: 'Scaling', sub: 'Late Game', icon: '⏳', color: 'from-purple-600 to-pink-600', beats: 'CONTROL', loseTo: 'AGGRESSIVE' },
+  ];
+
+  const handleSelect = (stratId: string) => {
+    setSelectedStratId(stratId);
+    
+    // Rakip seçimi
+    const enemyChoice = strategies[Math.floor(Math.random() * strategies.length)];
+    setEnemyStrat(enemyChoice);
+
+    // Hesaplama
+    const userChoice = strategies.find(s => s.id === stratId)!;
+    let bonus = 0;
+    let msg = "";
+
+    if (userChoice.beats === enemyChoice.id) {
+        bonus = 6; msg = "COUNTER PICK!";
+    } else if (userChoice.loseTo === enemyChoice.id) {
+        bonus = -4; msg = "OUTDRAFTED...";
+    } else {
+        bonus = 0; msg = "SKILL MATCHUP";
+    }
+
+    setResultData({ bonus, msg });
+    
+    // Akış: REVEAL aşamasına geç
+    setStep('REVEAL');
+    setTimeout(() => setStep('RESULT'), 2000); // 2 sn sonra kart döner
+    setTimeout(() => onDraftComplete(bonus), 3500); // 3.5 sn sonra maç başlar
+  };
+
+  // Seçilen strateji objesini bulma yardımcısı
+  const getSelectedStrategy = () => strategies.find(s => s.id === selectedStratId);
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-xl overflow-hidden">
+      {/* Dinamik Arka Plan */}
+      <div className={`absolute inset-0 bg-gradient-to-br transition-all duration-1000 opacity-20 ${step === 'RESULT' && resultData?.bonus! > 0 ? 'from-green-500 to-green-900' : step === 'RESULT' && resultData?.bonus! < 0 ? 'from-red-900 to-black' : 'from-blue-900 to-gray-900'}`} />
+
+      <div className="relative w-full max-w-7xl p-4 flex flex-col items-center">
+         
+         {/* ÜST KISIM: TAKIMLAR VE DURUM */}
+         <div className="flex justify-between items-start w-full px-20 mb-8 h-32">
+            <div className="text-center animate-in slide-in-from-top duration-700">
+                <TeamLogo team={userTeam} size="w-20 h-20" className="mx-auto shadow-[0_0_20px_rgba(59,130,246,0.5)] rounded-full" />
+            </div>
+
+            <div className="text-center flex-1 pt-4">
+                {step === 'SELECT' && <div className="text-4xl font-bold text-white animate-pulse font-display">CHOOSE YOUR STRATEGY</div>}
+                {step === 'REVEAL' && <div className="text-4xl font-bold text-yellow-400 animate-bounce font-display">OPPONENT IS CHOOSING...</div>}
+                {step === 'RESULT' && (
+                    <div className="flex flex-col items-center animate-in zoom-in duration-300">
+                        <div className={`text-6xl font-black italic ${resultData?.bonus! > 0 ? 'text-green-400 drop-shadow-[0_0_10px_rgba(74,222,128,0.5)]' : resultData?.bonus! < 0 ? 'text-red-500 drop-shadow-[0_0_10px_rgba(239,68,68,0.5)]' : 'text-gray-300'}`}>
+                            {resultData?.msg}
+                        </div>
+                        <div className="text-2xl font-mono mt-2 text-white bg-black/50 px-6 py-1 rounded-full border border-white/20">
+                            {resultData?.bonus! > 0 ? '+' : ''}{resultData?.bonus} Power
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            <div className="text-center animate-in slide-in-from-top duration-700 delay-100">
+                <TeamLogo team={enemyTeam} size="w-20 h-20" className="mx-auto shadow-[0_0_20px_rgba(239,68,68,0.5)] rounded-full" />
+            </div>
+         </div>
+
+         {/* ANA KART ALANI - 3D Perspektif Konteyneri */}
+         <div className="relative w-full flex items-center justify-center perspective-1000 min-h-[500px]">
+            
+            {/* --- DURUM 1: SEÇİM EKRANI (3 KART YANYANA) --- */}
+            {step === 'SELECT' && (
+                <div className="flex justify-center items-center gap-10 animate-fade-in">
+                    {strategies.map((strat, index) => (
+                    <div 
+                        key={strat.id}
+                        onClick={() => handleSelect(strat.id)}
+                        className={`relative w-72 h-[420px] rounded-2xl bg-gradient-to-br ${strat.color} p-1 shadow-xl cursor-pointer hover:scale-105 hover:-translate-y-4 transition-all duration-300 ease-out border-2 border-white/10 group animate-in slide-in-from-bottom fade-in duration-700 fill-mode-backwards`}
+                        style={{ animationDelay: `${index * 150}ms` }}
+                    >
+                        <div className="w-full h-full bg-dark-900/95 rounded-xl flex flex-col items-center justify-center p-6 text-center backdrop-blur-md group-hover:bg-dark-900/80 transition-colors">
+                            <div className="text-7xl mb-6 filter drop-shadow-lg group-hover:scale-110 transition-transform">{strat.icon}</div>
+                            <h3 className="text-3xl font-bold text-white uppercase font-display">{strat.name}</h3>
+                            <p className="text-md text-gray-300 font-mono mt-2">{strat.sub}</p>
+                            <div className="mt-8 opacity-0 group-hover:opacity-100 transition-opacity text-sm font-bold">
+                                <span className="text-green-400 block">Strong vs: {strat.beats}</span>
+                                <span className="text-red-400 block mt-1">Weak vs: {strat.loseTo}</span>
+                            </div>
+                        </div>
+                    </div>
+                    ))}
+                </div>
+            )}
+
+            {/* --- DURUM 2 & 3: SONUÇ EKRANI (SOLDA SEN, SAĞDA RAKİP) --- */}
+            {(step === 'REVEAL' || step === 'RESULT') && getSelectedStrategy() && (
+                <div className="flex w-full max-w-5xl justify-between items-center px-10">
+
+                    {/* SOL: SENİN SEÇTİĞİN KART (Sabitlenmiş, Soldan gelir) */}
+                    <div className={`w-80 h-[480px] rounded-2xl bg-gradient-to-br ${getSelectedStrategy()!.color} p-1 shadow-[0_0_50px_rgba(200,160,50,0.5)] z-20 animate-in slide-in-from-left fade-in duration-700 ring-4 ring-gold-400`}>
+                        <div className="w-full h-full bg-dark-900/90 rounded-xl flex flex-col items-center justify-center p-8 text-center">
+                            <div className="text-8xl mb-8 filter drop-shadow-2xl">{getSelectedStrategy()!.icon}</div>
+                            <h3 className="text-4xl font-bold text-white uppercase font-display">{getSelectedStrategy()!.name}</h3>
+                            <div className="mt-6 px-4 py-2 bg-blue-600/80 text-white text-sm font-bold rounded-full uppercase tracking-wider">Your Pick</div>
+                        </div>
+                    </div>
+
+                    {/* ORTA: VS YAZISI */}
+                    <div className="text-8xl font-black text-white mix-blend-overlay animate-pulse z-40 mx-8 animate-in zoom-in duration-500 delay-300 font-display">VS</div>
+
+                    {/* SAĞ: RAKİP KARTI (Dönen, Sağdan gelir) */}
+                    <div className={`relative w-80 h-[480px] transition-all duration-700 transform transform-style-3d animate-in slide-in-from-right fade-in duration-700 z-20
+                        ${step === 'REVEAL' ? 'rotate-y-180' : 'rotate-y-0'} rounded-2xl shadow-[0_0_50px_rgba(220,38,38,0.5)]`}>
+                        
+                        {/* Arka Yüz (Kapalı) */}
+                        <div className="absolute inset-0 w-full h-full bg-dark-800 border-4 border-gray-600 rounded-2xl flex items-center justify-center backface-hidden bg-[url('/assets/card-back-pattern.png')] bg-repeat opacity-90">
+                            <div className="text-8xl animate-spin text-gray-400">❓</div>
+                        </div>
+
+                        {/* Ön Yüz (Açık) */}
+                        <div className={`absolute inset-0 w-full h-full rounded-2xl bg-gradient-to-br ${enemyStrat.color} p-1 backface-hidden rotate-y-0`}>
+                             <div className="w-full h-full bg-dark-900/90 rounded-xl flex flex-col items-center justify-center p-8 text-center">
+                                <div className="text-8xl mb-8 filter drop-shadow-2xl">{enemyStrat.icon}</div>
+                                <h3 className="text-4xl font-bold text-white uppercase font-display">{enemyStrat.name}</h3>
+                                <div className="mt-6 px-4 py-2 bg-red-600/80 text-white text-sm font-bold rounded-full uppercase tracking-wider">Enemy Pick</div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            )}
+
+         </div>
+      </div>
+    </div>
+  );
+};
+
   const MarketView = React.memo(MarketViewComponent);
 
   const InboxView: React.FC<{
@@ -3243,6 +3457,16 @@ const startLPLSplit3 = (prev: GameState): GameState => {
         </div>
   
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="bg-dark-900 rounded-2xl p-6 border border-dark-800">
+              <h3 className="text-lg font-bold text-white mb-4">Finances</h3>
+              <div className="flex justify-between items-center bg-dark-950 p-3 rounded mb-2">
+                  <span className="text-gray-400">Sponsor</span>
+                  <span className="text-gold-400 font-bold">{currentSponsor ? currentSponsor.name : 'None'}</span>
+              </div>
+              <button onClick={() => setTab('economy')} className="w-full py-2 bg-dark-800 hover:bg-dark-700 text-white rounded text-sm font-bold">
+                  Manage Sponsors
+              </button>
+          </div>
           <div className="bg-dark-900 rounded-2xl p-6 border border-dark-800">
            <h3 className="text-lg font-bold text-white mb-4">Active Roster</h3>
            <div className="space-y-2">
@@ -4037,6 +4261,22 @@ const startLPLSplit3 = (prev: GameState): GameState => {
       {/* ONBOARDING MODU: Yeni oyun başlatıldığında */}
       {view === 'ONBOARDING' && (
         <Onboarding onComplete={handleOnboardingComplete} />
+      )}
+
+      {tab === 'economy' && (
+          <SponsorsView 
+              currentSponsor={currentSponsor}
+              onSignSponsor={handleSignSponsor}
+              userTeam={activeTeamData} // <--- BU SATIRI EKLE
+          />
+      )}
+
+      {isDrafting && draftMatchInfo && activeTeamData && (
+          <DraftPhase 
+              userTeam={activeTeamData}
+              enemyTeam={allTeams.find(t => t.id === draftMatchInfo.opponentId)!}
+              onDraftComplete={handleDraftComplete}
+          />
       )}
       
       {/* OYUN MODU: Onboarding bittiğinde veya devam et dendiğinde */}
