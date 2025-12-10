@@ -70,7 +70,7 @@ export const REAL_LCK_PLAYERS: PlayerCard[] = [
   createPlayer('Kiin', 'GEN', Role.TOP, 93, 24, 'KR', 'B', ['Kennen', 'Kled', 'Gnar']),
   createPlayer('Canyon', 'GEN', Role.JUNGLE, 95, 22),
   createPlayer('Chovy', 'GEN', Role.MID, 96, 23),
-  createPlayer('Ruler', 'GEN', Role.ADC, 95, 25),
+  createPlayer('Peyz', 'GEN', Role.ADC, 89, 25),
   createPlayer('Duro', 'GEN', Role.SUPPORT, 82, 19),
 
   // HLE (Strong Vets)

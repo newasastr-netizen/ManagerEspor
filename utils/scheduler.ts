@@ -8,6 +8,34 @@ export const drawGroups = (teams: TeamData[]) => {
   return { A: groupA, B: groupB };
 };
 
+export const generateLPLSplit2Schedule = (ascendTeamIds: string[], nirvanaTeamIds: string[]) => {
+  const schedule: ScheduledMatch[] = [];
+  let matchIdCounter = 0;
+
+  // Helper: Tek devreli lig usulü fikstür (Single Round Robin)
+  const createRoundRobin = (teamIds: string[], groupName: string) => {
+    for (let i = 0; i < teamIds.length; i++) {
+      for (let j = i + 1; j < teamIds.length; j++) {
+        schedule.push({
+          id: `lpl-s2-${groupName}-${matchIdCounter++}`,
+          week: Math.ceil((matchIdCounter + 1) / 5), // Haftalara böl
+          round: matchIdCounter, 
+          teamAId: teamIds[i],
+          teamBId: teamIds[j],
+          played: false,  
+          isBo5: true // LPL formatında maçlar genelde Bo3 veya Bo5 olur, burayı ayarla
+        });
+      }
+    }
+  };
+
+  createRoundRobin(ascendTeamIds, 'ascend');
+  createRoundRobin(nirvanaTeamIds, 'nirvana');
+
+  // Karıştır
+  return schedule.sort(() => 0.5 - Math.random());
+};
+
 export const generateGroupStageSchedule = (groups: { A: string[], B: string[] }) => {
   const schedule: ScheduledMatch[] = [];
   const groupA = groups.A;

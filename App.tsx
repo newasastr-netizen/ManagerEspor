@@ -7,8 +7,8 @@ import { MatchSimulationView } from './components/MatchSimulationView';
 import { TrainingView } from './components/TrainingView';
 import { Onboarding } from './components/Onboarding';
 import { LEAGUES, LeagueKey, LeagueDefinition } from './data/leagues';
-import { drawGroups, generateGroupStageSchedule } from './utils/scheduler';
-import { Trophy, RotateCcw, AlertTriangle, Play, Handshake, Wand2, FastForward, SkipForward, XCircle, ArrowDownUp, Search } from 'lucide-react';
+import { drawGroups, generateGroupStageSchedule, generateLPLSplit2Schedule } from './utils/scheduler';
+import { Trophy, RotateCcw, AlertTriangle, Play, Handshake, Wand2, FastForward, SkipForward, XCircle, ArrowDownUp, Search, Mail, Newspaper, MessageSquare, Heart, HeartCrack } from 'lucide-react';
 import { Role, PlayerCard, GameState, MatchResult, Rarity, TeamData, ScheduledMatch, PlayoffMatch, Standing, PlayerEvent, HistoryEntry, HistoryViewType } from './types';
 import { MainMenu } from './components/MainMenu';
 
@@ -203,6 +203,28 @@ const EventModal: React.FC<EventModalProps> = ({ event, player, onClose }) => {
   );
 };
 
+interface NewMessagesModalProps {
+  messages: PlayerMessage[];
+  onClose: () => void;
+}
+
+const NewMessagesModal: React.FC<NewMessagesModalProps> = ({ messages, onClose }) => {
+  if (messages.length === 0) return null;
+
+  const title = messages.length > 1 ? "Yeni Mesajlarınız Var" : "Yeni Bir Mesajınız Var";
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+      <div className="bg-dark-900 border-2 border-hextech-500/50 w-full max-w-md rounded-2xl p-8 shadow-2xl text-center animate-fade-in">
+        <Mail size={48} className="mx-auto text-hextech-400 mb-4" />
+        <h2 className="text-2xl font-display font-bold text-white mb-4">{title}</h2>
+        <p className="text-gray-400 mb-6">Gelen kutunuzu kontrol etmeyi unutmayın.</p>
+        <button onClick={onClose} className="w-full py-3 bg-hextech-600 hover:bg-hextech-500 text-white font-bold rounded-xl">Tamam</button>
+      </div>
+    </div>
+  );
+};
+
 interface RetiredPlayerModalProps {
   player: PlayerCard;
   isOpen: boolean;
@@ -215,13 +237,13 @@ interface RetiredPlayerModalProps {
 const RetiredPlayerModal: React.FC<RetiredPlayerModalProps> = ({ player, isOpen, onClose, onHireAsCoach, onLureBack, currentCoins }) => {
   if (!isOpen) return null;
   const coachCost = Math.floor(player.salary * 0.75);
-  const lureCost = Math.floor(player.salary * 1.5);
+  const lureCost = Math.floor(player.salary * 2.5);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
       <div className="bg-dark-900 border border-dark-700 w-full max-w-md rounded-2xl p-6 shadow-2xl relative animate-fade-in">
         <button onClick={onClose} className="absolute top-4 right-4 text-gray-500 hover:text-white">✕</button>
-        <div className="flex items-center gap-4 mb-6">
+        <div className="flex items-center gap-4 mb-4">
           <div className="w-16 h-16 rounded-full bg-dark-800 border border-dark-600 overflow-hidden">
             <img src={player.imageUrl} alt={player.name} className="w-full h-full object-cover grayscale" />
           </div>
@@ -230,8 +252,11 @@ const RetiredPlayerModal: React.FC<RetiredPlayerModalProps> = ({ player, isOpen,
             <p className="text-sm text-gray-400">Retired • {player.age}yo</p>
           </div>
         </div>
-        <div className="space-y-4">
-          <p className="text-center text-gray-300">This player is retired. You can try to bring them back to the scene.</p>
+        <div className="mb-6 text-center p-3 rounded-lg bg-dark-950 border border-dark-800">
+            <p className="text-sm text-gray-300">Bu oyuncu emekli oldu. Onu sahnelere geri döndürmeyi deneyebilirsin.</p>
+            {player.retirementReason && <p className="text-xs text-yellow-400 font-bold mt-1">Sebep: {player.retirementReason}</p>}
+        </div>
+        <div className="space-y-3">
           <button
             onClick={onHireAsCoach}
             disabled={currentCoins < coachCost}
@@ -242,7 +267,7 @@ const RetiredPlayerModal: React.FC<RetiredPlayerModalProps> = ({ player, isOpen,
           <button
             onClick={onLureBack}
             disabled={currentCoins < lureCost}
-            className="w-full p-4 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full p-4 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             Lure back to Playing ({lureCost}G)
           </button>
@@ -465,6 +490,26 @@ const saveToHistory = (currentGs: GameState, title: string, viewType: HistoryVie
     return [...currentHistory, newEntry];
 };
 
+interface NewsArticle {
+  id: string;
+  type: 'TRANSFER' | 'RUMOR' | 'DRAMA' | 'RETIREMENT' | 'MAJOR_EVENT';
+  title: string;
+  content: string;
+  date: { year: number, split: string, week: number };
+  involved: { type: 'player' | 'team', name: string }[];
+}
+
+interface PlayerMessage {
+  id: string;
+  playerId: string;
+  playerName: string;
+  type: 'COMPLAINT' | 'THANKS' | 'REQUEST' | 'INFO';
+  subject: string;
+  body: string;
+  isRead: boolean;
+  date: { year: number, split: string, week: number };
+}
+
 const INITIAL_STATE: GameState = {
   managerName: '',
   teamId: '',
@@ -487,7 +532,9 @@ const INITIAL_STATE: GameState = {
   playoffMatches: [],
   freeAgents: [],
   trainingSlotsUsed: 0,
-  matchHistory: []
+  matchHistory: [],
+  newsFeed: [],
+  playerMessages: [],
 };
 
 export default function App() {
@@ -525,6 +572,8 @@ export default function App() {
     freeAgents: [],
     trainingSlotsUsed: 0,
     matchHistory: [],
+    newsFeed: [],
+    playerMessages: [],
   });
 
   const [market, setMarket] = useState<PlayerCard[]>([]);
@@ -559,6 +608,7 @@ export default function App() {
   const [activeEventModal, setActiveEventModal] = useState<{event: PlayerEvent, player: PlayerCard} | null>(null);
   const [retiredPlayerModal, setRetiredPlayerModal] = useState<PlayerCard | null>(null);
   const [incomingOffers, setIncomingOffers] = useState<IncomingOffer[]>([]);
+  const [newlyArrivedMessages, setNewlyArrivedMessages] = useState<PlayerMessage[]>([]);
 
   useEffect(() => {
     // Uygulama ilk açıldığında kayıt dosyası var mı kontrol et
@@ -722,10 +772,14 @@ export default function App() {
   };
 
   const filteredMarket = useMemo(() => {
-    const allKnownPlayers = [...market, ...gameState.freeAgents];
-    let source = filterStatus === 'RETIRED' ? allKnownPlayers : market;
+    // Oyuncuların ID'lerine göre bir Map oluşturarak kopyaları engelleyelim.
+    const allPlayersMap = new Map<string, PlayerCard>();
+    [...market, ...gameState.freeAgents].forEach(p => {
+        if (p && p.status !== 'military_service') allPlayersMap.set(p.id, p);
+    });
+    const allKnownPlayers = Array.from(allPlayersMap.values());
 
-    let result = [...source];
+    let result = [...allKnownPlayers];
 
     if (filterRole !== 'ALL') {
       result = result.filter(p => p.role === filterRole);
@@ -767,26 +821,46 @@ export default function App() {
 
   const getActiveSynergies = useCallback((roster: Record<Role, PlayerCard | null> | Record<string, PlayerCard>) => {
     const players = Object.values(roster).filter(p => p !== null) as PlayerCard[];
+    if (players.length < 2) return { synergies: [], relationshipBonus: 0, totalBonus: 0 };
+
     const leagueCounts: Record<string, number> = {};
+    const processedPairs = new Set<string>();
+    let relationshipBonus = 0;
     
     players.forEach(p => {
       if (p.league) {
         leagueCounts[p.league] = (leagueCounts[p.league] || 0) + 1;
       }
+
+      // İlişki bonus/cezalarını hesapla
+      if (p.relationships) {
+        p.relationships.forEach(rel => {
+          const otherPlayer = players.find(pl => pl.id === rel.targetPlayerId);
+          if (otherPlayer) {
+            const pairKey = [p.id, otherPlayer.id].sort().join('-');
+            if (!processedPairs.has(pairKey)) {
+              if (rel.type === 'FRIENDSHIP') relationshipBonus += 2;
+              if (rel.type === 'CONFLICT') relationshipBonus -= 3;
+              processedPairs.add(pairKey);
+            }
+          }
+        });
+      }
     });
 
     const synergies: { league: string, count: number, bonus: number }[] = [];
-    let totalBonus = 0;
+    let leagueBonus = 0;
 
     Object.entries(leagueCounts).forEach(([league, count]) => {
       if (count >= 2) {
         const bonus = count * count;
         synergies.push({ league, count, bonus });
-        totalBonus += bonus;
+        leagueBonus += bonus;
       }
     });
 
-    return { synergies, totalBonus };
+    const totalBonus = leagueBonus + relationshipBonus;
+    return { synergies, relationshipBonus, totalBonus };
   }, []);
 
   const getTeamMoraleModifier = (roster: Record<Role, PlayerCard | null>): number => {
@@ -1012,6 +1086,31 @@ export default function App() {
           }
       }
 
+      if (playerToUpdate && playerLocation && playerRoleOrIndex !== null) {
+        const updatedPlayer = { 
+            ...playerToUpdate, 
+            stats: { ...playerToUpdate.stats } 
+        };
+
+        for (const stat in gains) {
+            if (Object.prototype.hasOwnProperty.call(gains, stat)) {
+                const key = stat as keyof PlayerCard['stats'];
+                updatedPlayer.stats[key] = Math.min(99, updatedPlayer.stats[key] + (gains[key] || 0));
+            }
+        }
+
+        updatedPlayer.overall = Math.round((updatedPlayer.stats.mechanics + updatedPlayer.stats.macro + updatedPlayer.stats.lane + updatedPlayer.stats.teamfight) / 4);
+
+        if (playerLocation === 'roster') {
+            newRoster[playerRoleOrIndex as Role] = updatedPlayer;
+        } else {
+            newInventory[playerRoleOrIndex as number] = updatedPlayer;
+        }
+      } else {
+          console.error("Training failed: Player not found");
+          return prev; // Değişiklik yapmadan state'i geri döndür
+      }
+
       return {
         ...prev,
         coins: prev.coins - cost,
@@ -1057,6 +1156,17 @@ export default function App() {
            const newRoster = { ...prev.roster };
            const newInventory = [...prev.inventory];
 
+           // HATA DÜZELTMESİ: Oyuncuyu eski AI takımından kaldır
+           const newAiRosters = { ...prev.aiRosters };
+           if (player.team !== 'FA' && player.team !== 'ACA') {
+               const sourceTeam = allTeams.find(t => t.shortName === player.team);
+               if (sourceTeam && newAiRosters[sourceTeam.id]) {
+                   const sourceRoster = { ...newAiRosters[sourceTeam.id] };
+                   sourceRoster[player.role] = null; // Oyuncunun rolünü boşalt
+                   newAiRosters[sourceTeam.id] = sourceRoster;
+               }
+           }
+
            if (isRosterSlotFree) {
               newRoster[player.role] = newPlayer;
            } else {
@@ -1068,6 +1178,7 @@ export default function App() {
               coins: prev.coins - totalCost,
               inventory: newInventory,
               roster: newRoster,
+              aiRosters: newAiRosters,
               freeAgents: prev.freeAgents.filter(p => p.id !== player.id)
            };
         });
@@ -1108,7 +1219,7 @@ export default function App() {
       team: activeTeamData?.shortName || 'MY TEAM',
       contractDuration: 2,
       status: undefined,
-      role: as === 'coach' ? Role.COACH : player.originalRole || player.role,
+      role: as === 'coach' ? Role.COACH : player.originalRole!,
       salary: as === 'player' ? Math.floor(player.salary * 1.2) : player.salary,
     };
 
@@ -1142,6 +1253,8 @@ export default function App() {
     let newAiRosters = JSON.parse(JSON.stringify(currentGameState.aiRosters));
     let newFreeAgents = JSON.parse(JSON.stringify(currentGameState.freeAgents));
     const transferLogs: string[] = [];
+    const newsFeed: NewsArticle[] = [];
+    const date = { year: currentGameState.year, split: currentGameState.currentSplit, week: currentGameState.week };
     const difficulty = currentGameState.difficulty;
 
     const settings = {
@@ -1163,14 +1276,22 @@ export default function App() {
         if (rosterPlayers.length === 0) return;
 
         const weakestPlayer = rosterPlayers.reduce((min, p) => p.overall < min.overall ? p : min, rosterPlayers[0]);
+        const teamLeague = LEAGUES[team.league as LeagueKey];
 
-        const potentialUpgrades: PlayerCard[] = [];
+        const localUpgrades: PlayerCard[] = [];
+        const foreignUpgrades: PlayerCard[] = [];
+
         Object.entries(newAiRosters).forEach(([otherTeamId, otherRoster]) => {
             if (otherTeamId === team.id) return;
             const otherPlayers = Object.values(otherRoster as any) as PlayerCard[];
-            potentialUpgrades.push(...otherPlayers.filter(p => p.role === weakestPlayer.role && p.overall > weakestPlayer.overall + upgradeThreshold));
+            otherPlayers.filter(p => p.role === weakestPlayer.role && p.overall > weakestPlayer.overall + upgradeThreshold).forEach(p => {
+                if (p.league === team.league) localUpgrades.push(p);
+                else foreignUpgrades.push(p);
+            });
         });
-        potentialUpgrades.push(...newFreeAgents.filter(p => p.role === weakestPlayer.role && p.overall > weakestPlayer.overall + upgradeThreshold));
+        newFreeAgents.filter(p => p.role === weakestPlayer.role && p.overall > weakestPlayer.overall + upgradeThreshold).forEach(p => localUpgrades.push(p));
+
+        const potentialUpgrades = [...localUpgrades.sort((a, b) => b.overall - a.overall), ...foreignUpgrades.sort((a, b) => b.overall - a.overall)];
 
         if (potentialUpgrades.length > 0) {
             const upgrade = potentialUpgrades.sort((a, b) => b.overall - a.overall)[0];
@@ -1179,13 +1300,30 @@ export default function App() {
                 newAiRosters[team.id][weakestPlayer.role] = { ...upgrade, team: team.shortName };
                 newFreeAgents = newFreeAgents.filter(p => p.id !== upgrade.id);
                 newFreeAgents.push({ ...weakestPlayer, team: 'FA', contractDuration: 0, price: 0 });
-                transferLogs.push(`${team.shortName} signed ${upgrade.name} (FA) and released ${weakestPlayer.name}.`);
+                const log = `${team.shortName} signed ${upgrade.name} (FA) and released ${weakestPlayer.name}.`;
+                transferLogs.push(log);
+                newsFeed.push({
+                    id: crypto.randomUUID(), type: 'TRANSFER', title: `Serbest Oyuncu Hamlesi: ${team.shortName}`,
+                    content: `${team.shortName} takımı, serbest oyuncu pazarından ${upgrade.name}'i kadrosuna katarak önemli bir hamle yaptı. Bu transfer sonucunda ${weakestPlayer.name} ile yollar ayrıldı.`,
+                    date, involved: [{ type: 'team', name: team.shortName }, { type: 'player', name: upgrade.name }]
+                });
             } else {
                 const otherTeamId = activeLeague.teams.find(t => t.shortName === upgrade.team)?.id;
                 if (otherTeamId && newAiRosters[otherTeamId]) {
                     newAiRosters[team.id][weakestPlayer.role] = { ...upgrade, team: team.shortName };
                     newAiRosters[otherTeamId][upgrade.role] = { ...weakestPlayer, team: upgrade.team };
-                    transferLogs.push(`${team.shortName} traded for ${upgrade.name} from ${upgrade.team}, sending ${weakestPlayer.name}.`);
+                    const log = `${team.shortName} traded for ${upgrade.name} from ${upgrade.team}, sending ${weakestPlayer.name}.`;
+                    transferLogs.push(log);
+                    newsFeed.push({
+                        id: crypto.randomUUID(), type: 'TRANSFER', title: `Takas Bombası: ${upgrade.name} Takım Değiştirdi!`,
+                        content: `Ligde dengeleri değiştirebilecek bir takas gerçekleşti! ${team.shortName}, yıldız oyuncu ${upgrade.name}'i ${upgrade.team} takımından transfer ederken, karşılığında ${weakestPlayer.name}'i gönderdi.`,
+                        date, involved: [
+                            { type: 'team', name: team.shortName },
+                            { type: 'team', name: upgrade.team },
+                            { type: 'player', name: upgrade.name },
+                            { type: 'player', name: weakestPlayer.name }
+                        ]
+                    });
                 }
             }
         }
@@ -1193,7 +1331,7 @@ export default function App() {
 
     if (transferLogs.length > 0) showNotification('success', `AI teams made ${transferLogs.length} transfers!`);
 
-    return { aiRosters: newAiRosters, freeAgents: newFreeAgents };
+    return { aiRosters: newAiRosters, freeAgents: newFreeAgents, newsFeed };
   };
 
   const startSeason = () => {
@@ -1207,7 +1345,9 @@ export default function App() {
         ...gameState.inventory.map(p => p.id),
         ...(Object.values(gameState.roster) as (PlayerCard | null)[]).filter(p => p).map(p => p!.id)
     ]);
-    Object.values(gameState.aiRosters).forEach(roster => Object.values(roster).forEach(p => allPlayerIdsInUse.add(p.id)));
+    Object.values(gameState.aiRosters).forEach(roster => {
+        Object.values(roster).filter(p => p).forEach(p => allPlayerIdsInUse.add(p!.id));
+    });
 
     const roles = [Role.TOP, Role.JUNGLE, Role.MID, Role.ADC, Role.SUPPORT];
     
@@ -1407,77 +1547,98 @@ export default function App() {
   };
 
   const startLPLSplit2 = (prev: GameState): GameState => {
-    const historyList = Array.isArray(prev.matchHistory) ? prev.matchHistory : [];
-    const split1Playoffs = historyList.find(h => h.title === `${prev.year} Split 1 Playoffs`)?.playoffs;
-
-    let finalRankings: { teamId: string, rank: number }[] = [];
-    
-    if (split1Playoffs) {
-        const gf = split1Playoffs.find(m => m.id === 'grand-final');
-        if (gf?.winnerId) finalRankings.push({ teamId: gf.winnerId, rank: 1 });
-        const gfLoser = gf?.winnerId === gf?.teamAId ? gf?.teamBId : gf?.teamAId;
-        if (gfLoser) finalRankings.push({ teamId: gfLoser, rank: 2 });
-
-        const groupStageStandings = historyList.find(h => h.title === `${prev.year} SPRING`)?.standings || [];
-        const groupStageLosers = groupStageStandings.filter(s => !finalRankings.some(r => r.teamId === s.teamId)).sort((a, b) => b.wins - a.wins).map(s => s.teamId);
-        
-        groupStageLosers.forEach((teamId, index) => {
-             if (!finalRankings.some(r => r.teamId === teamId)) {
-                finalRankings.push({ teamId, rank: 3 + index });
-             }
-        });
-    } else {
-        finalRankings = LEAGUES.LPL.teams.map((t, i) => ({ teamId: t.id, rank: i + 1 }));
-    }
-
-    const pools: Record<string, string[]> = {
-        '1': finalRankings.filter(r => r.rank >= 1 && r.rank <= 4).map(r => r.teamId),
-        '2': finalRankings.filter(r => r.rank >= 5 && r.rank <= 8).map(r => r.teamId),
-        '3': finalRankings.filter(r => r.rank >= 9 && r.rank <= 12).map(r => r.teamId),
-        '4': finalRankings.filter(r => r.rank >= 13 && r.rank <= 16).map(r => r.teamId),
-    };
-
-    const groups = {
-        A: [pools['1'][0], pools['2'][3], pools['3'][2], pools['4'][1]].filter(t=>t),
-        B: [pools['1'][1], pools['2'][2], pools['3'][3], pools['4'][0]].filter(t=>t),
-        C: [pools['1'][2], pools['2'][1], pools['3'][0], pools['4'][3]].filter(t=>t),
-        D: [pools['1'][3], pools['2'][0], pools['3'][1], pools['4'][2]].filter(t=>t),
-    };
-
-    const schedule: ScheduledMatch[] = [];
-    let matchIdCounter = 0;
-
-    Object.values(groups).forEach(group => {
-        for (let i = 0; i < group.length; i++) {
-            for (let j = i + 1; j < group.length; j++) {
-                schedule.push({ id: `lpl-s2-pl-${matchIdCounter++}`, round: matchIdCounter, week: Math.ceil(matchIdCounter / 8), teamAId: group[i], teamBId: group[j], played: false, isBo5: false });
-            }
-        }
-        for (let i = 0; i < group.length; i++) {
-            for (let j = i + 1; j < group.length; j++) {
-                schedule.push({ id: `lpl-s2-pl-${matchIdCounter++}`, round: matchIdCounter, week: Math.ceil(matchIdCounter / 8), teamAId: group[j], teamBId: group[i], played: false, isBo5: false });
-            }
-        }
+    // 1. Tüm takımları Split 1 performansına göre sırala
+    // Not: Gerçek LPL'de puan sistemi var ama burada galibiyet sayısına göre yapıyoruz.
+    const allStandings = [...prev.standings].sort((a, b) => {
+        if (b.wins !== a.wins) return b.wins - a.wins;
+        return (b.gameWins - b.gameLosses) - (a.gameWins - a.gameLosses);
     });
 
-    const shuffledSchedule = schedule.sort(() => 0.5 - Math.random()).map((m, idx) => ({ ...m, round: idx + 1, week: Math.ceil((idx + 1) / 8) }));
+    // 2. İlk 8 takım Ascend, son 8 takım Nirvana
+    const ascendTeams = allStandings.slice(0, 8).map(s => s.teamId);
+    const nirvanaTeams = allStandings.slice(8, 16).map(s => s.teamId);
 
-    const newStandings = LEAGUES.LPL.teams.map(t => ({
-      teamId: t.id, name: t.shortName, wins: 0, losses: 0, gameWins: 0, gameLosses: 0, streak: 0,
-      group: Object.keys(groups).find(key => (groups as any)[key].includes(t.id)) as 'A' | 'B' | 'C' | 'D'
+    // 3. Grupları State'e kaydet
+    const groups = {
+        A: ascendTeams, // 'A' key'ini Ascend olarak kullanacağız (UI uyumu için)
+        B: nirvanaTeams // 'B' key'ini Nirvana olarak kullanacağız
+    };
+
+    // 4. Fikstürü oluştur (Utils'den çağırdığımız yeni fonksiyon)
+    const schedule = generateLPLSplit2Schedule(ascendTeams, nirvanaTeams);
+
+    // 5. Standings'i sıfırla ve yeni grupları ata
+    const newStandings: Standing[] = activeLeague.teams.map(t => ({
+        teamId: t.id,
+        name: t.shortName,
+        wins: 0,
+        losses: 0,
+        gameWins: 0,
+        gameLosses: 0,
+        streak: 0,
+        // Eğer takım Ascend listesindeyse grubu 'Ascend', değilse 'Nirvana'
+        group: ascendTeams.includes(t.id) ? 'Ascend' : 'Nirvana',
+        isEliminated: false
     }));
 
     return {
-      ...prev,
-      stage: 'LPL_SPLIT_2_PLACEMENTS',
-      week: 1,
-      currentDay: 1,
-      schedule: shuffledSchedule,
-      groups: groups,
-      standings: newStandings,
-      playoffMatches: [],
+        ...prev,
+        stage: 'LPL_SPLIT_2_GROUPS', // Yeni stage
+        currentSplit: 'SPLIT_2',
+        week: 1,
+        currentDay: 1,
+        schedule: schedule,
+        groups: groups as any, // TypeScript hatasını geçmek için any, types.ts güncellenince gerek kalmaz
+        standings: newStandings,
+        playoffMatches: [],
     };
-  };
+};
+
+const startLPLSplit3 = (prev: GameState): GameState => {
+    // 1. Nirvana Grubundaki (Group B) sıralamayı al
+    const nirvanaStandings = prev.standings
+        .filter(s => s.group === 'Nirvana')
+        .sort((a, b) => b.wins - a.wins);
+
+    // 2. Son 2 takımı bul ve ele (Hard Elimination)
+    const eliminatedTeamIds = nirvanaStandings.slice(-2).map(s => s.teamId);
+
+    // 3. Kalan takımları (Ascend + 6 Nirvana) al
+    const survivingTeams = prev.standings
+        .filter(s => !eliminatedTeamIds.includes(s.teamId))
+        .map(s => s.teamId);
+
+    // 4. Bildirim göster
+    const eliminatedNames = activeLeague.teams
+        .filter(t => eliminatedTeamIds.includes(t.id))
+        .map(t => t.shortName)
+        .join(' & ');
+    showNotification('error', `${eliminatedNames} have been eliminated from the 2025 Season!`);
+
+    // 5. Yeni Fikstür (Kalan 14 takım tek grup)
+    // generateGroupStageSchedule fonksiyonunu "tek grup" olarak kullanabiliriz
+    const groups = { A: survivingTeams, B: [] }; // Herkes A grubunda
+    const schedule = generateGroupStageSchedule(groups, { ...activeLeague.settings, scheduleType: 'SINGLE_ROBIN' });
+
+    // 6. Standings güncelle (Elenenleri işaretle)
+    const newStandings = prev.standings.map(s => ({
+        ...s,
+        wins: 0, losses: 0, gameWins: 0, gameLosses: 0,
+        group: eliminatedTeamIds.includes(s.teamId) ? null : 'A',
+        isEliminated: eliminatedTeamIds.includes(s.teamId)
+    }));
+
+    return {
+        ...prev,
+        stage: 'LPL_SPLIT_3_GROUPS',
+        currentSplit: 'SPLIT_3',
+        week: 1,
+        currentDay: 1,
+        schedule,
+        standings: newStandings,
+        playoffMatches: []
+    };
+};
 
   const endLPLPlacementStage = (currentGameState: GameState) => {
     const { standings, schedule } = currentGameState;
@@ -1724,20 +1885,66 @@ export default function App() {
       }
 
       if (leagueFormat === 'LPL' && currentSplit === 'SPRING' && currentStage === 'PLAYOFFS') {
-           const historyKey = `${gameState.year} Split 1 Playoffs`;
-           const newHistory = saveToHistory(gameState, historyKey, 'BRACKET');
-           const split2State = startLPLSplit2({ ...gameState, matchHistory: newHistory });
-           setGameState({ ...split2State, currentSplit: 'SPLIT_2' });
-           setTab('schedule');
-           return;
+          const historyKey = `${gameState.year} Split 1 Playoffs`;
+          const newHistory = saveToHistory(gameState, historyKey, 'BRACKET');
+          const split2State = startLPLSplit2({ ...gameState, matchHistory: newHistory });
+          setGameState({ ...split2State, currentSplit: 'SPLIT_2' });
+          setTab('schedule');
+          return;
       }
 
+      if (leagueFormat === 'LPL' && currentStage === 'LPL_SPLIT_2_GROUPS' && gameState.schedule.every(m => m.played)) {
+        const historyKey = `${gameState.year} Split 2 Groups`;
+        const newHistory = saveToHistory(gameState, historyKey, 'LEAGUE');
+        
+        const split3State = startLPLSplit3({ ...gameState, matchHistory: newHistory });
+        setGameState(split3State);
+        showNotification('success', 'Split 2 Ended. Moving to Split 3 (Road to Worlds).');
+        setTab('schedule'); // Kullanıcıyı takvime yönlendir
+        return; // ÖNEMLİ: Fonksiyondan çık, advanceYear çalışmasın!
+      }
+        if (leagueFormat === 'LPL' && currentStage === 'LPL_SPLIT_3_GROUPS' && gameState.schedule.every(m => m.played)) {
+            setGameState(prev => initializeSimplePlayoffs(prev));
+            return;
+        }
+
+        // 1. Split 2 Grupları Bitti -> Split 3'e Geçiş (Ascend/Nirvana sonu)
+        if (leagueFormat === 'LPL' && currentStage === 'LPL_SPLIT_2_GROUPS' && gameState.schedule.every(m => m.played)) {
+            const historyKey = `${gameState.year} Split 2 Ascend/Nirvana`;
+            // Geçmişe kaydet
+            const newHistory = saveToHistory(gameState, historyKey, 'LEAGUE');
+            
+            // Split 3'ü başlat (Bu fonksiyonu önceki cevabımda vermiştim, eklediğinden emin ol)
+            const split3State = startLPLSplit3({ ...gameState, matchHistory: newHistory });
+            
+            setGameState(split3State);
+            showNotification('success', 'Split 2 Concluded! Bottom 2 teams of Nirvana are eliminated.');
+            return;
+        }
+
+        // 2. Split 3 Bitti -> Playofflara Geçiş
+        if (leagueFormat === 'LPL' && currentStage === 'LPL_SPLIT_3_GROUPS' && gameState.schedule.every(m => m.played)) {
+            const historyKey = `${gameState.year} Split 3 Road to Worlds`;
+            const newHistory = saveToHistory(gameState, historyKey, 'LEAGUE');
+
+            // Burada LPL Final Playofflarını başlatıyoruz (startLPLSplit2Playoffs benzeri bir yapı)
+            // Şimdilik basitçe mevcut playoff fonksiyonunu kullanabilirsin veya özelleştirebilirsin
+            setGameState(prev => ({
+              ...prev,
+              matchHistory: newHistory,
+              ...initializeSimplePlayoffs(prev) // Veya startLPLFinals(prev) yazabilirsin
+            }));
+            return;
+        }
       // Eğer yukarıdaki hiçbir şart sağlanmazsa (Örn: Yaz sezonu playoffları bitti) yıl atlanır.
       advanceYear(); 
   };
 
   const advanceYear = () => { 
       let seasonReward = 5000;
+      const newNews: NewsArticle[] = [];
+      const newMessages: PlayerMessage[] = [];
+      const date = { year: gameState.year + 1, split: 'OFF_SEASON', week: 0 };
       const newIncomingOffers: IncomingOffer[] = [];
 
       const generateAiOffers = (player: PlayerCard) => {
@@ -1796,17 +2003,88 @@ export default function App() {
       const clutchFactor = performanceTitle === "LCK Champion" ? 1 : 0;
       const newFreeAgents = [...gameState.freeAgents];
       
+      const allUserPlayersBefore = [...Object.values(gameState.roster).filter(p => p), ...gameState.inventory] as PlayerCard[];
+
       const updatedInventory = gameState.inventory
         .map(p => processPlayerOffSeason(p, clutchFactor, retiredPlayerNames, newFreeAgents))
         .filter((p): p is PlayerCard => p !== null);
 
       const updatedRoster = { ...gameState.roster };
-      Object.keys(updatedRoster).forEach(key => {
+      (Object.keys(updatedRoster) as Role[]).forEach(key => {
           const role = key as Role;
           if (updatedRoster[role]) {
               updatedRoster[role] = processPlayerOffSeason(updatedRoster[role]!, clutchFactor, retiredPlayerNames, newFreeAgents);
           }
       });
+
+      const allUserPlayersAfter = [...Object.values(updatedRoster).filter((p): p is PlayerCard => p !== null), ...updatedInventory];
+      const afterIds = new Set(allUserPlayersAfter.map(p => p.id));
+
+      allUserPlayersBefore.forEach(player => {
+        if (!afterIds.has(player.id)) {
+            if (retiredPlayerNames.includes(player.name)) {
+                newNews.push({ id: crypto.randomUUID(), type: 'RETIREMENT', title: `${player.name} Emekli Oldu`, content: `Veteran oyuncu ${player.name} (${player.age + 1}) profesyonel arenadan emekli olduğunu açıkladı.`, date, involved: [{ type: 'player', name: player.name }] });
+            } else {
+                newNews.push({ id: crypto.randomUUID(), type: 'RUMOR', title: `${player.name} Serbest Kaldı`, content: `Sözleşmesi sona eren ${player.name}, serbest oyuncu piyasasına girdi.`, date, involved: [{ type: 'player', name: player.name }] });
+            }
+        } else {
+            const updatedPlayer = allUserPlayersAfter.find(p => p.id === player.id)!;
+            const morale = updatedPlayer.morale ?? 50;
+
+            if (morale < 30 && Math.random() < 0.6) {
+                newMessages.push({
+                    id: crypto.randomUUID(), playerId: updatedPlayer.id, playerName: updatedPlayer.name,
+                    type: 'COMPLAINT', subject: "Bu sezonki performansımız...",
+                    body: `Menajerim, bu sezonki gidişattan hiç memnun değilim. Takım olarak potansiyelimizin altında kaldığımızı düşünüyorum ve bazı şeylerin değişmesi gerektiğine inanıyorum. Gelecek sezon şampiyonluk istiyorsak daha ciddi adımlar atmalıyız.`,
+                    isRead: false, date
+                });
+            } else if (morale > 85 && performanceTitle.includes("Champion") && Math.random() < 0.7) {
+                newMessages.push({
+                    id: crypto.randomUUID(), playerId: updatedPlayer.id, playerName: updatedPlayer.name,
+                    type: 'THANKS', subject: "Şampiyonluk için teşekkürler!",
+                    body: `Menajerim, bu harika sezon ve şampiyonluk için size ve tüm ekibe minnettarım! Bize olan inancınız ve desteğiniz sayesinde bu başarıyı elde ettik. Gelecek sezon da aynı başarıyı tekrarlamak için sabırsızlanıyorum!`,
+                    isRead: false, date
+                });
+            }
+
+            if (updatedPlayer.contractDuration === 1 && player.contractDuration > 1) {
+                 newMessages.push({
+                    id: crypto.randomUUID(), playerId: updatedPlayer.id, playerName: updatedPlayer.name,
+                    type: 'INFO', subject: "Sözleşmem hakkında...",
+                    body: `Selam menajerim, sadece bir hatırlatma yapmak istedim. Sözleşmemin gelecek sezon sonunda biteceğini biliyorum. Takımdaki geleceğim hakkında konuşmak için doğru zaman geldiğinde sizinle görüşmeyi dört gözle bekliyorum.`,
+                    isRead: false, date
+                });
+            }
+
+            // YENİ ÖZELLİK: Sözleşme Yenileme Teklifi
+            // Sözleşmesinin bitmesine 1 yıl kalan ve morali yüksek oyuncular teklif sunar.
+            if (updatedPlayer.contractDuration === 1 && (updatedPlayer.morale ?? 50) > 70 && Math.random() < 0.6) {
+                let salaryExpectationText = "";
+                if (updatedPlayer.overall >= 88) {
+                    salaryExpectationText = "Mevcut performansımı ve piyasa değerimi göz önünde bulundurarak maaşımda küçük bir artışla devam etmeyi umuyorum.";
+                } else {
+                    salaryExpectationText = "Bu takımda kalabilmek için maaşımda küçük bir indirimi kabul etmeye hazırım.";
+                }
+
+                newMessages.push({
+                    id: crypto.randomUUID(), playerId: updatedPlayer.id, playerName: updatedPlayer.name,
+                    type: 'REQUEST', subject: "Sözleşmemi yenilemek istiyorum!",
+                    body: `Menajerim, bu takımda oynamaktan gerçekten keyif alıyorum ve burada bir gelecek inşa etmek istiyorum. Gelecek sezon sonunda sözleşmem bitiyor ama ben şimdiden yola devam etmeye hazırım. ${salaryExpectationText} Eğer kabul ederseniz, sözleşmemi 2 yıl daha uzatabiliriz. Cevabınızı bekliyorum.`,
+                    isRead: false, date
+                });
+            }
+        }
+      });
+
+      // Askerlik hizmetindeki oyuncuları kontrol et
+      newFreeAgents.forEach((p, index) => {
+        if (p.status === 'military_service' && p.unavailableUntil && gameState.year + 1 >= p.unavailableUntil) {
+            const returningPlayer = { ...p, status: 'retired', role: Role.COACH, originalRole: p.role, unavailableUntil: undefined };
+            newFreeAgents[index] = returningPlayer;
+            newNews.push({ id: crypto.randomUUID(), type: 'MAJOR_EVENT', title: `${p.name} Askerlikten Döndü!`, content: `${p.name}, zorunlu askerlik hizmetini tamamlayarak koç olarak sahalara geri dönüyor.`, date, involved: [{ type: 'player', name: p.name }] });
+        }
+      });
+
 
       const updatedAiRosters = { ...gameState.aiRosters };
       Object.keys(updatedAiRosters).forEach(teamId => {
@@ -1847,7 +2125,7 @@ export default function App() {
           });
       });
 
-      const transferUpdates = handleAiTransfers({ ...gameState, aiRosters: updatedAiRosters, freeAgents: newFreeAgents });
+      const transferUpdates = handleAiTransfers({ ...gameState, aiRosters: updatedAiRosters, freeAgents: newFreeAgents, newsFeed: [], playerMessages: [] });
 
       setGameState(prev => ({
           ...prev, 
@@ -1860,7 +2138,9 @@ export default function App() {
           inventory: updatedInventory,
           roster: updatedRoster,
           aiRosters: transferUpdates.aiRosters || updatedAiRosters,
-          freeAgents: transferUpdates.freeAgents || newFreeAgents,
+          freeAgents: transferUpdates.freeAgents || newFreeAgents, // handleAiTransfers'dan gelenler
+          newsFeed: [...prev.newsFeed, ...newNews, ...(transferUpdates.newsFeed || [])],
+          playerMessages: [...prev.playerMessages, ...newMessages],
           playoffMatches: [] 
       })); 
       
@@ -1873,22 +2153,74 @@ export default function App() {
         showNotification('success', `${newIncomingOffers.length} new offers received!`);
       }
       setMarket(prevMarket => prevMarket.filter(p => !retiredPlayerNames.includes(p.name)));
+      if (newMessages.length > 0) {
+        setNewlyArrivedMessages(newMessages);
+      }
       setTab('dashboard'); 
   };
 
-  const checkRetirement = (player: PlayerCard, isChampion: boolean): boolean => {
-    const age = player.age;
-    if (age < 27) return false;
+  const updatePlayerRelationships = (roster: Record<Role, PlayerCard | null>, didWin: boolean): Record<Role, PlayerCard | null> => {
+    const players = Object.values(roster).filter((p): p is PlayerCard => p !== null && p.role !== Role.COACH);
+    if (players.length < 2) return roster;
+
+    // Rastgele bir çift oyuncu seç
+    let playerA = players[Math.floor(Math.random() * players.length)];
+    let playerB = players[Math.floor(Math.random() * players.length)];
+    while (playerA.id === playerB.id) {
+      playerB = players[Math.floor(Math.random() * players.length)];
+    }
+
+    const chance = didWin ? 0.15 : 0.20; // Kaybedince ilişki değişikliği ihtimali daha yüksek
+    if (Math.random() > chance) return roster;
+
+    const newRoster = { ...roster };
+
+    const updateRelationship = (p1: PlayerCard, p2: PlayerCard, type: PlayerRelationship['type']) => {
+      if (!p1.relationships) p1.relationships = [];
+      if (!p2.relationships) p2.relationships = [];
+      
+      // Mevcut zıt ilişkiyi kaldır
+      p1.relationships = p1.relationships.filter(r => r.targetPlayerId !== p2.id);
+      p2.relationships = p2.relationships.filter(r => r.targetPlayerId !== p1.id);
+
+      p1.relationships.push({ targetPlayerId: p2.id, type, strength: 50 });
+      p2.relationships.push({ targetPlayerId: p1.id, type, strength: 50 });
+      showNotification('info', `A new ${type.toLowerCase()} has formed between ${p1.name} and ${p2.name}.`);
+    };
+
+    if (didWin && Math.random() < 0.7) { // Galibiyet sonrası dostluk ihtimali
+      updateRelationship(playerA, playerB, 'FRIENDSHIP');
+    } else if (!didWin && Math.random() < 0.5) { // Mağlubiyet sonrası anlaşmazlık ihtimali
+      updateRelationship(playerA, playerB, 'CONFLICT');
+    }
+
+    return newRoster;
+  };
+
+  const checkRetirement = (player: PlayerCard, isChampion: boolean): 'MILITARY' | 'NORMAL' | false => {
+    const { age, morale, overall, previousOverall } = player;
+    if (age < 26) return false;
+
+    // Askerlik hizmeti (LCK'ye özel)
+    if (player.league === 'LCK' && age >= 28) {
+        return 'MILITARY';
+    }
+
     let retirementChance = 0;
-    if (age === 27) retirementChance = 0.03; 
-    else if (age === 28) retirementChance = 0.08; 
-    else if (age === 29) retirementChance = 0.15; 
-    else if (age >= 30) retirementChance = 0.25; 
+    if (age === 26) retirementChance = 0.02;
+    else if (age === 27) retirementChance = 0.05;
+    else if (age === 28) retirementChance = 0.10;
+    else if (age === 29) retirementChance = 0.20;
+    else if (age >= 30) retirementChance = 0.30;
 
-    if (isChampion) retirementChance *= 0.2; 
-    if (player.overall > (player.previousOverall || player.overall -1)) retirementChance *= 0.3; 
+    // Mental Sağlık (Düşük Moral)
+    if ((morale ?? 50) < 30) retirementChance *= 1.8;
 
-    return Math.random() < retirementChance;
+    if (isChampion) retirementChance *= 0.2; // Şampiyon olduysa emekli olma ihtimali çok düşer
+    else if (age > 28) retirementChance *= 1.5; // Yaşlı ve şampiyon olamadıysa ihtimal artar
+    if (overall > (previousOverall || overall - 1)) retirementChance *= 0.3; // Hala gelişiyorsa ihtimal düşer
+
+    return Math.random() < retirementChance ? 'NORMAL' : false;
   };
 
   const processPlayerOffSeason = (
@@ -1900,8 +2232,10 @@ export default function App() {
       const updated = processPlayerProgression(player, clutchFactor);
       updated.contractDuration -= 1;
 
-      const convertToCoach = (p: PlayerCard): PlayerCard => ({
+      const convertToCoach = (p: PlayerCard, reason: string): PlayerCard => ({
         ...p,
+        originalRole: p.role,
+        retirementReason: reason,
         role: Role.COACH,
         status: 'retired',
         overall: Math.min(99, Math.round((p.stats.macro * 1.5 + p.stats.teamfight) / 2.5) + 5),
@@ -1911,9 +2245,22 @@ export default function App() {
         contractDuration: 0,
       });
 
-      if (checkRetirement(updated, clutchFactor > 0)) {
+      const retirementReason = checkRetirement(updated, clutchFactor > 0);
+      if (retirementReason) {
           retiredPlayerNames.push(updated.name);
-          newFreeAgents.push(convertToCoach(updated));
+          if (retirementReason === 'MILITARY') {
+              newFreeAgents.push({
+                  ...updated,
+                  status: 'military_service',
+                  retirementReason: 'Askerlik Hizmeti',
+                  team: 'FA',
+                  contractDuration: 0,
+                  price: 0,
+                  unavailableUntil: updated.age + 2, // 2 yıl sonra dönecek
+              });
+          } else {
+              newFreeAgents.push(convertToCoach(updated, 'Performans/Yaş'));
+          }
           return null;
       }
 
@@ -2098,7 +2445,7 @@ export default function App() {
           loopCount++;
 
           // GROUP STAGE ve LPL PLACEMENTS Mantığı
-          if (newState.stage === 'GROUP_STAGE' || newState.stage === 'LPL_SPLIT_2_PLACEMENTS') {
+          if (newState.stage === 'GROUP_STAGE' || newState.stage === 'LPL_SPLIT_2_GROUPS' || newState.stage === 'LPL_SPLIT_3_GROUPS') {
               const matchesToday = newState.schedule.filter(m => m.round === newState.currentDay);
               
               if (matchesToday.length === 0) { stopSkipping = true; break; }
@@ -2211,12 +2558,18 @@ export default function App() {
         // 1. Group Stage Sonu
         if ((newState.stage === 'GROUP_STAGE' || newState.stage === 'LPL_SPLIT_2_PLACEMENTS') && newState.schedule.every(m => m.played)) {
              if (activeLeague.settings.format === 'LPL') {
+                if (newState.stage === 'LPL_SPLIT_2_GROUPS' || newState.stage === 'LPL_SPLIT_3_GROUPS') {
+                    return newState;
+                }
                 if (newState.stage === 'LPL_SPLIT_2_PLACEMENTS') {
                     return endLPLPlacementStage(newState);
                 } else if (newState.currentSplit === 'SUMMER') {
                     return newState;
                 } else {
-                    return startLPLSplit1Playoffs(newState);
+                    if (newState.currentSplit === 'SPRING') {
+                         return startLPLSplit1Playoffs(newState);
+                    }
+                    return newState;
                 }
              } else {
                  if (activeLeague.settings.format === 'LEC') {
@@ -2228,8 +2581,6 @@ export default function App() {
                  }
              }
         }
-        
-        // 2. Play-In Sonu
         if (newState.stage === 'PLAY_IN' && newState.playoffMatches.every(m => m.winnerId)) {
             return initializePlayoffs(newState);
         }
@@ -2380,6 +2731,7 @@ export default function App() {
        let updatedStandings = [...prev.standings];
        const updatedRoster = eventResult.roster;
        let nextState = { ...prev, roster: updatedRoster };
+       let newRosterForMorale = { ...updatedRoster };
 
        if (nextState.stage === 'GROUP_STAGE') {
            const matchesToday = nextState.schedule.filter(m => m.round === nextState.currentDay);
@@ -2407,7 +2759,7 @@ export default function App() {
                    const userStanding = updatedStandings.find(s => s.teamId === nextState.teamId);
                    const oldStreak = userStanding?.streak || 0;
                    const newStreak = didWin ? Math.max(1, oldStreak + 1) : Math.min(-1, oldStreak - 1);
-                   if(userStanding) userStanding.streak = newStreak;
+                   if (userStanding) userStanding.streak = newStreak;
                    newRosterForMorale = updateTeamMorale(newRosterForMorale, didWin, oldStreak);
                }
 
@@ -2435,8 +2787,15 @@ export default function App() {
            if (allSeasonPlayed) {
                 let finalState = { ...nextState, schedule: newSchedule, standings: updatedStandings, roster: newRosterForMorale };
                 if (activeLeague.settings.format === 'LPL') {
-                    if (finalState.currentSplit === 'SUMMER') finalState = startLPLSplit2(finalState);
-                    else finalState = startLPLSplit1Playoffs(finalState);
+                    if (finalState.stage === 'LPL_SPLIT_2_GROUPS' || finalState.stage === 'LPL_SPLIT_3_GROUPS') {
+                        return finalState;
+                    }
+                    if (finalState.stage === 'LPL_SPLIT_2_PLACEMENTS') {
+                         return endLPLPlacementStage(finalState);
+                    }
+                    if (finalState.currentSplit === 'SPRING') {
+                        finalState = startLPLSplit1Playoffs(finalState);
+                    }
                 } else if (activeLeague.settings.format === 'LEC') {
                   finalState = startLECGroupStage(finalState);
                 } else if (activeLeague.settings.format === 'LCK') {
@@ -2450,9 +2809,12 @@ export default function App() {
            const newDay = allTodayPlayed ? nextState.currentDay + 1 : nextState.currentDay;
            const newWeek = Math.ceil(newDay / 5);
 
+           // Maç sonrası ilişki güncellemesi
+           const finalRoster = userResult ? updatePlayerRelationships(newRosterForMorale, userResult.victory) : newRosterForMorale;
+
            return { 
                ...nextState,
-               roster: newRosterForMorale,
+               roster: finalRoster,
                schedule: newSchedule, 
                standings: updatedStandings, 
                currentDay: newDay, 
@@ -2735,8 +3097,112 @@ export default function App() {
 
   const MarketView = React.memo(MarketViewComponent);
 
+  const InboxView: React.FC<{
+    newsFeed: NewsArticle[];
+    playerMessages: PlayerMessage[];
+    onReadMessage: (messageId: string) => void;
+    onAcceptRequest: (message: PlayerMessage) => void;
+    teams: TeamData[];
+  }> = ({ newsFeed, playerMessages, onReadMessage, onAcceptRequest }) => {
+    const [view, setView] = useState<'messages' | 'news'>('messages');
+    const [selectedId, setSelectedId] = useState<string | null>(null);
+
+    const sortedMessages = useMemo(() => [...playerMessages].sort((a, b) => (a.isRead ? 1 : 0) - (b.isRead ? 1 : 0) || b.date.year - a.date.year || (b.date.week ?? 0) - (a.date.week ?? 0)), [playerMessages]);
+    const sortedNews = useMemo(() => [...newsFeed].sort((a, b) => b.date.year - a.date.year || (b.date.week ?? 0) - (a.date.week ?? 0)), [newsFeed]);
+
+    const itemsToShow = view === 'messages' ? sortedMessages : sortedNews;
+    const selectedItem = itemsToShow.find(item => item.id === selectedId);
+
+    useEffect(() => {
+        if (selectedId && selectedItem && 'isRead' in selectedItem && !selectedItem.isRead) {
+            onReadMessage(selectedId);
+        }
+    }, [selectedId, selectedItem, onReadMessage]);
+    
+    useEffect(() => {
+        // Sekme değiştiğinde seçimi temizle
+        setSelectedId(null);
+    }, [view]);
+
+    const unreadMessagesCount = playerMessages.filter(m => !m.isRead).length;
+
+    return (
+        <div className="space-y-6">
+            <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-bold font-display text-white">Chat</h2>
+                <div className="flex gap-1 bg-dark-950 p-1 rounded-lg">
+                    <button onClick={() => setView('messages')} className={`relative flex items-center gap-2 px-4 py-1.5 rounded text-sm font-bold ${view === 'messages' ? 'bg-hextech-600 text-white' : 'text-gray-400 hover:bg-dark-800'}`}>
+                        <MessageSquare size={16} /> Messages
+                        {unreadMessagesCount > 0 && <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">{unreadMessagesCount}</span>}
+                    </button>
+                    <button onClick={() => setView('news')} className={`flex items-center gap-2 px-4 py-1.5 rounded text-sm font-bold ${view === 'news' ? 'bg-hextech-600 text-white' : 'text-gray-400 hover:bg-dark-800'}`}>
+                        <Newspaper size={16} /> News
+                    </button>
+                </div>
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 min-h-[600px]">
+                <div className="lg:col-span-1 bg-dark-900 border border-dark-800 rounded-xl p-2 flex flex-col">
+                    <div className="flex-1 overflow-y-auto space-y-2 pr-2">
+                        {itemsToShow.length === 0 && <div className="text-center text-gray-500 italic py-10">Görüntülenecek bir şey yok.</div>}
+                        {itemsToShow.map(item => (
+                            <div key={item.id} onClick={() => setSelectedId(item.id)} className={`p-3 rounded-lg cursor-pointer transition-colors ${selectedId === item.id ? 'bg-dark-950' : 'hover:bg-dark-800/50'} ${('isRead' in item && !item.isRead) ? 'border-l-4 border-hextech-500' : ''}`}>
+                                <div className="flex justify-between items-start">
+                                    <p className={`font-bold ${('isRead' in item && !item.isRead) ? 'text-white' : 'text-gray-300'}`}>{ 'playerName' in item ? item.playerName : item.title }</p>
+                                    <span className="text-xs text-gray-500 whitespace-nowrap">{item.date.year} {item.date.split}</span>
+                                </div>
+                                <p className="text-sm text-gray-400 truncate">{ 'subject' in item ? item.subject : item.content }</p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+                <div className="lg:col-span-2 bg-dark-900 border border-dark-800 rounded-xl p-8">
+                    {selectedItem ? (
+                        <div className="animate-fade-in">
+                            {'playerName' in selectedItem && (
+                                <div className="mb-4">
+                                    <p className="text-sm text-gray-400">Kimden: <span className="font-bold text-white">{selectedItem.playerName}</span></p>
+                                    <p className="text-sm text-gray-400">Konu: <span className="font-bold text-white">{selectedItem.subject}</span></p>
+                                </div>
+                            )}
+                            <h3 className="text-2xl font-bold text-hextech-300 mb-4">{selectedItem.title || selectedItem.subject}</h3>
+                            <div className="prose prose-invert prose-p:text-gray-300 prose-p:leading-relaxed">
+                                <p>{'body' in selectedItem ? selectedItem.body : selectedItem.content}</p>
+                            </div>
+                            {'involved' in selectedItem && (
+                                <div className="mt-6 pt-4 border-t border-dark-700">
+                                    <h4 className="text-sm font-bold text-gray-500 uppercase mb-2">İlgili Taraflar</h4>
+                                    <div className="flex flex-wrap gap-2">
+                                        {selectedItem.involved.map((p, i) => (
+                                            <span key={i} className={`px-2.5 py-1 rounded-full text-xs font-bold ${p.type === 'team' ? 'bg-blue-900/50 text-blue-300' : 'bg-purple-900/50 text-purple-300'}`}>{p.name}</span>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                            {'type' in selectedItem && selectedItem.type === 'REQUEST' && (
+                                <div className="mt-6 pt-4 border-t border-dark-700 text-center">
+                                    <button 
+                                      onClick={() => onAcceptRequest(selectedItem as PlayerMessage)}
+                                      disabled={selectedItem.subject.includes('[Kabul Edildi]')}
+                                      className="px-6 py-2 bg-green-600 hover:bg-green-500 text-white font-bold rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >{selectedItem.subject.includes('[Kabul Edildi]') ? 'Teklif Kabul Edildi' : 'Teklifi Kabul Et'}</button>
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="flex flex-col items-center justify-center h-full text-center text-gray-600">
+                            <Mail size={48} className="mb-4" />
+                            <h3 className="text-lg font-bold">Bir öğe seçin</h3>
+                            <p>Okumak için soldaki listeden bir haber veya mesaj seçin.</p>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+  };
+
   const DashboardView = () => {
-    const { synergies, totalBonus } = getActiveSynergies(gameState.roster);
+    const { synergies, totalBonus, relationshipBonus } = getActiveSynergies(gameState.roster);
 
     return (
       <div className="space-y-6">
@@ -2748,7 +3214,7 @@ export default function App() {
             <div className="flex gap-3 text-sm text-gray-400 items-center">
               <span>Power: <span className="text-white font-bold">{getTeamPower()}</span></span>
               <span className="text-gray-600">|</span>
-              <span>Synergy: <span className="text-cyan-400 font-bold">+{totalBonus}</span></span>
+              <span>Synergy: <span className="text-cyan-400 font-bold">+{totalBonus}</span> {relationshipBonus !== 0 && <span className={`text-xs font-mono ${relationshipBonus > 0 ? 'text-green-400' : 'text-red-400'}`}>({relationshipBonus > 0 ? '+' : ''}{relationshipBonus})</span>}</span>
               <span className="text-gray-600">|</span>
               <span>Coins: <span className="text-gold-400 font-bold">{gameState.coins}</span></span>
               <span className="text-gray-600">|</span>
@@ -2762,6 +3228,14 @@ export default function App() {
                     <span className="text-cyan-400 font-mono ml-1.5">+{s.bonus}</span>
                   </div>
                 ))}
+                {relationshipBonus > 0 && (
+                  <div className="bg-green-900/50 border border-green-700/50 px-2.5 py-1 rounded-full text-xs">
+                    <span className="font-bold text-green-300">Friendships</span><span className="text-green-400 font-mono ml-1.5">+{relationshipBonus}</span>
+                  </div>)}
+                {relationshipBonus < 0 && (
+                  <div className="bg-red-900/50 border border-red-700/50 px-2.5 py-1 rounded-full text-xs">
+                    <span className="font-bold text-red-300">Conflicts</span><span className="text-red-400 font-mono ml-1.5">{relationshipBonus}</span>
+                  </div>)}
               </div>
             )}
           </div>
@@ -2899,25 +3373,42 @@ export default function App() {
              {(Object.values(Role) as Role[]).map(role => {
                 const player = gameState.roster[role];
                 return (
-                   <div key={role} className="relative group">
+                   <div key={role} className="relative">
                       <div className="absolute -left-3 top-1/2 -translate-y-1/2 -translate-x-full text-xs font-bold text-gray-500 w-8 text-right">
                          {role}
                       </div>
                       {player ? (
-                         <Card 
-                           player={player} 
-                           team={activeLeague.teams.find(t => t.shortName === player.team)}
-                           compact
-                           isOwned
-                           actionLabel="Unassign"
-                           onClick={() => {
-                             setGameState(prev => ({
-                               ...prev,
-                                 roster: { ...prev.roster, [role]: null },
-                                 inventory: [...prev.inventory, player]
-                             }));
-                           }}
-                         />) : (<div className="h-16 border-2 border-dashed border-dark-700 rounded-lg flex items-center justify-center text-gray-600 font-bold bg-dark-900/50">Empty Slot</div>
+                         <div>
+                           <Card 
+                             player={player} 
+                             team={activeLeague.teams.find(t => t.shortName === player.team)}
+                             compact
+                             isOwned
+                             actionLabel="Unassign"
+                             onClick={() => {
+                               setGameState(prev => ({
+                                 ...prev,
+                                   roster: { ...prev.roster, [role]: null },
+                                   inventory: [...prev.inventory, player]
+                               }));
+                             }}
+                           />
+                           <div className="flex gap-2 mt-1.5 pl-16">
+                              {player.relationships?.map(rel => {
+                                const otherPlayer = Object.values(gameState.roster).find(p => p?.id === rel.targetPlayerId);
+                                if (!otherPlayer) return null;
+                                
+                                if (rel.type === 'FRIENDSHIP') {
+                                  return <div key={rel.targetPlayerId} className="flex items-center gap-1.5 text-xs bg-green-900/50 text-green-300 px-2 py-0.5 rounded-full"><Heart size={12} className="text-green-400" /> Dost: <span className="font-bold">{otherPlayer.name}</span></div>
+                                }
+                                if (rel.type === 'CONFLICT') {
+                                  return <div key={rel.targetPlayerId} className="flex items-center gap-1.5 text-xs bg-red-900/50 text-red-300 px-2 py-0.5 rounded-full"><HeartCrack size={12} className="text-red-400" /> Anlaşmazlık: <span className="font-bold">{otherPlayer.name}</span></div>
+                                }
+                                return null;
+                              })}
+                           </div>
+                         </div>
+                         ) : (<div className="h-16 border-2 border-dashed border-dark-700 rounded-lg flex items-center justify-center text-gray-600 font-bold bg-dark-900/50">Empty Slot</div>
                       )}
                    </div>
                 )
@@ -3012,6 +3503,59 @@ export default function App() {
     showNotification('success', `${player.name} assigned to ${player.role}.`);
   };
 
+  const handleReadMessage = (messageId: string) => {
+    setGameState(prev => ({
+        ...prev,
+        playerMessages: prev.playerMessages.map(msg => 
+            msg.id === messageId ? { ...msg, isRead: true } : msg
+        )
+    }));
+  };
+
+  const handleAcceptRenewalRequest = (message: PlayerMessage) => {
+    const player = [...Object.values(gameState.roster), ...gameState.inventory].find(p => p?.id === message.playerId);
+
+    if (!player) {
+      showNotification('error', 'Player not found in your team.');
+      return;
+    }
+
+    // YENİ: Oyuncunun reytingine göre maaş teklifini dinamik hale getirelim.
+    // 88 OVR ve üstü oyuncular %5 zam isterken, diğerleri %5 indirim teklif eder.
+    let newSalary;
+    if (player.overall >= 88) {
+      newSalary = Math.floor(player.salary * 1.05); // %5 zam
+    } else {
+      newSalary = Math.floor(player.salary * 0.95); // %5 indirim
+    }
+
+    // Oyuncuyu güncelle
+    const updatedPlayer = { ...player, contractDuration: 2, salary: newSalary };
+
+    setGameState(prev => {
+      const newRoster = { ...prev.roster };
+      const newInventory = [...prev.inventory];
+
+      // Oyuncunun kadroda mı yoksa yedeklerde mi olduğunu bul ve güncelle
+      const rosterRole = Object.keys(newRoster).find(role => newRoster[role as Role]?.id === player.id) as Role | undefined;
+      if (rosterRole) {
+        newRoster[rosterRole] = updatedPlayer;
+      } else {
+        const inventoryIndex = newInventory.findIndex(p => p.id === player.id);
+        if (inventoryIndex > -1) {
+          newInventory[inventoryIndex] = updatedPlayer;
+        }
+      }
+
+      // Mesajı "okundu" olarak işaretle
+      const newMessages = prev.playerMessages.map(m => m.id === message.id ? { ...m, isRead: true, subject: `[Kabul Edildi] ${m.subject}` } : m);
+
+      return { ...prev, roster: newRoster, inventory: newInventory, playerMessages: newMessages };
+    });
+
+    showNotification('success', `${player.name}'s contract has been extended for 2 years with a new salary of ${newSalary}G!`);
+  };
+
   const ScheduleView = () => {
     const [filterYear, setFilterYear] = useState<number>(gameState.year);
     const [viewId, setViewId] = useState<string>('CURRENT');
@@ -3062,14 +3606,24 @@ export default function App() {
         // 3. EN SONA MEVCUT (CURRENT) SEKME EKLENİYOR
         if (filterYear === gameState.year) {
             let currentTitle = "Current Stage";
+            // Stage isimlendirmeleri
             if (gameState.stage === 'MSI_PLAY_IN') currentTitle = "MSI Play-In (Current)";
             else if (gameState.stage === 'MSI_BRACKET') currentTitle = "MSI Bracket (Current)";
+            else if (gameState.stage === 'LPL_SPLIT_2_GROUPS') currentTitle = "Ascend & Nirvana Groups"; // YENİ
+            else if (gameState.stage === 'LPL_SPLIT_3_GROUPS') currentTitle = "Road to Worlds (Split 3)"; // YENİ
             else if (gameState.stage.includes('PLAYOFFS')) currentTitle = "Playoffs (Current)";
             else if (gameState.stage.includes('GROUP')) currentTitle = "Regular Season (Current)";
 
+            // Görünüm Tipi Belirleme (ÖNEMLİ)
             let cViewType: HistoryViewType = 'LEAGUE';
-            if (['PLAYOFFS', 'MSI_BRACKET', 'MSI_PLAY_IN', 'PLAY_IN'].includes(gameState.stage)) cViewType = 'BRACKET';
-            else if (['LPL_SPLIT_2_LCQ'].includes(gameState.stage)) cViewType = 'LIST';
+            
+            // Hangi aşamalar BRACKET (Ağaç), hangileri LEAGUE (Puan Durumu) olacak?
+            if (['PLAYOFFS', 'MSI_BRACKET', 'MSI_PLAY_IN', 'PLAY_IN', 'LPL_SPLIT_2_LCQ'].includes(gameState.stage)) {
+                cViewType = 'BRACKET';
+            } else {
+                // GROUP_STAGE, LPL_SPLIT_2_GROUPS, LPL_SPLIT_3_GROUPS buraya düşer
+                cViewType = 'LEAGUE';
+            }
 
             tabsList.push({ 
                 id: 'CURRENT', 
@@ -3188,7 +3742,17 @@ export default function App() {
   };
 
   const StandingsView = () => {
-    const groupsToShow = activeLeague.settings.format === 'LPL' ? ['A', 'B', 'C', 'D'] : ['A', 'B'];
+    let groupsToShow: string[] = ['A', 'B'];
+    
+    if (activeLeague.settings.format === 'LPL') {
+        if (gameState.stage === 'LPL_SPLIT_2_GROUPS') {
+            groupsToShow = ['Ascend', 'Nirvana'];
+        } else if (gameState.stage === 'LPL_SPLIT_3_GROUPS') {
+             groupsToShow = ['A']; // Split 3 tek bir havuz
+        } else {
+            groupsToShow = ['A', 'B', 'C', 'D']; // Split 1
+        }
+    }
 
     return (
       <div className="space-y-6">
@@ -3273,9 +3837,9 @@ export default function App() {
                  let isEliminated = false;
                  let canSimulate = false;
 
-                 if (gameState.stage === 'GROUP_STAGE') {
-                     const matchesToday = gameState.schedule.filter(m => m.round === gameState.currentDay);
-                     nextMatch = matchesToday.find(m => !m.played && (m.teamAId === gameState.teamId || m.teamBId === gameState.teamId));
+                 if (gameState.stage === 'GROUP_STAGE' || gameState.stage === 'LPL_SPLIT_2_GROUPS' || gameState.stage === 'LPL_SPLIT_3_GROUPS' || gameState.stage === 'LPL_SPLIT_2_PLACEMENTS') {
+                    const matchesToday = gameState.schedule.filter(m => m.round === gameState.currentDay);
+                    nextMatch = matchesToday.find(m => !m.played && (m.teamAId === gameState.teamId || m.teamBId === gameState.teamId));
                      
                      if (!nextMatch && matchesToday.some(m => !m.played)) {
                          canSimulate = true;
@@ -3458,6 +4022,8 @@ export default function App() {
     return <MainMenu onNewGame={handleNewGame} onContinue={handleContinueGame} hasSave={hasSaveFile} />;
   }
 
+  const unreadMessagesCount = gameState.playerMessages.filter(m => !m.isRead).length;
+
   return (
     <Layout 
       currentTab={tab} 
@@ -3466,6 +4032,7 @@ export default function App() {
       week={gameState.week}
       teamData={activeTeamData}
       managerName={`${gameState.managerName} (${gameState.year} ${gameState.currentSplit})`}
+      unreadMessages={unreadMessagesCount}
     >
       {/* ONBOARDING MODU: Yeni oyun başlatıldığında */}
       {view === 'ONBOARDING' && (
@@ -3546,6 +4113,7 @@ export default function App() {
             getTeamPower={getTeamPower}
             getActiveSynergies={getActiveSynergies} />}
           {tab === 'play' && <PlayView />}
+          {tab === 'inbox' && <InboxView newsFeed={gameState.newsFeed} playerMessages={gameState.playerMessages} onReadMessage={handleReadMessage} teams={allTeams} />}
         </>
       )}
     </Layout>

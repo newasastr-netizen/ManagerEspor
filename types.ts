@@ -52,6 +52,7 @@ export interface PlayerCard {
   status?: 'active' | 'retired';
   morale?: number;
   nationality?: string;
+  originalRole?: Role;
   potential?: 'S' | 'A' | 'B' | 'C';
 }
 

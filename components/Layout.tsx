@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, ShoppingBag, Users, PlayCircle, Coins, UserCircle, Trophy, CalendarDays, BarChart3, Dumbbell } from 'lucide-react';
+import { LayoutDashboard, ShoppingBag, Users, PlayCircle, Coins, UserCircle, Trophy, CalendarDays, BarChart3, Dumbbell, Mail } from 'lucide-react';
 import { TeamData } from '../types';
 import { TeamLogo } from './TeamLogo';
 
@@ -11,12 +11,14 @@ interface LayoutProps {
   week: number;
   teamData: TeamData | null;
   managerName: string;
+  unreadMessages: number;
 }
 
-export const Layout: React.FC<LayoutProps> = ({ children, currentTab, onTabChange, coins, week, teamData, managerName }) => {
-  const tabs = [
+export const Layout: React.FC<LayoutProps> = ({ children, currentTab, onTabChange, coins, week, teamData, managerName, unreadMessages }) => {
+  const tabs: any[] = [
     { id: 'dashboard', label: 'Overview', icon: <LayoutDashboard size={20} /> },
     { id: 'roster', label: 'My Team', icon: <Users size={20} /> },
+    { id: 'inbox', label: 'Mailbox', icon: <Mail size={20} />, unreadCount: unreadMessages },
     { id: 'training', label: 'Training', icon: <Dumbbell size={20} /> },
     { id: 'market', label: 'Transfer', icon: <ShoppingBag size={20} /> },
     { id: 'schedule', label: 'Schedule', icon: <CalendarDays size={20} /> },
@@ -63,11 +65,19 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentTab, onTabChang
                  ></div>
               )}
 
-              <div className={`${currentTab === tab.id ? 'text-white' : 'text-gray-400 group-hover:text-white'} z-10`}>
+              <div className={`${currentTab === tab.id ? 'text-white' : 'text-gray-400 group-hover:text-white'} z-10 relative`}>
                 {tab.icon}
+                {tab.unreadCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-dark-900 lg:hidden" />
+                )}
               </div>
-              <span className={`hidden lg:block font-semibold text-sm tracking-wide z-10 ${currentTab === tab.id ? 'text-white' : 'text-gray-400 group-hover:text-white'}`}>
+              <span className={`hidden lg:block font-semibold text-sm tracking-wide z-10 relative`}>
                 {tab.label}
+                {tab.unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-2 bg-red-500 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center border-2 border-dark-900">
+                    {tab.unreadCount > 9 ? '9+' : tab.unreadCount}
+                  </span>
+                )}
               </span>
               
               {/* Active Indicator Bar */}
