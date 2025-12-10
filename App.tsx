@@ -211,15 +211,15 @@ interface NewMessagesModalProps {
 const NewMessagesModal: React.FC<NewMessagesModalProps> = ({ messages, onClose }) => {
   if (messages.length === 0) return null;
 
-  const title = messages.length > 1 ? "Yeni Mesajlarınız Var" : "Yeni Bir Mesajınız Var";
+  const title = messages.length > 1 ? "You Have New Messages" : "You Have a New Message";
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
       <div className="bg-dark-900 border-2 border-hextech-500/50 w-full max-w-md rounded-2xl p-8 shadow-2xl text-center animate-fade-in">
         <Mail size={48} className="mx-auto text-hextech-400 mb-4" />
         <h2 className="text-2xl font-display font-bold text-white mb-4">{title}</h2>
-        <p className="text-gray-400 mb-6">Gelen kutunuzu kontrol etmeyi unutmayın.</p>
-        <button onClick={onClose} className="w-full py-3 bg-hextech-600 hover:bg-hextech-500 text-white font-bold rounded-xl">Tamam</button>
+        <p className="text-gray-400 mb-6">Don't forget to check your inbox.</p>
+        <button onClick={onClose} className="w-full py-3 bg-hextech-600 hover:bg-hextech-500 text-white font-bold rounded-xl">OK</button>
       </div>
     </div>
   );
@@ -253,8 +253,8 @@ const RetiredPlayerModal: React.FC<RetiredPlayerModalProps> = ({ player, isOpen,
           </div>
         </div>
         <div className="mb-6 text-center p-3 rounded-lg bg-dark-950 border border-dark-800">
-            <p className="text-sm text-gray-300">Bu oyuncu emekli oldu. Onu sahnelere geri döndürmeyi deneyebilirsin.</p>
-            {player.retirementReason && <p className="text-xs text-yellow-400 font-bold mt-1">Sebep: {player.retirementReason}</p>}
+            <p className="text-sm text-gray-300">This player has retired. You can try to lure them back to the scene.</p>
+            {player.retirementReason && <p className="text-xs text-yellow-400 font-bold mt-1">Reason: {player.retirementReason}</p>}
         </div>
         <div className="space-y-3">
           <button
@@ -1303,8 +1303,8 @@ export default function App() {
                 const log = `${team.shortName} signed ${upgrade.name} (FA) and released ${weakestPlayer.name}.`;
                 transferLogs.push(log);
                 newsFeed.push({
-                    id: crypto.randomUUID(), type: 'TRANSFER', title: `Serbest Oyuncu Hamlesi: ${team.shortName}`,
-                    content: `${team.shortName} takımı, serbest oyuncu pazarından ${upgrade.name}'i kadrosuna katarak önemli bir hamle yaptı. Bu transfer sonucunda ${weakestPlayer.name} ile yollar ayrıldı.`,
+                    id: crypto.randomUUID(), type: 'TRANSFER', title: `Free Agent Move: ${team.shortName}`,
+                    content: `${team.shortName} made a significant move by signing ${upgrade.name} from the free agent market. As a result, they parted ways with ${weakestPlayer.name}.`,
                     date, involved: [{ type: 'team', name: team.shortName }, { type: 'player', name: upgrade.name }]
                 });
             } else {
@@ -1315,8 +1315,8 @@ export default function App() {
                     const log = `${team.shortName} traded for ${upgrade.name} from ${upgrade.team}, sending ${weakestPlayer.name}.`;
                     transferLogs.push(log);
                     newsFeed.push({
-                        id: crypto.randomUUID(), type: 'TRANSFER', title: `Takas Bombası: ${upgrade.name} Takım Değiştirdi!`,
-                        content: `Ligde dengeleri değiştirebilecek bir takas gerçekleşti! ${team.shortName}, yıldız oyuncu ${upgrade.name}'i ${upgrade.team} takımından transfer ederken, karşılığında ${weakestPlayer.name}'i gönderdi.`,
+                        id: crypto.randomUUID(), type: 'TRANSFER', title: `Trade Bomb: ${upgrade.name} Changed Teams!`,
+                        content: `A trade that could shift the balance of the league has occurred! ${team.shortName} acquired star player ${upgrade.name} from ${upgrade.team}, sending ${weakestPlayer.name} in return.`,
                         date, involved: [
                             { type: 'team', name: team.shortName },
                             { type: 'team', name: upgrade.team },
@@ -2023,9 +2023,9 @@ const startLPLSplit3 = (prev: GameState): GameState => {
       allUserPlayersBefore.forEach(player => {
         if (!afterIds.has(player.id)) {
             if (retiredPlayerNames.includes(player.name)) {
-                newNews.push({ id: crypto.randomUUID(), type: 'RETIREMENT', title: `${player.name} Emekli Oldu`, content: `Veteran oyuncu ${player.name} (${player.age + 1}) profesyonel arenadan emekli olduğunu açıkladı.`, date, involved: [{ type: 'player', name: player.name }] });
+                newNews.push({ id: crypto.randomUUID(), type: 'RETIREMENT', title: `${player.name} Retired`, content: `Veteran player ${player.name} (${player.age + 1}) announced their retirement from the professional arena.`, date, involved: [{ type: 'player', name: player.name }] });
             } else {
-                newNews.push({ id: crypto.randomUUID(), type: 'RUMOR', title: `${player.name} Serbest Kaldı`, content: `Sözleşmesi sona eren ${player.name}, serbest oyuncu piyasasına girdi.`, date, involved: [{ type: 'player', name: player.name }] });
+                newNews.push({ id: crypto.randomUUID(), type: 'RUMOR', title: `${player.name} Released`, content: `${player.name}, whose contract expired, has entered the free agent market.`, date, involved: [{ type: 'player', name: player.name }] });
             }
         } else {
             const updatedPlayer = allUserPlayersAfter.find(p => p.id === player.id)!;
@@ -2034,15 +2034,15 @@ const startLPLSplit3 = (prev: GameState): GameState => {
             if (morale < 30 && Math.random() < 0.6) {
                 newMessages.push({
                     id: crypto.randomUUID(), playerId: updatedPlayer.id, playerName: updatedPlayer.name,
-                    type: 'COMPLAINT', subject: "Bu sezonki performansımız...",
-                    body: `Menajerim, bu sezonki gidişattan hiç memnun değilim. Takım olarak potansiyelimizin altında kaldığımızı düşünüyorum ve bazı şeylerin değişmesi gerektiğine inanıyorum. Gelecek sezon şampiyonluk istiyorsak daha ciddi adımlar atmalıyız.`,
+                    type: 'COMPLAINT', subject: "Our performance this season...",
+                    body: `Manager, I am not satisfied with how this season went. I think we performed below our potential as a team and I believe some things need to change. If we want the championship next season, we must take more serious steps.`,
                     isRead: false, date
                 });
             } else if (morale > 85 && performanceTitle.includes("Champion") && Math.random() < 0.7) {
                 newMessages.push({
                     id: crypto.randomUUID(), playerId: updatedPlayer.id, playerName: updatedPlayer.name,
-                    type: 'THANKS', subject: "Şampiyonluk için teşekkürler!",
-                    body: `Menajerim, bu harika sezon ve şampiyonluk için size ve tüm ekibe minnettarım! Bize olan inancınız ve desteğiniz sayesinde bu başarıyı elde ettik. Gelecek sezon da aynı başarıyı tekrarlamak için sabırsızlanıyorum!`,
+                    type: 'THANKS', subject: "Thanks for the championship!",
+                    body: `Manager, I am grateful to you and the whole team for this amazing season and championship! We achieved this success thanks to your belief and support. I can't wait to repeat the same success next season!`,
                     isRead: false, date
                 });
             }
@@ -2050,8 +2050,8 @@ const startLPLSplit3 = (prev: GameState): GameState => {
             if (updatedPlayer.contractDuration === 1 && player.contractDuration > 1) {
                  newMessages.push({
                     id: crypto.randomUUID(), playerId: updatedPlayer.id, playerName: updatedPlayer.name,
-                    type: 'INFO', subject: "Sözleşmem hakkında...",
-                    body: `Selam menajerim, sadece bir hatırlatma yapmak istedim. Sözleşmemin gelecek sezon sonunda biteceğini biliyorum. Takımdaki geleceğim hakkında konuşmak için doğru zaman geldiğinde sizinle görüşmeyi dört gözle bekliyorum.`,
+                    type: 'INFO', subject: "About my contract...",
+                    body: `Hi manager, just wanted to give a reminder. I know my contract expires at the end of next season. I look forward to discussing my future with the team when the time is right.`,
                     isRead: false, date
                 });
             }
@@ -2061,15 +2061,15 @@ const startLPLSplit3 = (prev: GameState): GameState => {
             if (updatedPlayer.contractDuration === 1 && (updatedPlayer.morale ?? 50) > 70 && Math.random() < 0.6) {
                 let salaryExpectationText = "";
                 if (updatedPlayer.overall >= 88) {
-                    salaryExpectationText = "Mevcut performansımı ve piyasa değerimi göz önünde bulundurarak maaşımda küçük bir artışla devam etmeyi umuyorum.";
+                    salaryExpectationText = "Considering my current performance and market value, I hope to continue with a small increase in my salary.";
                 } else {
-                    salaryExpectationText = "Bu takımda kalabilmek için maaşımda küçük bir indirimi kabul etmeye hazırım.";
+                    salaryExpectationText = "I am ready to accept a small reduction in my salary to stay in this team.";
                 }
 
                 newMessages.push({
                     id: crypto.randomUUID(), playerId: updatedPlayer.id, playerName: updatedPlayer.name,
-                    type: 'REQUEST', subject: "Sözleşmemi yenilemek istiyorum!",
-                    body: `Menajerim, bu takımda oynamaktan gerçekten keyif alıyorum ve burada bir gelecek inşa etmek istiyorum. Gelecek sezon sonunda sözleşmem bitiyor ama ben şimdiden yola devam etmeye hazırım. ${salaryExpectationText} Eğer kabul ederseniz, sözleşmemi 2 yıl daha uzatabiliriz. Cevabınızı bekliyorum.`,
+                    type: 'REQUEST', subject: "I want to renew my contract!",
+                    body: `Manager, I really enjoy playing for this team and want to build a future here. My contract ends next season, but I'm ready to continue now. ${salaryExpectationText} If you accept, we can extend my contract for another 2 years. Waiting for your answer.`,
                     isRead: false, date
                 });
             }
@@ -2081,7 +2081,7 @@ const startLPLSplit3 = (prev: GameState): GameState => {
         if (p.status === 'military_service' && p.unavailableUntil && gameState.year + 1 >= p.unavailableUntil) {
             const returningPlayer = { ...p, status: 'retired', role: Role.COACH, originalRole: p.role, unavailableUntil: undefined };
             newFreeAgents[index] = returningPlayer;
-            newNews.push({ id: crypto.randomUUID(), type: 'MAJOR_EVENT', title: `${p.name} Askerlikten Döndü!`, content: `${p.name}, zorunlu askerlik hizmetini tamamlayarak koç olarak sahalara geri dönüyor.`, date, involved: [{ type: 'player', name: p.name }] });
+            newNews.push({ id: crypto.randomUUID(), type: 'MAJOR_EVENT', title: `${p.name} Returned from Military Service!`, content: `${p.name} is returning to the scene as a coach after completing mandatory military service.`, date, involved: [{ type: 'player', name: p.name }] });
         }
       });
 
@@ -2252,14 +2252,14 @@ const startLPLSplit3 = (prev: GameState): GameState => {
               newFreeAgents.push({
                   ...updated,
                   status: 'military_service',
-                  retirementReason: 'Askerlik Hizmeti',
+                  retirementReason: 'Military Service',
                   team: 'FA',
                   contractDuration: 0,
                   price: 0,
                   unavailableUntil: updated.age + 2, // 2 yıl sonra dönecek
               });
           } else {
-              newFreeAgents.push(convertToCoach(updated, 'Performans/Yaş'));
+              newFreeAgents.push(convertToCoach(updated, 'Performance/Age'));
           }
           return null;
       }
@@ -3143,7 +3143,7 @@ const startLPLSplit3 = (prev: GameState): GameState => {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 min-h-[600px]">
                 <div className="lg:col-span-1 bg-dark-900 border border-dark-800 rounded-xl p-2 flex flex-col">
                     <div className="flex-1 overflow-y-auto space-y-2 pr-2">
-                        {itemsToShow.length === 0 && <div className="text-center text-gray-500 italic py-10">Görüntülenecek bir şey yok.</div>}
+                    {itemsToShow.length === 0 && <div className="text-center text-gray-500 italic py-10">Nothing to display.</div>}
                         {itemsToShow.map(item => (
                             <div key={item.id} onClick={() => setSelectedId(item.id)} className={`p-3 rounded-lg cursor-pointer transition-colors ${selectedId === item.id ? 'bg-dark-950' : 'hover:bg-dark-800/50'} ${('isRead' in item && !item.isRead) ? 'border-l-4 border-hextech-500' : ''}`}>
                                 <div className="flex justify-between items-start">
@@ -3160,8 +3160,8 @@ const startLPLSplit3 = (prev: GameState): GameState => {
                         <div className="animate-fade-in">
                             {'playerName' in selectedItem && (
                                 <div className="mb-4">
-                                    <p className="text-sm text-gray-400">Kimden: <span className="font-bold text-white">{selectedItem.playerName}</span></p>
-                                    <p className="text-sm text-gray-400">Konu: <span className="font-bold text-white">{selectedItem.subject}</span></p>
+                                <p className="text-sm text-gray-400">From: <span className="font-bold text-white">{selectedItem.playerName}</span></p>
+                                <p className="text-sm text-gray-400">Subject: <span className="font-bold text-white">{selectedItem.subject}</span></p>
                                 </div>
                             )}
                             <h3 className="text-2xl font-bold text-hextech-300 mb-4">{selectedItem.title || selectedItem.subject}</h3>
@@ -3170,7 +3170,7 @@ const startLPLSplit3 = (prev: GameState): GameState => {
                             </div>
                             {'involved' in selectedItem && (
                                 <div className="mt-6 pt-4 border-t border-dark-700">
-                                    <h4 className="text-sm font-bold text-gray-500 uppercase mb-2">İlgili Taraflar</h4>
+                                <h4 className="text-sm font-bold text-gray-500 uppercase mb-2">Involved Parties</h4>
                                     <div className="flex flex-wrap gap-2">
                                         {selectedItem.involved.map((p, i) => (
                                             <span key={i} className={`px-2.5 py-1 rounded-full text-xs font-bold ${p.type === 'team' ? 'bg-blue-900/50 text-blue-300' : 'bg-purple-900/50 text-purple-300'}`}>{p.name}</span>
@@ -3182,17 +3182,17 @@ const startLPLSplit3 = (prev: GameState): GameState => {
                                 <div className="mt-6 pt-4 border-t border-dark-700 text-center">
                                     <button 
                                       onClick={() => onAcceptRequest(selectedItem as PlayerMessage)}
-                                      disabled={selectedItem.subject.includes('[Kabul Edildi]')}
+                                  disabled={selectedItem.subject.includes('[Accepted]')}
                                       className="px-6 py-2 bg-green-600 hover:bg-green-500 text-white font-bold rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >{selectedItem.subject.includes('[Kabul Edildi]') ? 'Teklif Kabul Edildi' : 'Teklifi Kabul Et'}</button>
+                                >{selectedItem.subject.includes('[Accepted]') ? 'Offer Accepted' : 'Accept Offer'}</button>
                                 </div>
                             )}
                         </div>
                     ) : (
                         <div className="flex flex-col items-center justify-center h-full text-center text-gray-600">
                             <Mail size={48} className="mb-4" />
-                            <h3 className="text-lg font-bold">Bir öğe seçin</h3>
-                            <p>Okumak için soldaki listeden bir haber veya mesaj seçin.</p>
+                        <h3 className="text-lg font-bold">Select an item</h3>
+                        <p>Select a news item or message from the list on the left to read.</p>
                         </div>
                     )}
                 </div>
@@ -3399,10 +3399,10 @@ const startLPLSplit3 = (prev: GameState): GameState => {
                                 if (!otherPlayer) return null;
                                 
                                 if (rel.type === 'FRIENDSHIP') {
-                                  return <div key={rel.targetPlayerId} className="flex items-center gap-1.5 text-xs bg-green-900/50 text-green-300 px-2 py-0.5 rounded-full"><Heart size={12} className="text-green-400" /> Dost: <span className="font-bold">{otherPlayer.name}</span></div>
+                                  return <div key={rel.targetPlayerId} className="flex items-center gap-1.5 text-xs bg-green-900/50 text-green-300 px-2 py-0.5 rounded-full"><Heart size={12} className="text-green-400" /> Friend: <span className="font-bold">{otherPlayer.name}</span></div>
                                 }
                                 if (rel.type === 'CONFLICT') {
-                                  return <div key={rel.targetPlayerId} className="flex items-center gap-1.5 text-xs bg-red-900/50 text-red-300 px-2 py-0.5 rounded-full"><HeartCrack size={12} className="text-red-400" /> Anlaşmazlık: <span className="font-bold">{otherPlayer.name}</span></div>
+                                  return <div key={rel.targetPlayerId} className="flex items-center gap-1.5 text-xs bg-red-900/50 text-red-300 px-2 py-0.5 rounded-full"><HeartCrack size={12} className="text-red-400" /> Conflict: <span className="font-bold">{otherPlayer.name}</span></div>
                                 }
                                 return null;
                               })}
@@ -3453,7 +3453,7 @@ const startLPLSplit3 = (prev: GameState): GameState => {
 
   const handleSellPlayer = (player: PlayerCard) => {
     if (gameState.stage !== 'OFF_SEASON') {
-      showNotification('error', 'Sezon ortasında oyuncu satamazsınız.');
+      showNotification('error', 'You cannot sell players mid-season.');
       return;
     }
 
@@ -3548,7 +3548,7 @@ const startLPLSplit3 = (prev: GameState): GameState => {
       }
 
       // Mesajı "okundu" olarak işaretle
-      const newMessages = prev.playerMessages.map(m => m.id === message.id ? { ...m, isRead: true, subject: `[Kabul Edildi] ${m.subject}` } : m);
+      const newMessages = prev.playerMessages.map(m => m.id === message.id ? { ...m, isRead: true, subject: `[Accepted] ${m.subject}` } : m);
 
       return { ...prev, roster: newRoster, inventory: newInventory, playerMessages: newMessages };
     });
