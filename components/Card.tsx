@@ -60,8 +60,7 @@ const CountryFlag = ({ countryCode }: { countryCode?: string }) => {
     if (!countryCode || countryCode === 'xx') {
         return <Globe className="text-gray-500 w-full h-full p-0.5 opacity-50" />;
     }
-
-    const src = `https://flagcdn.com/w40/${countryCode.toLowerCase()}.png`;
+    const src = `/flags/${countryCode.toLowerCase()}.svg`;
 
     return (
         <img 

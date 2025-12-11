@@ -1,7 +1,7 @@
 import React from 'react';
 import { 
   LayoutDashboard, Users, TrendingUp, Calendar, Trophy, 
-  ShoppingBag, Play, Mail, LogOut, Settings, Coins 
+  ShoppingBag, Play, Mail, LogOut, Settings, Coins, BarChart2 // YENİ: BarChart2 eklendi
 } from 'lucide-react';
 import { TeamData } from '../src/types/types';
 import { TeamLogo } from './TeamLogo';
@@ -25,17 +25,12 @@ export const Layout: React.FC<LayoutProps> = ({
     { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { id: 'roster', icon: Users, label: 'Roster' },
     { id: 'market', icon: ShoppingBag, label: 'Market' },
-    
-    // YENİ: Sponsorluk ve Finans sekmesi
     { id: 'economy', icon: Coins, label: 'Economy' }, 
-    
     { id: 'training', icon: TrendingUp, label: 'Training' },
     { id: 'schedule', icon: Calendar, label: 'Schedule' },
     { id: 'standings', icon: Trophy, label: 'Standings' },
-    
-    // YENİ: Maç ve Draft sekmesi
+    { id: 'stats', icon: BarChart2, label: 'Stats' }, 
     { id: 'play', icon: Play, label: 'Play' }, 
-    
     { id: 'inbox', icon: Mail, label: 'Inbox', badge: unreadMessages },
   ];
 

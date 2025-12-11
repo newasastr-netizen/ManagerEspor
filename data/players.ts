@@ -1,4 +1,4 @@
-import { PlayerCard, Role, Rarity } from '../types';
+import { PlayerCard, Role, Rarity } from '../src/types/types'; // Import yolunu kontrol et
 
 const createPlayer = (name: string, team: string, role: Role, overall: number, ageOverride?: number, nationality: string = 'KR', potential?: 'A' | 'B' | 'C' | 'S', signatureChampions?: string[]): PlayerCard => {
   let rarity = Rarity.COMMON;
@@ -17,9 +17,9 @@ const createPlayer = (name: string, team: string, role: Role, overall: number, a
   if (ageOverride) {
     age = ageOverride;
   } else {
-    if (overall > 92) age = 26; // Legends usually older
-    else if (overall > 85) age = Math.floor(Math.random() * 4) + 21; // 21-24
-    else age = Math.floor(Math.random() * 4) + 17; // 17-20
+    if (overall > 92) age = 26; 
+    else if (overall > 85) age = Math.floor(Math.random() * 4) + 21; 
+    else age = Math.floor(Math.random() * 4) + 17; 
   }
 
   let finalPotential = potential;
@@ -29,7 +29,7 @@ const createPlayer = (name: string, team: string, role: Role, overall: number, a
     else if (age < 26) finalPotential = 'B';
     else finalPotential = 'C';
   }
-  // CRITICAL FIX: Include team in ID to prevent duplicates (e.g. Aiming DK vs Aiming FA)
+  
   const uniqueId = `${name.toLowerCase().replace(/\s/g, '-')}-${team.toLowerCase()}`;
 
   return {
@@ -38,13 +38,13 @@ const createPlayer = (name: string, team: string, role: Role, overall: number, a
     team,
     role,
     overall,
-    previousOverall: overall, // Initialize with current
-    nationality,
+    previousOverall: overall,
+    country: nationality, // <--- DÜZELTME BURADA: 'nationality' yerine 'country' atıyoruz
     age,
-    potential: finalPotential,
+    // potential: finalPotential, // PlayerCard tipinde potential yoksa bu satırı kaldırabilirsin
     price: transferFee,
     salary: salary,
-    contractDuration: Math.floor(Math.random() * 3) + 1, // 1 to 3 seasons
+    contractDuration: Math.floor(Math.random() * 3) + 1,
     rarity,
     stats: {
       mechanics: Math.min(99, overall + variance()),
@@ -52,8 +52,8 @@ const createPlayer = (name: string, team: string, role: Role, overall: number, a
       lane: Math.min(99, overall + variance()),
       teamfight: Math.min(99, overall + variance()),
     },
-    morale: 50, // Başlangıç morali
-    signatureChampions,
+    morale: 50,
+    // signatureChampions, // PlayerCard tipinde yoksa kaldırabilirsin
     imageUrl: `/players/${name.toLowerCase().replace(/\s/g, '-')}.png`,
   };
 };
