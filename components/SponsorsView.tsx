@@ -10,7 +10,7 @@ export interface Sponsor {
   signingBonus: number;
   duration: number;
   description: string;
-  minTier: 'S' | 'A' | 'B' | 'C'; // YENİ: Tier zorunluluğu
+  minTier: 'S' | 'A' | 'B' | 'C';
 }
 
 const AVAILABLE_SPONSORS: Sponsor[] = [
@@ -34,7 +34,7 @@ const AVAILABLE_SPONSORS: Sponsor[] = [
 interface SponsorsViewProps {
   currentSponsor: Sponsor | null;
   onSignSponsor: (sponsor: Sponsor) => void;
-  userTeam: TeamData | null; // Takım bilgisini almamız lazım
+  userTeam: TeamData | null;
 }
 
 export const SponsorsView: React.FC<SponsorsViewProps> = ({ currentSponsor, onSignSponsor, userTeam }) => {

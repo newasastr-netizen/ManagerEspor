@@ -68,7 +68,7 @@ export const TrainingView: React.FC<TrainingViewProps> = ({ roster, inventory, c
     if (trainingSlotsUsed + activity.slots > MAX_WEEKLY_SLOTS) return;
 
     onTrainPlayer(selectedPlayer.id, activity.id, activity.cost, activity.gains);
-    setSelectedPlayer(null); // Deselect after training to show update
+    setSelectedPlayer(null);
   };
 
   const slotsRemaining = MAX_WEEKLY_SLOTS - trainingSlotsUsed;

@@ -1,7 +1,6 @@
 const { app, BrowserWindow } = require('electron');
 const path = require('path');
 
-// Geliştirme modunda mı yoksa üretimde mi olduğumuzu kontrol et
 const isDev = !app.isPackaged;
 
 function createWindow() {
@@ -10,18 +9,16 @@ function createWindow() {
     height: 720,
     webPreferences: {
       nodeIntegration: true,
-      contextIsolation: false, // Basit localStorage erişimi için
+      contextIsolation: false,
     },
-    icon: path.join(__dirname, '../public/favicon.ico'), // Varsa ikonunuz
-    autoHideMenuBar: true, // Üst menüyü gizle
+    icon: path.join(__dirname, '../public/favicon.ico'),
+    autoHideMenuBar: true,
   });
 
   if (isDev) {
-    // Geliştirme modunda Vite sunucusunu dinle
     win.loadURL('http://localhost:3000');
-    win.webContents.openDevTools(); // Hata ayıklama panelini aç
+    win.webContents.openDevTools();
   } else {
-    // Üretim modunda build edilen dosyayı oku
     win.loadFile(path.join(__dirname, '../dist/index.html'));
   }
 }

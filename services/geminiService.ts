@@ -2,39 +2,28 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { PlayerCard, Role, Rarity } from "../types";
 import { REAL_LCK_PLAYERS } from "../data/players";
 
-// Initialize Gemini Client
 const apiKey = process.env.API_KEY || '';
 const ai = new GoogleGenAI({ apiKey });
 
 const modelName = "gemini-2.5-flash";
 
-/**
- * Generates a list of scoutable players for the market.
- * Prioritizes unowned players from the REAL_LCK_PLAYERS list and Free Agents before falling back to Gemini.
- */
 export const scoutPlayers = async (
   count: number = 4, 
   ownedPlayerIds: Set<string>,
   freeAgents: PlayerCard[] = []
 ): Promise<PlayerCard[]> => {
-  
-  // 1. Available Free Agents (Expired contracts)
-  // Filter out any that might be owned (sanity check)
+
   const availableFAs = freeAgents.filter(p => !ownedPlayerIds.has(p.id));
-  
-  // 2. Try to find real LCK players not yet owned AND not in the FA pool (avoid duplicates)
-  // If a real player is in 'freeAgents', we use the FA version (which has team='FA').
+
   const faIds = new Set(availableFAs.map(p => p.id));
   const availableRealPlayers = REAL_LCK_PLAYERS.filter(p => !ownedPlayerIds.has(p.id) && !faIds.has(p.id));
   
   const pool = [...availableFAs, ...availableRealPlayers];
 
   if (pool.length >= count) {
-    // Return a random shuffle of available players
     return pool.sort(() => 0.5 - Math.random()).slice(0, count);
   }
 
-  // If we don't have enough real players, fill the rest with AI generated ones
   const playersToReturn = pool;
   const neededCount = count - pool.length;
 
@@ -58,7 +47,6 @@ export const scoutPlayers = async (
             properties: {
               name: { type: Type.STRING },
               team: { type: Type.STRING, description: "Use 'FA' or 'ACA' for Free Agent/Academy" },
-              // DÜZELTME: Enum değerlerini tam isim yapıyoruz
               role: { type: Type.STRING, enum: ["TOP", "JUNGLE", "MID", "ADC", "SUPPORT", "COACH"] },
               price: { type: Type.INTEGER },
               stats: {
@@ -80,7 +68,6 @@ export const scoutPlayers = async (
 
     const rawPlayers = JSON.parse(response.text || "[]");
 
-    // Transform to internal type with IDs
     const aiPlayers = rawPlayers.map((p: any) => {
       const avg = Math.round((p.stats.mechanics + p.stats.macro + p.stats.lane + p.stats.teamfight) / 4);
       let rarity = Rarity.COMMON;
@@ -89,8 +76,7 @@ export const scoutPlayers = async (
       else if (avg >= 75) rarity = Rarity.RARE;
 
       const salary = Math.max(20, Math.floor(Math.pow(avg - 60, 2) * 0.8));
-      
-      // AI Gen players are usually rookies or young talents
+
       const age = Math.floor(Math.random() * 4) + 17; 
 
       return {
@@ -119,9 +105,6 @@ export const scoutPlayers = async (
   }
 };
 
-/**
- * Simulates a match commentary using Gemini.
- */
 export const generateMatchCommentary = async (
   userTeamName: string,
   enemyTeamName: string,
@@ -147,9 +130,6 @@ export const generateMatchCommentary = async (
   }
 };
 
-/**
- * Fallback generator if API fails or quota exceeded.
- */
 const generateFallbackPlayers = (count: number): PlayerCard[] => {
   const roles = Object.values(Role);
   const names = ['Shadow', 'Light', 'Storm', 'Blaze', 'Frost', 'Nova', 'Spark', 'Void', 'Echo', 'Drift'];

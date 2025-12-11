@@ -1,4 +1,4 @@
-import { PlayerCard, Role, Rarity } from '../src/types/types'; // Import yolunu kontrol et
+import { PlayerCard, Role, Rarity } from '../src/types/types';
 
 const createPlayer = (name: string, team: string, role: Role, overall: number, ageOverride?: number, nationality: string = 'KR', potential?: 'A' | 'B' | 'C' | 'S', signatureChampions?: string[]): PlayerCard => {
   let rarity = Rarity.COMMON;
@@ -39,9 +39,8 @@ const createPlayer = (name: string, team: string, role: Role, overall: number, a
     role,
     overall,
     previousOverall: overall,
-    country: nationality, // <--- DÜZELTME BURADA: 'nationality' yerine 'country' atıyoruz
+    country: nationality,
     age,
-    // potential: finalPotential, // PlayerCard tipinde potential yoksa bu satırı kaldırabilirsin
     price: transferFee,
     salary: salary,
     contractDuration: Math.floor(Math.random() * 3) + 1,
@@ -53,7 +52,6 @@ const createPlayer = (name: string, team: string, role: Role, overall: number, a
       teamfight: Math.min(99, overall + variance()),
     },
     morale: 50,
-    // signatureChampions, // PlayerCard tipinde yoksa kaldırabilirsin
     imageUrl: `/players/${name.toLowerCase().replace(/\s/g, '-')}.png`,
   };
 };

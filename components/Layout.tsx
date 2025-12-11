@@ -1,7 +1,7 @@
 import React from 'react';
 import { 
   LayoutDashboard, Users, TrendingUp, Calendar, Trophy, 
-  ShoppingBag, Play, Mail, LogOut, Settings, Coins, BarChart2 // YENİ: BarChart2 eklendi
+  ShoppingBag, Play, Mail, LogOut, Settings, Coins, BarChart2
 } from 'lucide-react';
 import { TeamData } from '../src/types/types';
 import { TeamLogo } from './TeamLogo';

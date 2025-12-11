@@ -1,5 +1,3 @@
-// --- TEMEL OYUN TİPLERİ ---
-
 export enum Role {
   TOP = 'TOP',
   JUNGLE = 'JUNGLE',
@@ -26,7 +24,7 @@ export interface PlayerStats {
 export interface PlayerRelationship {
     targetPlayerId: string;
     type: 'FRIENDSHIP' | 'CONFLICT';
-    strength: number; // 0-100
+    strength: number;
 }
 
 export interface PlayerCard {
@@ -34,25 +32,25 @@ export interface PlayerCard {
   name: string;
   role: Role;
   country?: string;
-  team: string; // 'FA', 'ACA' or Team ShortName
+  team: string;
   league?: LeagueKey;
   stats: PlayerStats;
   overall: number;
   previousOverall?: number;
   age: number;
-  price: number; // Transfer Fee
-  salary: number; // Weekly/Yearly Salary
-  contractDuration: number; // Seasons
+  price: number;
+  salary: number;
+  contractDuration: number;
   rarity?: Rarity;
   imageUrl?: string;
-  imageParams?: string; // For dynamic avatar generation
-  morale?: number; // 0-100
+  imageParams?: string;
+  morale?: number;
   events?: PlayerEvent[];
   relationships?: PlayerRelationship[];
   status?: 'active' | 'retired' | 'military_service';
-  originalRole?: Role; // Emekli oyuncular koç olduğunda eski rolünü tutmak için
+  originalRole?: Role;
   retirementReason?: string;
-  unavailableUntil?: number; // Yıl olarak (askerlik vb.)
+  unavailableUntil?: number;
 }
 
 export interface TeamData {
@@ -71,7 +69,7 @@ export interface TeamData {
 export interface ScheduledMatch {
   id: string;
   week: number;
-  round: number; // Day/Order index
+  round: number;
   teamAId: string;
   teamBId: string;
   played: boolean;
@@ -108,9 +106,7 @@ export interface MatchResult {
   isBo5: boolean;
 }
 
-export type LeagueKey = 'LCK' | 'LPL' | 'LEC' | 'TCL'; // Genişletilebilir
-
-// --- OYUN DURUMU (STATE) ---
+export type LeagueKey = 'LCK' | 'LPL' | 'LEC' | 'TCL';
 
 export interface GameState {
   managerName: string;
@@ -124,29 +120,25 @@ export interface GameState {
   difficulty: 'Easy' | 'Normal' | 'Hard';
   currentDay: number;
   stage: GameStage;
-  
-  // Data
+
   roster: Record<Role, PlayerCard | null>;
-  inventory: PlayerCard[]; // Bench / Academy
-  aiRosters: Record<string, Record<Role, PlayerCard>>; // TeamID -> Roster
+  inventory: PlayerCard[];
+  aiRosters: Record<string, Record<Role, PlayerCard>>;
   freeAgents: PlayerCard[];
   
-  // Competition
   groups: { A: string[], B: string[], C?: string[], D?: string[] };
-  winnersGroup: 'A' | 'B' | null; // For LCK/LEC format
+  winnersGroup: 'A' | 'B' | null;
   schedule: ScheduledMatch[];
   standings: Standing[];
   playoffMatches: PlayoffMatch[];
-  msiBracketContenders?: string[]; // MSI'a katılan takımların ID'leri
+  msiBracketContenders?: string[];
 
-  // History & Meta
-  matchHistory: HistoryEntry[]; // Eski sezonlar
+  matchHistory: HistoryEntry[];
   newsFeed: NewsArticle[];
   playerMessages: PlayerMessage[];
   trainingSlotsUsed: number;
 }
 
-// --- LPL & FORMAT ÖZEL TİPLERİ ---
 
 export enum LPLSplitPhase {
   SPLIT_1_GROUPS = 'SPLIT_1_GROUPS',
@@ -181,8 +173,6 @@ export interface Standing {
   isEliminated?: boolean; 
 }
 
-// --- DİĞER YARDIMCI TİPLER ---
-
 export type HistoryViewType = 'LEAGUE' | 'BRACKET' | 'LIST';
 
 export interface HistoryEntry {
@@ -202,7 +192,7 @@ export interface PlayerEvent {
   type: 'INJURY' | 'MORALE' | 'DRAMA' | 'CONTRACT';
   title: string;
   description: string;
-  duration: number; // Matches or Weeks
+  duration: number;
   penalty: Partial<PlayerStats>;
 }
 

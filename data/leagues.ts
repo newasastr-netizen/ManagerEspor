@@ -8,15 +8,14 @@ export interface LeagueSettings {
   teamCount: number;
   groupCount?: number;
   scheduleType: 'DOUBLE_ROBIN' | 'SINGLE_ROBIN';
-  // BURAYI GÜNCELLEDİK: 'LPL' ve 'LEC' seçeneklerini ekledik
   format?: 'LCK' | 'SIMPLE_GROUPS' | 'LPL' | 'LEC'; 
-  isBo3?: boolean; // App.tsx içinde kullanıldığı için buraya ekledik
+  isBo3?: boolean;
 }
 
 export interface LeagueDefinition {
   key: LeagueKey;
   name: string;
-  region: string; // Region bilgisini de eklemek iyi olur (App.tsx'de kullanılıyor)
+  region: string;
   teams: TeamData[];
   players: PlayerCard[];
   settings: LeagueSettings;
