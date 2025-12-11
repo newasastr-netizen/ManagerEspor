@@ -2,10 +2,10 @@ import { LeagueKey } from './data/leagues';
 
 export enum Role {
   TOP = 'TOP',
-  JUNGLE = 'JGL',
+  JUNGLE = 'JUNGLE',
   MID = 'MID',
   ADC = 'ADC',
-  SUPPORT = 'SUP',
+  SUPPORT = 'SUPPORT',
   COACH = 'COACH'
 }
 

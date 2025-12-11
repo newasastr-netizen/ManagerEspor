@@ -46,7 +46,8 @@ export const scoutPlayers = async (
       Include a mix of stats (Mechanics, Macro, Lane, Teamfight) between 60 and 90.
       Assign a price based on their overall stats (approx 100-2000 coins).
       Assign a rarity.
-      Ensure roles cover TOP, JGL, MID, ADC, SUP.
+      Ensure roles cover TOP, JUNGLE, MID, ADC, SUPPORT. 
+      IMPORTANT: Use full role names "JUNGLE" (not JGL) and "SUPPORT" (not SUP).
       Return only JSON.`,
       config: {
         responseMimeType: "application/json",
@@ -57,7 +58,8 @@ export const scoutPlayers = async (
             properties: {
               name: { type: Type.STRING },
               team: { type: Type.STRING, description: "Use 'FA' or 'ACA' for Free Agent/Academy" },
-              role: { type: Type.STRING, enum: ["TOP", "JGL", "MID", "ADC", "SUP", "COACH"] },
+              // DÜZELTME: Enum değerlerini tam isim yapıyoruz
+              role: { type: Type.STRING, enum: ["TOP", "JUNGLE", "MID", "ADC", "SUPPORT", "COACH"] },
               price: { type: Type.INTEGER },
               stats: {
                 type: Type.OBJECT,
@@ -96,6 +98,7 @@ export const scoutPlayers = async (
         name: p.name,
         team: p.team,
         role: p.role as Role,
+        country: p.country || 'kr',
         stats: p.stats,
         price: p.price,
         salary,

@@ -1,365 +1,185 @@
-import React from 'react';
-import { PlayerCard, Role, Rarity, TeamData } from '../types';
-import { Shield, Sword, Brain, Zap, Crown, Users, Clock, TrendingUp, TrendingDown, Bandage, Frown, MessageSquare, AlertTriangle, Smile, Meh } from 'lucide-react';
+import React, { useState } from 'react';
+import { PlayerCard, Role, Rarity, TeamData } from '../src/types/types';
 import { TeamLogo } from './TeamLogo';
+import { Axe, Sparkles, Flame, Crosshair, Shield, User, CircleHelp, Coins, Globe } from 'lucide-react';
 
 interface CardProps {
   player: PlayerCard;
-  team?: TeamData | null;
+  team?: TeamData;
+  compact?: boolean;
   onClick?: () => void;
   actionLabel?: string;
-  disabled?: boolean;
-  compact?: boolean;
   isOwned?: boolean;
 }
 
-const StatRow = ({ label, value, description }: { label: string, value: number, description: string }) => (
-  <div className="group/stat relative flex justify-between items-center text-xs border-b border-white/5 pb-1 cursor-help hover:bg-white/5 px-1 -mx-1 rounded transition-colors z-20">
-    <span className="text-gray-500 font-semibold border-b border-dotted border-gray-600/50">{label}</span>
-    <span className="text-white font-mono font-bold">{value}</span>
-    
-    {/* Tooltip */}
-    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-dark-950/95 backdrop-blur-md border border-white/10 text-gray-200 text-[10px] leading-relaxed p-2.5 rounded-lg shadow-xl text-center opacity-0 translate-y-2 group-hover/stat:opacity-100 group-hover/stat:translate-y-0 transition-all duration-200 pointer-events-none z-50">
-      {description}
-      <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-dark-950 border-r border-b border-white/10 rotate-45"></div>
-    </div>
-  </div>
-);
+const cardStyles = {
+  [Rarity.COMMON]: {
+    bg: 'bg-gradient-to-b from-slate-400 to-slate-700',
+    border: 'border-slate-300',
+    text: 'text-slate-100',
+    accent: 'bg-slate-800'
+  },
+  [Rarity.RARE]: {
+    bg: 'bg-gradient-to-b from-cyan-400 to-blue-700',
+    border: 'border-cyan-200',
+    text: 'text-cyan-50',
+    accent: 'bg-blue-900'
+  },
+  [Rarity.EPIC]: {
+    bg: 'bg-gradient-to-b from-purple-400 to-fuchsia-800',
+    border: 'border-purple-200',
+    text: 'text-purple-50',
+    accent: 'bg-purple-900'
+  },
+  [Rarity.LEGENDARY]: {
+    bg: 'bg-gradient-to-b from-yellow-200 via-yellow-500 to-yellow-800',
+    border: 'border-yellow-100',
+    text: 'text-yellow-50',
+    accent: 'bg-yellow-950'
+  },
+};
 
-export const Card: React.FC<CardProps> = ({ player, team, onClick, actionLabel, disabled, compact, isOwned }) => {
-  
-  const getRarityStyles = (r: Rarity) => {
-    switch (r) {
-      case Rarity.LEGENDARY: 
-        return {
-          border: 'border-orange-400',
-          shadow: 'shadow-orange-500/30',
-          bg: 'bg-gradient-to-br from-gray-900 via-gray-900 to-orange-950/40',
-          text: 'text-orange-400',
-          glow: 'after:bg-orange-500'
-        };
-      case Rarity.EPIC: 
-        return {
-          border: 'border-purple-400',
-          shadow: 'shadow-purple-500/30',
-          bg: 'bg-gradient-to-br from-gray-900 via-gray-900 to-purple-950/40',
-          text: 'text-purple-400',
-          glow: 'after:bg-purple-500'
-        };
-      case Rarity.RARE: 
-        return {
-          border: 'border-red-400',
-          shadow: 'shadow-red-500/30',
-          bg: 'bg-gradient-to-br from-gray-900 via-gray-900 to-red-950/40',
-          text: 'text-red-400',
-          glow: 'after:bg-red-500'
-        };
-      default: 
-        return {
-          border: 'border-slate-500',
-          shadow: 'shadow-slate-500/20',
-          bg: 'bg-gradient-to-br from-gray-900 to-slate-900',
-          text: 'text-slate-300',
-          glow: 'after:bg-slate-500'
-        };
+const RoleIcon = ({ role, size = 16, className = "" }: { role: Role | string, size?: number, className?: string }) => {
+    let safeRole = role ? role.toString().toUpperCase() : 'UNKNOWN';
+    if (safeRole === 'JGL') safeRole = 'JUNGLE';
+    if (safeRole === 'SUP') safeRole = 'SUPPORT';
+    if (safeRole === 'MID') safeRole = 'MID';
+
+    switch (safeRole) {
+        case 'TOP': return <Axe size={size} className={className} />;
+        case 'JUNGLE': return <Sparkles size={size} className={className} />;
+        case 'MID': return <Flame size={size} className={className} />;
+        case 'ADC': return <Crosshair size={size} className={className} />;
+        case 'SUPPORT': return <Shield size={size} className={className} />;
+        case 'COACH': return <User size={size} className={className} />;
+        default: return <CircleHelp size={size} className={className} />;
     }
-  };
+};
 
-  const getRoleIcon = (role: Role) => {
-    switch (role) {
-      case Role.TOP: return <Shield size={16} />;
-      case Role.JUNGLE: return <Users size={16} />; 
-      case Role.MID: return <Zap size={16} />;
-      case Role.ADC: return <Sword size={16} />;
-      case Role.SUPPORT: return <Brain size={16} />;
-      case Role.COACH: return <Crown size={16} />;
+const CountryFlag = ({ countryCode }: { countryCode?: string }) => {
+    if (!countryCode || countryCode === 'xx') {
+        return <Globe className="text-gray-500 w-full h-full p-0.5 opacity-50" />;
     }
-  };
 
-  const getGrowthIndicator = () => {
-    if (!player.previousOverall) return null;
-    const diff = player.overall - player.previousOverall;
-    if (diff > 0) return <div className="flex items-center text-green-400 text-[10px] font-bold"><TrendingUp size={10} className="mr-0.5" />+{diff}</div>;
-    if (diff < 0) return <div className="flex items-center text-red-400 text-[10px] font-bold"><TrendingDown size={10} className="mr-0.5" />{diff}</div>;
-    return null;
-  };
+    const src = `https://flagcdn.com/w40/${countryCode.toLowerCase()}.png`;
 
-  const getMoraleIcon = (morale: number | undefined) => {
-    const m = morale ?? 50;
-    if (m > 75) return <Smile size={12} className="text-green-400" />;
-    if (m < 25) return <Frown size={12} className="text-red-500" />;
-    return <Meh size={12} className="text-gray-500" />;
-  };
+    return (
+        <img 
+            src={src} 
+            alt={countryCode} 
+            className="w-full h-full object-cover"
+            onError={(e) => {
+                e.currentTarget.style.display = 'none';
+                e.currentTarget.parentElement?.classList.add('bg-gray-800');
+            }}
+        />
+    );
+};
 
-  const getEventIcon = (type: string) => {
-    switch (type) {
-      case 'INJURY': return <Bandage size={12} className="text-red-500" />;
-      case 'MORALE': return <Frown size={12} className="text-blue-400" />;
-      case 'DRAMA': return <AlertTriangle size={12} className="text-orange-500" />;
-      case 'CONTRACT': return <MessageSquare size={12} className="text-yellow-500" />;
-      default: return null;
-    }
-  };
-
-  const rarityStyles = getRarityStyles(player.rarity);
-  const isFA = player.team === 'FA' || player.team === 'ACA';
+export const Card: React.FC<CardProps> = ({ player, team, compact, onClick, actionLabel }) => {
+  const style = cardStyles[player.rarity || Rarity.COMMON];
+  const flagCode = player.country ? player.country.toLowerCase() : 'xx';
 
   if (compact) {
     return (
-      <>
-        <style>
-          {`
-            @keyframes slideInRight {
-              from { opacity: 0; transform: translateX(-10px); }
-              to { opacity: 1; transform: translateX(0); }
-            }
-          `}
-        </style>
         <div 
-          onClick={!disabled ? onClick : undefined}
-          style={{ animation: 'slideInRight 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) forwards' }}
-          className={`relative flex items-center justify-between p-3 rounded-lg border border-dark-700 bg-dark-900/80 backdrop-blur mb-2 
-            hover:bg-dark-800 hover:border-dark-600 hover:shadow-lg hover:shadow-hextech-500/10 hover:translate-x-1
-            active:scale-[0.98] active:bg-dark-800
-            transition-all duration-200 cursor-pointer group overflow-hidden 
-            ${disabled ? 'opacity-50 cursor-not-allowed hover:translate-x-0 active:scale-100' : ''}`}
+          onClick={onClick}
+          className={`flex items-center gap-3 p-2 rounded-lg border-l-4 cursor-pointer hover:bg-white/5 transition-all bg-dark-900/50 ${style.border.replace('border', 'border-l')}`}
         >
-          <div className={`absolute left-0 top-0 bottom-0 w-1 ${rarityStyles.bg.replace('bg-gradient-to-br', '')} ${rarityStyles.glow.replace('after:bg-', 'bg-')}`}></div>
-
-          <div className="flex items-center gap-3 pl-2">
-            <div className="w-8 h-8 rounded-full bg-black/40 flex items-center justify-center text-gray-300 border border-white/10 group-hover:scale-110 transition-transform">
-               {getRoleIcon(player.role)}
+            <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-white/10 shrink-0">
+                <img src={player.imageUrl} className="w-full h-full object-cover" alt={player.name} />
             </div>
-            {player.nationality && (
-              <img
-                src={`/flags/${player.nationality.toLowerCase()}.svg`}
-                alt={player.nationality.toLowerCase()}
-                className="absolute top-2 left-2 w-4 h-auto rounded-sm shadow-md"
-              />
-            )}
-            <div>
-              <div className="flex items-center gap-2">
-                <h4 className="font-display font-bold text-white group-hover:text-hextech-400 transition-colors">{player.name}</h4>
-                {player.previousOverall && player.overall !== player.previousOverall && (
-                  <span className={`text-[9px] font-bold px-1 rounded ${player.overall > player.previousOverall ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-                    {player.overall > player.previousOverall ? '+' : ''}{player.overall - player.previousOverall}
-                  </span>
-                )}
-                {player.status === 'retired' && (
-                  <span className={`text-[9px] font-bold px-1 rounded ${player.overall > player.previousOverall ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-                    {player.overall > player.previousOverall ? '+' : ''}{player.overall - player.previousOverall}
-                  </span>
-                )}
-                <div className="relative group/morale">
-                  {getMoraleIcon(player.morale)}
+            <div className="flex-1 min-w-0">
+                <div className="flex justify-between items-center">
+                    <span className="font-display font-bold text-white truncate">{player.name}</span>
+                    <span className={`font-black text-lg ${style.text.replace('text-', 'text-')}`}>{player.overall}</span>
                 </div>
-                {player.events && player.events.length > 0 && (
-                  <div className="flex gap-1">
-                    {player.events.map(ev => (
-                       <div key={ev.id} className="relative group/evt">
-                          {getEventIcon(ev.type)}
-                          <div className="absolute bottom-full left-0 mb-1 w-32 bg-black border border-white/20 text-[9px] text-gray-300 p-1.5 rounded opacity-0 group-hover/evt:opacity-100 pointer-events-none z-50">
-                             {ev.title}: {ev.duration} games left
-                          </div>
-                       </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider text-gray-500">
-                <div className="flex items-center gap-1.5">
-                  <TeamLogo team={team} size="w-3 h-3" />
-                  <span>{player.team}</span>
+                <div className="flex justify-between text-xs text-gray-400 items-center">
+                     <span className="flex items-center gap-1"><RoleIcon role={player.role} size={12}/> {player.role.toString().slice(0,3)}</span>
+                     <div className="w-4 h-3 rounded-[1px] overflow-hidden opacity-80">
+                        <CountryFlag countryCode={flagCode} />
+                     </div>
                 </div>
-                <span className="text-gray-600">•</span>
-                <span>{player.age}yo</span>
-                {player.contractDuration > 0 && (
-                  <>
-                   <span className="text-gray-600">•</span>
-                   <span className="flex items-center gap-0.5 text-blue-400">
-                     <Clock size={10} /> {player.contractDuration}S
-                   </span>
-                  </>
-                )}
-              </div>
-              {player.signatureChampions && player.signatureChampions.length > 0 && (
-                <div className="flex items-center gap-1 mt-1.5">
-                  {player.signatureChampions.slice(0, 3).map(champ => (
-                    <span key={champ} className="text-[9px] font-bold bg-dark-700/60 text-gray-300 px-1.5 py-0.5 rounded">
-                      {champ}
-                    </span>
-                  ))}
-                </div>
-              )}
             </div>
-          </div>
-          <div className="text-right">
-            <div className={`text-xl font-display font-bold ${rarityStyles.text} group-hover:scale-110 transition-transform`}>{player.overall}</div>
-          </div>
+             {actionLabel && <button className="px-2 py-1 text-[10px] bg-white/10 rounded uppercase font-bold text-white">{actionLabel}</button>}
         </div>
-      </>
-    )
+    );
   }
 
   return (
-    <>
-      <style>
-        {`
-          @keyframes popIn {
-            from { opacity: 0; transform: scale(0.9) translateY(10px); }
-            to { opacity: 1; transform: scale(1) translateY(0); }
-          }
-        `}
-      </style>
-      <div 
-        style={{ animation: 'popIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards' }}
-        className={`relative w-full aspect-[2/3] rounded-2xl p-[2px] transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl active:scale-[0.98] group`}
-      >
-        <div className={`absolute inset-0 rounded-2xl opacity-50 blur-md transition-opacity duration-500 group-hover:opacity-100 ${rarityStyles.shadow} bg-current text-${rarityStyles.text.split('-')[1]}-500`}></div>
-        
-        <div className={`relative w-full h-full rounded-2xl flex flex-col ${rarityStyles.bg} border-2 ${rarityStyles.border} group-hover:border-opacity-100 transition-colors`}>
-          
-          <div className="relative h-1/2 w-full overflow-hidden bg-black/50 rounded-t-[14px]">
-             <div className={`absolute inset-0 bg-cover bg-center grayscale group-hover:grayscale-0 transition-all duration-700 ease-out group-hover:scale-110`} 
-                  style={{backgroundImage: `url('${player.imageUrl}')`}}>
-             </div>
+    <div className="relative group cursor-pointer transition-transform hover:-translate-y-2 hover:scale-105 duration-300" onClick={onClick}>
+      
+      <div className={`relative w-64 h-96 mx-auto clip-shield ${style.bg} p-[3px] shadow-2xl`}>
+         <div className="absolute inset-[3px] bg-dark-950 clip-shield overflow-hidden">
              
-             <div className="absolute inset-0 bg-gradient-to-t from-gray-900 via-transparent to-transparent"></div>
-             
-             {player.events && player.events.length > 0 && (
-                <div className="absolute top-2 left-0 right-0 flex justify-center gap-2 z-20">
-                    {player.events.map(ev => (
-                       <div key={ev.id} className="relative group/evt bg-black/80 backdrop-blur border border-white/20 p-1.5 rounded-full shadow-lg">
-                          {getEventIcon(ev.type)}
-                          <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 w-40 bg-dark-900 border border-red-500/50 text-white text-[10px] p-2 rounded shadow-xl opacity-0 group-hover/evt:opacity-100 pointer-events-none z-50">
-                             <div className="font-bold text-red-300 mb-1">{ev.title}</div>
-                             <div className="text-gray-400 mb-1">{ev.description}</div>
-                             <div className="font-mono text-xs font-bold">{ev.duration} games left</div>
-                             <div className="mt-1 pt-1 border-t border-white/10 text-red-400">
-                                {Object.entries(ev.penalty).map(([k, v]) => (
-                                    <div key={k}>-{v} {k.toUpperCase()}</div>
-                                ))}
-                             </div>
-                          </div>
-                       </div>
-                    ))}
-                </div>
-             )}
+             <div className={`absolute inset-0 opacity-30 bg-[url('/assets/pattern.png')] bg-cover mix-blend-overlay ${style.bg}`}></div>
+             <div className="absolute inset-0 bg-shine opacity-50 z-20 pointer-events-none"></div>
 
-             <div className="absolute top-3 left-3 flex flex-col items-center z-10">
-               <div className={`text-4xl font-display font-bold leading-none ${rarityStyles.text} drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] group-hover:scale-110 transition-transform`}>
-                  {player.overall}
-               </div>
-               {getGrowthIndicator()}
-               <div className="text-[9px] font-bold text-white/60 tracking-widest uppercase mt-1">OVR</div>
-             </div>
-
-             <div className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/60 backdrop-blur border border-white/10 flex items-center justify-center text-white drop-shadow-md z-10 group-hover:rotate-12 transition-transform duration-300">
-                {getRoleIcon(player.role)}
-             </div>
-             
-             {player.status === 'retired' && (
-                <div className="absolute top-14 right-2 bg-gold-500/80 text-black text-[9px] font-bold uppercase px-2 py-0.5 rounded-full shadow-lg transform -rotate-12">
-                    RETIRED
-                </div>
-             )}
-
-             <div className="absolute bottom-2 left-2 right-2 flex justify-between items-end">
-                {player.contractDuration > 0 ? (
-                    <div className="flex items-center gap-1 bg-black/70 backdrop-blur px-2 py-1 rounded text-[10px] font-bold text-white border border-white/10">
-                        <Clock size={10} className="text-blue-400" />
-                        <span>{player.contractDuration} Seasons</span>
-                    </div>
-                ) : <div></div>}
+             <div className="relative h-full w-full z-10 flex flex-col">
                 
-                <div className="flex items-center gap-1 bg-black/70 backdrop-blur px-2 py-1 rounded text-[10px] font-bold text-gray-300 border border-white/10">
-                    <span>{player.age} Years</span>
-                </div>
-             </div>
-          </div>
+                <div className="flex h-[60%] relative">
+                    
+                    {/* SOL PANEL */}
+                    <div className="w-[28%] flex flex-col items-center pt-5 gap-1 z-20 border-r border-white/5 bg-black/20 backdrop-blur-[1px]">
+                        <div className={`text-4xl font-display font-black leading-none ${style.text} drop-shadow-md`}>{player.overall}</div>
+                        
+                        <div className="text-[10px] font-bold text-white/80 uppercase tracking-widest flex flex-col items-center gap-0.5 mb-1">
+                            <RoleIcon role={player.role} size={16} className={style.text} />
+                            {player.role.toString().slice(0,3)}
+                        </div>
 
-          <div className="flex-1 relative p-4 flex flex-col justify-between bg-gradient-to-b from-transparent to-black/80 rounded-b-[14px]">
-             
-             <div className="text-right mb-2">
-               <div className="flex justify-end items-center gap-2 text-xs font-bold text-white/50 uppercase tracking-widest mb-1">
-                  <span>{player.role}</span> | <TeamLogo team={team} size="w-4 h-4" /> <span>{player.team}</span>
-               </div>
-               <h3 className="font-display font-black text-2xl text-white uppercase tracking-tight leading-none truncate group-hover:text-white transition-colors">{player.name}</h3>
-               {player.nationality && (
-                  <img
-                    src={`/flags/${player.nationality.toLowerCase()}.svg`}
-                    alt={player.nationality.toLowerCase()}
-                    className="absolute top-3 left-3 w-6 h-auto rounded-sm shadow-md z-20"
-                  />
-               )}
-               
-               <div className="flex justify-end items-center gap-3 mt-1">
-                 <div className="flex items-center gap-1 text-[10px] text-gray-400">
-                    <span>Salary:</span>
-                    <span className="font-mono text-white">{player.salary}G</span>
-                 </div>
-                 {!isOwned && !isFA && (
-                    <div className="flex items-center gap-1 text-[10px] text-orange-400">
-                      <span>Fee:</span>
-                      <span className="font-mono">{player.price}G</span>
+                        {/* BAYRAK KISMI (GÜNCELLENDİ) */}
+                        <div className="w-6 h-4 shadow-sm border border-white/20 my-1 overflow-hidden rounded-[2px] bg-black/50">
+                            <CountryFlag countryCode={flagCode} />
+                        </div>
+
+                        {team && <div className="w-7 h-7 mt-1 opacity-90"><TeamLogo team={team} size="w-7 h-7" /></div>}
                     </div>
-                 )}
-               </div>
-             </div>
 
-             {player.signatureChampions && player.signatureChampions.length > 0 && (
-                <div className="mb-3 text-center">
-                    <div className="flex items-center justify-center gap-2 mt-1">
-                        {player.signatureChampions.map(champ => (
-                            <span key={champ} className="text-xs font-bold bg-black/40 text-gray-300 px-2.5 py-1 rounded-full border border-white/10 shadow-inner">
-                                {champ}
-                            </span>
-                        ))}
+                    {/* OYUNCU RESMİ */}
+                    <div className="absolute right-0 top-3 w-[75%] h-full z-10">
+                        <img 
+                            src={player.imageUrl} 
+                            alt={player.name} 
+                            className="w-full h-full object-cover object-top drop-shadow-[-5px_0_10px_rgba(0,0,0,0.8)] mask-gradient-bottom"
+                        />
                     </div>
                 </div>
-             )}
 
-             <div className="grid grid-cols-2 gap-x-4 gap-y-1 mb-4 opacity-80 group-hover:opacity-100 transition-opacity z-10">
-                <StatRow 
-                  label="MECH" 
-                  value={player.stats.mechanics} 
-                  description="Reflexes, APM, skillshot accuracy, and micro-play execution." 
-                />
-                <StatRow 
-                  label="MACRO" 
-                  value={player.stats.macro} 
-                  description="Map awareness, objective control, rotations, and shotcalling." 
-                />
-                <StatRow 
-                  label="LANE" 
-                  value={player.stats.lane} 
-                  description="CS efficiency, trading patterns, turret pressure, and 1v1 dominance." 
-                />
-                <StatRow 
-                  label="TEAM" 
-                  value={player.stats.teamfight} 
-                  description="Damage output, positioning, target selection, and clutch factor." 
-                />
+                <div className="flex-1 flex flex-col justify-end relative">
+                    <div className="text-center mb-1 relative z-20 px-2">
+                        <h2 className="text-2xl font-display font-black text-white uppercase tracking-wide leading-none drop-shadow-lg truncate">
+                            {player.name}
+                        </h2>
+                        <div className="w-full h-[1px] bg-gradient-to-r from-transparent via-white/40 to-transparent mt-1"></div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[10px] font-bold text-white/90 px-4 pb-2">
+                        <div className="flex justify-between px-1"><span className="opacity-60">MEC</span> <span className="font-mono">{player.stats.mechanics}</span></div>
+                        <div className="flex justify-between px-1"><span className="opacity-60">MAC</span> <span className="font-mono">{player.stats.macro}</span></div>
+                        <div className="flex justify-between px-1"><span className="opacity-60">LNE</span> <span className="font-mono">{player.stats.lane}</span></div>
+                        <div className="flex justify-between px-1"><span className="opacity-60">TF</span> <span className="font-mono">{player.stats.teamfight}</span></div>
+                    </div>
+
+                    <div className={`mt-2 mb-4 mx-4 rounded flex items-center justify-center gap-2 py-1.5 ${style.accent} border border-white/10 group-hover:opacity-0 transition-opacity duration-300`}>
+                         <Coins size={12} className="text-gold-400" />
+                         <span className="text-xs font-bold text-gold-300 font-mono tracking-wider">{player.salary.toLocaleString()} G</span>
+                    </div>
+
+                </div>
              </div>
-
-             {actionLabel && (
-               <button 
-                 onClick={(e) => {
-                   e.stopPropagation();
-                   onClick && onClick();
-                 }}
-                 disabled={disabled}
-                 className={`w-full py-2.5 rounded text-xs font-bold uppercase tracking-widest transition-all duration-200 active:scale-95 flex items-center justify-center gap-2
-                   ${disabled 
-                     ? 'bg-gray-800 text-gray-500 cursor-not-allowed border border-gray-700' 
-                     : `bg-white text-black hover:bg-gray-200 hover:shadow-[0_0_15px_rgba(255,255,255,0.3)] border border-white hover:-translate-y-0.5`}`}
-               >
-                 {actionLabel}
-               </button>
-             )}
-          </div>
-        </div>
+         </div>
+         
+         <div className={`absolute inset-0 clip-shield border-[1px] border-white/30 z-30 pointer-events-none mix-blend-overlay`}></div>
       </div>
-    </>
+      
+      {actionLabel && (
+          <div className="absolute inset-x-0 bottom-6 flex justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-50">
+             <button className="px-5 py-2 bg-white text-black font-bold uppercase rounded-full text-xs shadow-[0_0_20px_rgba(255,255,255,0.5)] transform hover:scale-105 transition-transform">
+                 {actionLabel}
+             </button>
+          </div>
+      )}
+    </div>
   );
 };

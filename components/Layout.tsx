@@ -1,6 +1,9 @@
 import React from 'react';
-import { LayoutDashboard, ShoppingBag, Users, PlayCircle, Coins, UserCircle, Trophy, CalendarDays, BarChart3, Dumbbell, Mail } from 'lucide-react';
-import { TeamData } from '../types';
+import { 
+  LayoutDashboard, Users, TrendingUp, Calendar, Trophy, 
+  ShoppingBag, Play, Mail, LogOut, Settings, Coins 
+} from 'lucide-react';
+import { TeamData } from '../src/types/types';
 import { TeamLogo } from './TeamLogo';
 
 interface LayoutProps {
@@ -14,126 +17,95 @@ interface LayoutProps {
   unreadMessages: number;
 }
 
-export const Layout: React.FC<LayoutProps> = ({ children, currentTab, onTabChange, coins, week, teamData, managerName, unreadMessages }) => {
-  const tabs: any[] = [
-    { id: 'dashboard', label: 'Overview', icon: <LayoutDashboard size={20} /> },
-    { id: 'roster', label: 'My Team', icon: <Users size={20} /> },
-    { id: 'inbox', label: 'Mailbox', icon: <Mail size={20} />, unreadCount: unreadMessages },
-    { id: 'training', label: 'Training', icon: <Dumbbell size={20} /> },
-    { id: 'market', label: 'Transfer', icon: <ShoppingBag size={20} /> },
-    { id: 'schedule', label: 'Schedule', icon: <CalendarDays size={20} /> },
-    { id: 'standings', label: 'Standings', icon: <Trophy size={20} /> },
-    { id: 'stats', label: 'League Stats', icon: <BarChart3 size={20} /> },
-    { id: 'play', label: week === 0 ? 'Season Start' : 'Play', icon: <PlayCircle size={20} /> },
+export const Layout: React.FC<LayoutProps> = ({ 
+  children, currentTab, onTabChange, coins, week, teamData, managerName, unreadMessages 
+}) => {
+  
+  const menuItems = [
+    { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+    { id: 'roster', icon: Users, label: 'Roster' },
+    { id: 'market', icon: ShoppingBag, label: 'Market' },
+    
+    // YENİ: Sponsorluk ve Finans sekmesi
+    { id: 'economy', icon: Coins, label: 'Economy' }, 
+    
+    { id: 'training', icon: TrendingUp, label: 'Training' },
+    { id: 'schedule', icon: Calendar, label: 'Schedule' },
+    { id: 'standings', icon: Trophy, label: 'Standings' },
+    
+    // YENİ: Maç ve Draft sekmesi
+    { id: 'play', icon: Play, label: 'Play' }, 
+    
+    { id: 'inbox', icon: Mail, label: 'Inbox', badge: unreadMessages },
   ];
 
-  const primaryColor = teamData?.primaryColor || '#0ea5e9';
-
   return (
-    <div className="flex h-screen bg-dark-950 text-gray-100 font-sans selection:bg-hextech-500 selection:text-white">
+    <div className="flex h-screen bg-[#050910] text-slate-300 selection:bg-hextech-500/30">
       
-      {/* Sidebar */}
-      <aside className="w-20 lg:w-64 bg-dark-900 border-r border-dark-800 flex flex-col items-center lg:items-stretch py-6 z-20 shadow-2xl">
-        {/* Team Header */}
-        <div className="mb-10 px-4 flex items-center justify-center lg:justify-start gap-3">
-          <TeamLogo 
-             team={teamData} 
-             size="w-10 h-10" 
-             className="rounded-lg shadow-lg text-xl"
-          />
-          <div className="hidden lg:flex flex-col">
-            <h1 className="font-display font-bold text-xl text-white leading-none tracking-tight">
-              {teamData?.shortName || 'LCK'}
-            </h1>
-            <span className="text-xs text-gray-400 uppercase tracking-widest">Manager 25</span>
-          </div>
+      {/* SIDEBAR */}
+      <aside className="w-72 flex flex-col border-r border-white/5 bg-[#0f172a]/40 backdrop-blur-xl relative z-50">
+        
+        {/* LOGO AREA */}
+        <div className="p-8 pb-4 flex flex-col items-center border-b border-white/5">
+           <div className="relative group cursor-pointer">
+              <div className="absolute -inset-1 bg-gradient-to-r from-hextech-500 to-blue-600 rounded-full blur opacity-25 group-hover:opacity-75 transition duration-1000"></div>
+              <TeamLogo team={teamData} size="w-20 h-20" className="relative rounded-full border-2 border-white/10 shadow-2xl" />
+           </div>
+           <h1 className="mt-4 text-2xl font-display font-bold text-white tracking-widest">{teamData?.shortName || 'MANAGER'}</h1>
+           <p className="text-xs text-hextech-400 font-bold uppercase tracking-wider">{managerName}</p>
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 w-full space-y-2 px-2">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => onTabChange(tab.id)}
-              className={`w-full flex items-center justify-center lg:justify-start gap-4 p-3 rounded-xl transition-all duration-200 group relative overflow-hidden`}
-            >
-              {/* Active Background with dynamic team color */}
-              {currentTab === tab.id && (
-                 <div 
-                    className="absolute inset-0 opacity-20"
-                    style={{ backgroundColor: primaryColor }}
-                 ></div>
-              )}
-
-              <div className={`${currentTab === tab.id ? 'text-white' : 'text-gray-400 group-hover:text-white'} z-10 relative`}>
-                {tab.icon}
-                {tab.unreadCount > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-dark-900 lg:hidden" />
-                )}
-              </div>
-              <span className={`hidden lg:block font-semibold text-sm tracking-wide z-10 relative`}>
-                {tab.label}
-                {tab.unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-2 bg-red-500 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center border-2 border-dark-900">
-                    {tab.unreadCount > 9 ? '9+' : tab.unreadCount}
-                  </span>
-                )}
-              </span>
-              
-              {/* Active Indicator Bar */}
-              {currentTab === tab.id && (
-                <div 
-                  className="absolute left-0 top-2 bottom-2 w-1 rounded-r-full"
-                  style={{ backgroundColor: primaryColor }}
-                ></div>
-              )}
-            </button>
-          ))}
+        {/* NAVIGATION */}
+        <nav className="flex-1 overflow-y-auto py-6 px-4 space-y-1">
+          {menuItems.map((item) => {
+            const isActive = currentTab === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => onTabChange(item.id)}
+                className={`w-full flex items-center justify-between px-4 py-3 rounded-lg transition-all duration-200 group
+                  ${isActive 
+                    ? 'bg-hextech-600/20 text-hextech-300 border border-hextech-500/30 shadow-[0_0_15px_-5px_rgba(6,182,212,0.3)]' 
+                    : 'hover:bg-white/5 text-slate-400 hover:text-white border border-transparent'
+                  }`}
+              >
+                <div className="flex items-center gap-3">
+                  <item.icon size={20} className={isActive ? 'text-hextech-400' : 'text-slate-500 group-hover:text-slate-300'} />
+                  <span className={`font-display font-medium text-lg ${isActive ? 'font-bold' : ''}`}>{item.label}</span>
+                </div>
+                {item.badge ? (
+                  <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-lg animate-pulse">{item.badge}</span>
+                ) : null}
+              </button>
+            )
+          })}
         </nav>
 
-        {/* Bottom Stats */}
-        <div className="mt-auto px-4 pt-6 border-t border-dark-800">
-          {/* Manager Info */}
-          <div className="hidden lg:flex items-center gap-3 mb-4 px-2">
-            <UserCircle size={24} className="text-gray-500" />
-            <div className="overflow-hidden">
-               <div className="text-sm font-bold text-white truncate">{managerName || 'Manager'}</div>
-               <div className="text-xs text-gray-500">Head Coach</div>
+        {/* FOOTER INFO */}
+        <div className="p-6 border-t border-white/5 bg-[#0b1120]/50">
+            <div className="flex justify-between items-center mb-3">
+               <div className="text-xs text-slate-500 uppercase font-bold">Funds</div>
+               <div className="flex items-center gap-1 text-gold-400 font-mono font-bold text-lg">
+                  <Coins size={16} /> {coins.toLocaleString()}
+               </div>
             </div>
-          </div>
-
-          <div className="bg-dark-950 rounded-xl p-4 border border-dark-800 flex flex-col gap-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-gray-500 uppercase font-bold">Budget</span>
-              <Coins size={14} className="text-gold-400" />
+            <div className="flex justify-between items-center">
+               <div className="text-xs text-slate-500 uppercase font-bold">Week</div>
+               <div className="text-white font-display font-bold text-xl">{week}</div>
             </div>
-            <span className="font-display text-xl font-bold text-gold-400 tracking-wider">{coins.toLocaleString()} G</span>
-            
-            <div className="h-px bg-dark-800 my-1"></div>
-             <div className="flex items-center justify-between">
-              <span className="text-xs text-gray-500 uppercase font-bold">Week</span>
-              <span className="font-display text-lg text-white">
-                {week > 9 ? 'Playoffs' : (week === 0 ? <span className="text-xs">Pre-Season</span> : week)}
-              </span>
-            </div>
-          </div>
         </div>
       </aside>
 
-      {/* Main Content */}
-      <main className="flex-1 relative overflow-hidden flex flex-col">
-        {/* Background Decoration */}
-        <div 
-           className="absolute top-0 left-0 w-full h-96 opacity-10 blur-3xl -z-10 pointer-events-none rounded-full translate-y-[-50%]"
-           style={{ backgroundColor: primaryColor }}
-        ></div>
+      {/* MAIN CONTENT */}
+      <main className="flex-1 overflow-hidden relative">
+        {/* Dekoratif Arka Plan Işıkları */}
+        <div className="absolute top-0 left-0 w-full h-96 bg-gradient-to-b from-hextech-900/10 to-transparent pointer-events-none" />
         
-        <div className="flex-1 overflow-y-auto p-4 lg:p-8 scroll-smooth">
-          <div className="max-w-7xl mx-auto">
-            {children}
-          </div>
+        <div className="h-full overflow-y-auto p-8 lg:p-12 relative z-10 scroll-smooth">
+           {children}
         </div>
       </main>
+
     </div>
   );
 };

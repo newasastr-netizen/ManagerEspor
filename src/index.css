@@ -1,26 +1,91 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;700&family=Rajdhani:wght@500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Kart Çevirme (3D Flip) Animasyonları */
-@layer utilities {
-  .perspective-1000 {
-    perspective: 1000px;
+:root {
+  --hextech-glow: 0 0 10px rgba(14, 165, 233, 0.5);
+  --gold-glow: 0 0 10px rgba(234, 179, 8, 0.4);
+}
+
+body {
+  @apply bg-[#050910] text-slate-200 font-sans overflow-x-hidden;
+  background-image: 
+    radial-gradient(circle at 15% 50%, rgba(14, 165, 233, 0.08) 0%, transparent 25%),
+    radial-gradient(circle at 85% 30%, rgba(200, 155, 60, 0.05) 0%, transparent 25%);
+}
+
+/* --- TİPOGRAFİ --- */
+.font-display {
+  font-family: 'Rajdhani', sans-serif;
+  letter-spacing: 0.05em;
+}
+
+.font-sans {
+  font-family: 'Outfit', sans-serif;
+}
+
+/* --- ÖZEL EFEKTLER --- */
+@layer components {
+  .glass-panel {
+    @apply bg-[#0f172a]/60 backdrop-blur-md border border-white/10 shadow-xl;
   }
   
-  .transform-style-3d {
-    transform-style: preserve-3d;
+  .glass-card {
+    @apply bg-gradient-to-br from-[#1e293b]/80 to-[#0f172a]/80 backdrop-blur-sm border border-white/5 shadow-lg hover:border-hextech-500/50 hover:shadow-hextech transition-all duration-300;
   }
-  
-  .backface-hidden {
-    backface-visibility: hidden;
+
+  .btn-hextech {
+    @apply relative overflow-hidden bg-hextech-600 text-white font-display font-bold uppercase tracking-wider py-3 px-6 rounded-sm clip-hex transition-all hover:bg-hextech-500 hover:shadow-[0_0_15px_rgba(6,182,212,0.6)] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed;
   }
-  
-  .rotate-y-180 {
-    transform: rotateY(180deg);
-  }
-  
-  .rotate-y-0 {
-    transform: rotateY(0deg);
+
+  .btn-gold {
+    @apply relative overflow-hidden bg-gradient-to-b from-yellow-600 to-yellow-700 text-white font-display font-bold uppercase tracking-wider py-3 px-6 rounded-sm border border-yellow-400/30 transition-all hover:brightness-110 hover:shadow-[0_0_15px_rgba(234,179,8,0.4)];
   }
 }
+
+/* --- ANİMASYONLAR --- */
+@layer utilities {
+  .clip-hex {
+    clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+  }
+  
+  .text-shadow-glow {
+    text-shadow: 0 0 10px rgba(255,255,255,0.3);
+  }
+
+  .perspective-1000 { perspective: 1000px; }
+  .transform-style-3d { transform-style: preserve-3d; }
+  .backface-hidden { backface-visibility: hidden; }
+  .rotate-y-180 { transform: rotateY(180deg); }
+}
+
+@layer utilities {
+  /* FC Tarzı Kalkan Şekli */
+  .clip-shield {
+    clip-path: polygon(0 0, 100% 0, 100% 85%, 50% 100%, 0 85%);
+  }
+  
+  /* Kartın içindeki "Parlaklık" efekti için */
+  .bg-shine {
+    background: linear-gradient(
+      135deg, 
+      rgba(255,255,255,0) 0%, 
+      rgba(255,255,255,0.05) 40%, 
+      rgba(255,255,255,0.2) 50%, 
+      rgba(255,255,255,0.05) 60%, 
+      rgba(255,255,255,0) 100%
+    );
+  }
+}
+
+.mask-gradient-bottom {
+  mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { @apply bg-[#050910]; }
+::-webkit-scrollbar-thumb { @apply bg-slate-700 rounded-full hover:bg-hextech-600; }

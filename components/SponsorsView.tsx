@@ -1,7 +1,7 @@
 import React from 'react';
 import { Handshake, Lock } from 'lucide-react';
 import { getTeamTier } from './TeamLogo';
-import { TeamData } from '../types/types';
+import { TeamData } from '../src/types/types';
 
 export interface Sponsor {
   id: string;
@@ -15,20 +15,20 @@ export interface Sponsor {
 
 const AVAILABLE_SPONSORS: Sponsor[] = [
   // C Tier (Başlangıç)
-  { id: 'local_pc', name: 'Local PC Bang', weeklyIncome: 200, signingBonus: 500, duration: 5, minTier: 'C', description: 'Small local support.' },
-  { id: 'snack', name: 'Spicy Snacks', weeklyIncome: 300, signingBonus: 800, duration: 8, minTier: 'C', description: 'Provides snacks for the gaming house.' },
+  { id: 'local_pc', name: 'Hyper X', weeklyIncome: 200, signingBonus: 500, duration: 5, minTier: 'C', description: 'HyperX is a brand committed to making sure every gamer feels they are included.' },
+  { id: 'snack', name: 'Kit Kat', weeklyIncome: 300, signingBonus: 800, duration: 8, minTier: 'C', description: 'Have a Break, Have a KitKat' },
   
   // B Tier
-  { id: 'gear_store', name: 'ProGear Store', weeklyIncome: 500, signingBonus: 1500, duration: 10, minTier: 'B', description: 'Reliable income for rising teams.' },
-  { id: 'energy_drink', name: 'Energy Blast', weeklyIncome: 600, signingBonus: 1000, duration: 12, minTier: 'B', description: 'Focus on performance marketing.' },
+  { id: 'gear_store', name: 'Logitech', weeklyIncome: 500, signingBonus: 1500, duration: 10, minTier: 'B', description: 'Advanced Gaming Gear & Peripherals' },
+  { id: 'energy_drink', name: 'Red Bull', weeklyIncome: 600, signingBonus: 1000, duration: 12, minTier: 'B', description: 'Red Bull Gives You Wiiings' },
 
   // A Tier
-  { id: 'tech_giant', name: 'HexTech Computers', weeklyIncome: 1000, signingBonus: 5000, duration: 15, minTier: 'A', description: 'High-end equipment sponsor.' },
-  { id: 'car_brand', name: 'K-Auto', weeklyIncome: 1200, signingBonus: 4000, duration: 18, minTier: 'A', description: 'Luxury transport for the team.' },
+  { id: 'tech_giant', name: 'AGON BY AOC', weeklyIncome: 1000, signingBonus: 5000, duration: 15, minTier: 'A', description: 'Vision at Heart' },
+  { id: 'car_brand', name: 'Mercedes-Benz', weeklyIncome: 1200, signingBonus: 4000, duration: 18, minTier: 'A', description: 'The Best or Nothing' },
 
   // S Tier (Sadece Şampiyonlar)
-  { id: 'telecom', name: 'SKT Telecom', weeklyIncome: 2500, signingBonus: 15000, duration: 20, minTier: 'S', description: 'Global partner requiring championship performance.' },
-  { id: 'bank', name: 'Woori Bank', weeklyIncome: 3000, signingBonus: 10000, duration: 24, minTier: 'S', description: 'The ultimate prestige sponsor.' },
+  { id: 'bmw', name: 'BMW', weeklyIncome: 2500, signingBonus: 15000, duration: 20, minTier: 'S', description: 'Ultimate Driving Machine' },
+  { id: 'bank', name: 'Master Card', weeklyIncome: 3000, signingBonus: 10000, duration: 24, minTier: 'S', description: 'Explore the world with Mastercard®' },
 ];
 
 interface SponsorsViewProps {

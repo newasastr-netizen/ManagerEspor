@@ -2686,30 +2686,43 @@ const startLPLSplit3 = (prev: GameState): GameState => {
   };
 
   const initiateMatch = () => {
-     // 1. Sıradaki maçı bul
-     let nextMatch: any;
-     if (gameState.stage === 'GROUP_STAGE' || gameState.stage.includes('LPL')) {
-        // Lig maçları
-        nextMatch = gameState.schedule.find(m => !m.played && m.round === gameState.currentDay && (m.teamAId === gameState.teamId || m.teamBId === gameState.teamId));
+     // 1. Sadece OYNANABİLİR (Bugünkü ve Rakibi Belli) maçı bul
+     let validMatch: any;
+     
+     if (gameState.stage.includes('GROUP') || gameState.stage.includes('SPLIT')) {
+        // Lig: Hem oynanmamış, hem kullanıcıya ait, HEM DE BUGÜN (Round) olmalı
+        validMatch = gameState.schedule.find(m => 
+            !m.played && 
+            m.round === gameState.currentDay && 
+            (m.teamAId === gameState.teamId || m.teamBId === gameState.teamId)
+        );
      } else {
-        // Playoff maçları
-        nextMatch = gameState.playoffMatches.find(m => !m.winnerId && (m.teamAId === gameState.teamId || m.teamBId === gameState.teamId));
+        // Playoff: Hem oynanmamış, hem kullanıcıya ait, HEM DE RAKİPLER BELLİ olmalı
+        validMatch = gameState.playoffMatches.find(m => 
+            !m.winnerId && 
+            m.teamAId && m.teamBId && // <--- Rakipler null olmamalı
+            (m.teamAId === gameState.teamId || m.teamBId === gameState.teamId)
+        );
      }
 
-     if (nextMatch) {
-        const oppId = nextMatch.teamAId === gameState.teamId ? nextMatch.teamBId : nextMatch.teamAId;
+     if (validMatch) {
+        const oppId = validMatch.teamAId === gameState.teamId ? validMatch.teamBId : validMatch.teamAId;
         
-        // 2. Simülasyonu hemen başlatma! Önce Draft bilgilerini kaydet ve ekranı aç.
+        if (!oppId) {
+             showNotification('error', "Opponent is not determined yet.");
+             return;
+        }
+
         setDraftMatchInfo({
-            matchId: nextMatch.id,
+            matchId: validMatch.id,
             opponentId: oppId,
-            isBo5: !!nextMatch.isBo5
+            isBo5: !!validMatch.isBo5
         });
         
-        // İşte burası eksikti: Draft ekranını tetikliyoruz
         setIsDrafting(true); 
      } else {
-        showNotification('error', "No scheduled match found for today.");
+        // Eğer geçerli maç yoksa (Maç gelecekteyse veya rakip TBD ise)
+        showNotification('error', "No playable match found for today. Check schedule or simulate.");
      }
   };
 
@@ -3055,7 +3068,7 @@ const startLPLSplit3 = (prev: GameState): GameState => {
                       <button onClick={() => setFilterRole('ALL')} className={`flex-1 py-1.5 rounded text-xs font-bold ${filterRole === 'ALL' ? 'bg-dark-700 text-white' : 'text-gray-500 hover:text-gray-300'}`}>ALL</button>
                       {Object.values(Role).filter(r => r !== Role.COACH).map(role => (
                         <button key={role} onClick={() => setFilterRole(role)} className={`flex-1 py-1.5 rounded text-xs font-bold ${filterRole === role ? 'bg-hextech-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}>
-                            {role === Role.JUNGLE ? 'JGL' : role.slice(0, 3)}
+                            {role === Role.JUNGLE ? 'JUNGLE' : role.slice(0, 3)}
                         </button>
                       ))}
                       <button onClick={() => setFilterRole(Role.COACH)} className={`flex-1 py-1.5 rounded text-xs font-bold ${filterRole === Role.COACH ? 'bg-purple-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}>
@@ -3206,7 +3219,7 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
   const getSelectedStrategy = () => strategies.find(s => s.id === selectedStratId);
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-xl overflow-hidden">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-xl overflow-hidden pl-72">
       {/* Dinamik Arka Plan */}
       <div className={`absolute inset-0 bg-gradient-to-br transition-all duration-1000 opacity-20 ${step === 'RESULT' && resultData?.bonus! > 0 ? 'from-green-500 to-green-900' : step === 'RESULT' && resultData?.bonus! < 0 ? 'from-red-900 to-black' : 'from-blue-900 to-gray-900'}`} />
 
@@ -3267,10 +3280,11 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
 
             {/* --- DURUM 2 & 3: SONUÇ EKRANI (SOLDA SEN, SAĞDA RAKİP) --- */}
             {(step === 'REVEAL' || step === 'RESULT') && getSelectedStrategy() && (
-                <div className="flex w-full max-w-5xl justify-between items-center px-10">
+                // DEĞİŞİKLİK: gap-8 ile elemanları birbirine yaklaştırıp, justify-center ile tamamen ortaladık.
+                <div className="flex w-full justify-center items-center gap-4 md:gap-16 lg:gap-24 animate-in fade-in zoom-in duration-500 min-h-[500px]">
 
-                    {/* SOL: SENİN SEÇTİĞİN KART (Sabitlenmiş, Soldan gelir) */}
-                    <div className={`w-80 h-[480px] rounded-2xl bg-gradient-to-br ${getSelectedStrategy()!.color} p-1 shadow-[0_0_50px_rgba(200,160,50,0.5)] z-20 animate-in slide-in-from-left fade-in duration-700 ring-4 ring-gold-400`}>
+                    {/* SOL: SENİN SEÇTİĞİN KART */}
+                    <div className={`w-80 h-[480px] shrink-0 rounded-2xl bg-gradient-to-br ${getSelectedStrategy()!.color} p-1 shadow-[0_0_50px_rgba(200,160,50,0.5)] z-20 animate-in slide-in-from-left-20 duration-700 ring-4 ring-gold-400`}>
                         <div className="w-full h-full bg-dark-900/90 rounded-xl flex flex-col items-center justify-center p-8 text-center">
                             <div className="text-8xl mb-8 filter drop-shadow-2xl">{getSelectedStrategy()!.icon}</div>
                             <h3 className="text-4xl font-bold text-white uppercase font-display">{getSelectedStrategy()!.name}</h3>
@@ -3278,16 +3292,18 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
                         </div>
                     </div>
 
-                    {/* ORTA: VS YAZISI */}
-                    <div className="text-8xl font-black text-white mix-blend-overlay animate-pulse z-40 mx-8 animate-in zoom-in duration-500 delay-300 font-display">VS</div>
+                    {/* ORTA: VS YAZISI (Artık akışın içinde, kartları itiyor) */}
+                    <div className="flex flex-col items-center justify-center z-30 shrink-0">
+                        <div className="text-9xl font-black text-white mix-blend-overlay animate-pulse font-display drop-shadow-[0_0_15px_rgba(255,255,255,0.5)]">VS</div>
+                    </div>
 
-                    {/* SAĞ: RAKİP KARTI (Dönen, Sağdan gelir) */}
-                    <div className={`relative w-80 h-[480px] transition-all duration-700 transform transform-style-3d animate-in slide-in-from-right fade-in duration-700 z-20
+                    {/* SAĞ: RAKİP KARTI */}
+                    <div className={`relative w-80 h-[480px] shrink-0 transition-all duration-700 transform transform-style-3d z-20 animate-in slide-in-from-right-20 duration-700
                         ${step === 'REVEAL' ? 'rotate-y-180' : 'rotate-y-0'} rounded-2xl shadow-[0_0_50px_rgba(220,38,38,0.5)]`}>
                         
                         {/* Arka Yüz (Kapalı) */}
-                        <div className="absolute inset-0 w-full h-full bg-dark-800 border-4 border-gray-600 rounded-2xl flex items-center justify-center backface-hidden bg-[url('/assets/card-back-pattern.png')] bg-repeat opacity-90">
-                            <div className="text-8xl animate-spin text-gray-400">❓</div>
+                        <div className="absolute inset-0 w-full h-full bg-dark-800 border-4 border-gray-600 rounded-2xl flex items-center justify-center backface-hidden bg-[url('/assets/card-back-pattern.png')] bg-repeat opacity-90 shadow-inner">
+                            <div className="text-8xl animate-spin text-gray-500">❓</div>
                         </div>
 
                         {/* Ön Yüz (Açık) */}
@@ -3419,7 +3435,7 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
     const { synergies, totalBonus, relationshipBonus } = getActiveSynergies(gameState.roster);
 
     return (
-      <div className="space-y-6">
+      <div className="space-y-8 animate-fade-in-up">
         <div className="bg-dark-900 rounded-2xl p-6 border border-dark-800 flex justify-between items-center">
           <div>
             <h2 className="text-3xl font-display font-bold text-white mb-1">
@@ -3488,13 +3504,26 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
           <div className="bg-dark-900 rounded-2xl p-6 border border-dark-800 flex flex-col justify-center items-center">
             <h3 className="text-lg font-bold text-white mb-2">Next Step</h3>
             <p className="text-gray-400 text-center mb-6">
-              {gameState.stage === 'PRE_SEASON' ? 'Complete your roster and start the season.' : `Week ${gameState.week} Matches`}
+              {gameState.stage === 'PRE_SEASON' 
+                ? (isRosterComplete() ? 'Roster complete. Ready to start.' : 'Complete your roster to start season.') 
+                : `Week ${gameState.week} Matches`}
             </p>
+            
             <button 
-              onClick={() => setTab(gameState.stage === 'PRE_SEASON' ? 'market' : 'play')}
+              onClick={() => {
+                  // Eğer Pre-Season ise ve kadro tam değilse Market'e, tamsa Play'e yolla
+                  if (gameState.stage === 'PRE_SEASON') {
+                      if (isRosterComplete()) setTab('play');
+                      else setTab('market');
+                  } else {
+                      setTab('play');
+                  }
+              }}
               className="px-8 py-3 bg-hextech-600 hover:bg-hextech-500 text-white font-bold rounded-xl shadow-lg transition-all"
             >
-              {gameState.stage === 'PRE_SEASON' ? 'Go to Market' : 'Play Match'}
+              {gameState.stage === 'PRE_SEASON' 
+                  ? (isRosterComplete() ? 'Start Season' : 'Go to Market') 
+                  : 'Play Match'}
             </button>
           </div>
         </div>
@@ -4025,216 +4054,165 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
   };
 
   const PlayView = () => (
-    <div className="flex flex-col items-center justify-center min-h-[400px] space-y-8">
+    <div className="flex flex-col items-center justify-center min-h-[400px] space-y-8 animate-fade-in w-full">
+       
+       {/* 1. PRE-SEASON */}
        {gameState.stage === 'PRE_SEASON' ? (
-          <div className="text-center space-y-4 max-w-md">
-             <Trophy size={64} className="mx-auto text-hextech-500 mb-4" />
-             <h2 className="text-3xl font-display font-bold text-white">Pre-Season</h2>
-             <p className="text-gray-400">Complete your roster training and market activities before starting the LCK split.</p>
-             <button 
-                onClick={startSeason}
-                className="w-full py-4 bg-hextech-600 hover:bg-hextech-500 text-white font-bold text-xl rounded-xl shadow-xl transition-all"
-             >
-                Start Season
+          <div className="text-center space-y-6 max-w-md bg-dark-900/50 p-8 rounded-2xl border border-dark-700">
+             <Trophy size={64} className="mx-auto text-hextech-500 mb-4 animate-pulse" />
+             <div>
+                <h2 className="text-3xl font-display font-bold text-white">Pre-Season</h2>
+                <p className="text-gray-400 mt-2">Complete your roster training and market activities before starting the split.</p>
+             </div>
+             <button onClick={startSeason} className="btn-hextech w-full rounded-xl shadow-xl flex items-center justify-center gap-3 text-lg py-4">
+                <Play fill="currentColor" size={24} /> Start Season
              </button>
           </div>
+
        ) : gameState.stage === 'OFF_SEASON' ? (
-           <div className="text-center space-y-4 max-w-md">
+           // 2. OFF-SEASON
+           <div className="text-center space-y-6 max-w-md bg-dark-900/50 p-8 rounded-2xl border border-dark-700">
              <RotateCcw size={64} className="mx-auto text-hextech-500 mb-4" />
              <h2 className="text-3xl font-display font-bold text-white">Off-Season</h2>
-             <p className="text-gray-400">The season has concluded. Contracts have expired and players have aged.</p>
-             <button 
-                onClick={startSeason}
-                className="w-full py-4 bg-hextech-600 hover:bg-hextech-500 text-white font-bold text-xl rounded-xl shadow-xl transition-all"
-             >
-                Start Season {gameState.currentSeason}
-             </button>
+             <p className="text-gray-400">The season has concluded.</p>
+             <button onClick={startSeason} className="btn-hextech w-full py-4 text-lg">Start Season {gameState.currentSeason! + 1}</button>
           </div>
-       ) : !gameState.stage.startsWith('MSI') ? (
-          <div className="w-full max-w-2xl bg-dark-900 border border-dark-800 rounded-2xl p-8 text-center space-y-6">
-             <div className="text-xs font-bold text-hextech-400 uppercase tracking-widest">
-                {gameState.stage.replace('_', ' ')} • Week {gameState.week}
+
+       ) : (
+          // 3. AKTİF SEZON
+          <div className="w-full max-w-4xl bg-dark-900 border border-dark-800 rounded-2xl p-8 text-center space-y-8 relative overflow-hidden shadow-2xl">
+             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-hextech-500 to-transparent shadow-[0_0_15px_rgba(6,182,212,0.8)]"></div>
+             
+             <div className="flex justify-between items-center text-xs font-bold text-hextech-400 uppercase tracking-widest border-b border-white/5 pb-4">
+                <span>{gameState.stage.replace(/_/g, ' ')}</span>
+                <span>Week {gameState.week} • Day {gameState.currentDay}</span>
              </div>
              
              {(() => {
-                 let nextMatch: ScheduledMatch | PlayoffMatch | undefined;
-                 let isEliminated = false;
-                 let canSimulate = false;
+                 // --- AKILLI MAÇ KONTROLÜ ---
+                 let nextUserMatch: any;
+                 let isFuture = false;
+                 let isTBD = false;
 
-                 if (gameState.stage === 'GROUP_STAGE' || gameState.stage === 'LPL_SPLIT_2_GROUPS' || gameState.stage === 'LPL_SPLIT_3_GROUPS' || gameState.stage === 'LPL_SPLIT_2_PLACEMENTS') {
-                    const matchesToday = gameState.schedule.filter(m => m.round === gameState.currentDay);
-                    nextMatch = matchesToday.find(m => !m.played && (m.teamAId === gameState.teamId || m.teamBId === gameState.teamId));
-                     
-                     if (!nextMatch && matchesToday.some(m => !m.played)) {
-                         canSimulate = true;
-                     }
-                 } else { 
-                     const activeMatch = gameState.playoffMatches.find(m => !m.winnerId && m.teamAId && m.teamBId && (m.teamAId === gameState.teamId || m.teamBId === gameState.teamId));
-                     
-                     if (activeMatch) {
-                         nextMatch = activeMatch;
-                     } else {
-                         const wonFinals = gameState.playoffMatches.find(m => m.roundName === 'Grand Final')?.winnerId === gameState.teamId;
-                         const stillAlive = gameState.playoffMatches.some(m => (!m.teamAId || !m.teamBId) && (m.nextMatchId && (m.teamAId === gameState.teamId || m.teamBId === gameState.teamId))); 
-                         
-                         const anyPending = gameState.playoffMatches.some(m => !m.winnerId && m.teamAId && m.teamBId);
-                         if (anyPending) {
-                             canSimulate = true;
-                         }
-                         
-                         if (!anyPending && !nextMatch && !wonFinals) isEliminated = true;
-                     }
+                 // A. Lig Maçı Kontrolü
+                 if (gameState.stage.includes('GROUP') || gameState.stage.includes('SPLIT')) {
+                    nextUserMatch = gameState.schedule.find(m => !m.played && (m.teamAId === gameState.teamId || m.teamBId === gameState.teamId));
+                    
+                    if (nextUserMatch && nextUserMatch.round > gameState.currentDay) {
+                        isFuture = true; // Maç var ama bugün değil
+                    }
+                 } 
+                 // B. Playoff Maçı Kontrolü
+                 else {
+                    nextUserMatch = gameState.playoffMatches.find(m => !m.winnerId && (m.teamAId === gameState.teamId || m.teamBId === gameState.teamId));
+                    
+                    if (nextUserMatch && (!nextUserMatch.teamAId || !nextUserMatch.teamBId)) {
+                        isTBD = true; // Maç var ama rakip belli değil
+                    }
                  }
 
-                 if (isEliminated) {
+                 // BUGÜN OYNANACAK HERHANGİ BİR MAÇ VAR MI? (Kullanıcı maçı olmasa bile)
+                 const anyMatchToday = gameState.schedule.some(m => m.round === gameState.currentDay && !m.played) || 
+                                       gameState.playoffMatches.some(m => !m.winnerId && m.teamAId && m.teamBId);
+                 
+                 const isSeasonOver = !anyMatchToday && !nextUserMatch && 
+                                      ((gameState.playoffMatches.length > 0 && gameState.playoffMatches.every(m => m.winnerId)));
+
+                 // --- DURUM 1: MAÇ YOK veya BEKLİYOR ---
+                 if (!nextUserMatch || isFuture || isTBD) {
+                     let message = "No match scheduled for your team today.";
+                     let btnText = "Simulate Day";
+                     let btnAction = () => skipToNextMatch();
+
+                     if (isSeasonOver) {
+                         message = "Season concluded. Ready to advance?";
+                         btnText = "Finish Season";
+                         btnAction = () => advanceToNextStage();
+                     } else if (isTBD) {
+                         message = "Waiting for opponent to be determined...";
+                         btnText = "Simulate Other Matches";
+                     } else if (isFuture) {
+                         message = `Your next match is in Round ${nextUserMatch.round}. (Current: ${gameState.currentDay})`;
+                         btnText = "Simulate to Match Day";
+                     }
+
                      return (
-                         <div className="py-8">
-                             <XCircle size={64} className="mx-auto text-red-500 mb-4" />
-                             <h2 className="text-2xl font-bold text-white mb-2">Season Ended</h2>
-                             <p className="text-gray-400 mb-6">Your team has been eliminated from contention.</p>
-                             <button 
-                                onClick={() => advanceToNextStage()} 
-                                className="px-8 py-3 bg-gray-700 hover:bg-gray-600 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 mx-auto"
-                             >
-                                <FastForward size={20} /> Finish Season & View Results
-                             </button>
-                         </div>
+                        <div className="py-12 animate-in fade-in">
+                            <div className="text-2xl text-gray-400 mb-8 font-light">{message}</div>
+                            
+                            {/* Eğer bugün oynanacak başka maçlar varsa Simüle etme butonu göster */}
+                            {(anyMatchToday || isSeasonOver) && (
+                                <button 
+                                onClick={btnAction}
+                                disabled={isPlayingMatch}
+                                className="px-10 py-4 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-3 mx-auto shadow-lg hover:shadow-xl"
+                                >
+                                {isPlayingMatch ? 'Processing...' : <><FastForward size={24} /> {btnText}</>}
+                                </button>
+                            )}
+                            
+                            {/* Eğer bugün hiç maç yoksa ve kullanıcı maçı da gelecekteyse, otomatik gün atla */}
+                            {!anyMatchToday && !isSeasonOver && isFuture && (
+                                <div className="text-yellow-500">Wait... Automatically advancing day... (Click Simulate if stuck)</div>
+                            )}
+                        </div>
                      );
                  }
+                 
+                 // --- DURUM 2: MAÇ HAZIR (Draft Başlatılabilir) ---
+                 const opponentId = nextUserMatch.teamAId === gameState.teamId ? nextUserMatch.teamBId : nextUserMatch.teamAId;
+                 const opponent = allTeams.find(t => t.id === opponentId);
+                 const myTeam = activeTeamData;
 
-                 if (!nextMatch) {
-                     if (canSimulate) {
-                         return (
-                             <div className="py-8">
-                                 <div className="text-xl text-gray-400 mb-4">No match scheduled for your team today.</div>
-                                 <div className="flex justify-center gap-4">
-                                    <button 
-                                      onClick={() => initiateMatch()}
-                                      disabled={isPlayingMatch}
-                                      className="px-6 py-3 bg-yellow-600 hover:bg-yellow-500 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2"
-                                    >
-                                       {isPlayingMatch ? 'Simulating...' : <><FastForward size={20} /> Simulate Day</>}
-                                    </button>
-                                    <button 
-                                      onClick={() => skipToNextMatch()}
-                                      disabled={isPlayingMatch}
-                                      className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2"
-                                    >
-                                       {isPlayingMatch ? 'Skipping...' : <><SkipForward size={20} /> Skip to Next Match</>}
-                                    </button>
-                                 </div>
-                             </div>
-                         );
-                     }
-                     const isSeasonOver = gameState.playoffMatches.length > 0 && gameState.playoffMatches.every(m => m.winnerId);
-                     return (
-                        <div className="py-8 text-center">
-                            <div className="text-xl text-gray-400 mb-6">Waiting for opponent or season processing...</div>
+                 return (
+                    <div className="animate-in zoom-in duration-500">
+                        <div className="flex items-center justify-center gap-12 py-6 mb-8">
+                            {/* MY TEAM */}
+                            <div className="text-center group">
+                                <div className="relative">
+                                    <div className="absolute -inset-4 bg-blue-500/20 rounded-full blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                                    <TeamLogo team={myTeam} size="w-32 h-32" className="mx-auto mb-4 relative z-10 shadow-2xl rounded-full" />
+                                </div>
+                                <h3 className="text-2xl font-display font-bold text-white tracking-wider">{myTeam?.shortName}</h3>
+                            </div>
+
+                            {/* VS */}
+                            <div className="flex flex-col items-center">
+                                <div className="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white to-slate-600 font-display italic">VS</div>
+                                <div className="text-xs font-bold text-hextech-500 bg-hextech-900/30 px-3 py-1 rounded-full mt-2 border border-hextech-500/30">
+                                    {nextUserMatch.isBo5 ? 'BO5 SERIES' : 'BO3 SERIES'}
+                                </div>
+                            </div>
+
+                            {/* OPPONENT */}
+                            <div className="text-center group">
+                                <div className="relative">
+                                    <div className="absolute -inset-4 bg-red-500/20 rounded-full blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                                    <TeamLogo team={opponent} size="w-32 h-32" className="mx-auto mb-4 relative z-10 shadow-2xl rounded-full grayscale-[0.3] group-hover:grayscale-0 transition-all" />
+                                </div>
+                                <h3 className="text-2xl font-display font-bold text-white tracking-wider">{opponent?.shortName}</h3>
+                            </div>
+                        </div>
+
+                        {/* ACTIONS */}
+                        <div className="flex flex-col gap-4 items-center">
                             <button 
-                              onClick={() => {
-                                 if (isSeasonOver) advanceToNextStage();
-                                 else skipToNextMatch();
-                              }} 
-                              className="px-8 py-3 bg-gray-700 hover:bg-gray-600 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 mx-auto"
+                                onClick={initiateMatch}
+                                disabled={isPlayingMatch}
+                                className="btn-hextech w-full max-w-md text-2xl py-5 shadow-[0_0_40px_rgba(6,182,212,0.3)] hover:shadow-[0_0_60px_rgba(6,182,212,0.5)] scale-100 hover:scale-105 transition-transform"
                             >
-                               <FastForward size={20} /> {isSeasonOver ? 'Finish Season' : 'Simulate to Next Match'}
+                                {isPlayingMatch ? 'Loading...' : <span className="flex items-center justify-center gap-3"><Play fill="currentColor" /> ENTER DRAFT</span>}
+                            </button>
+                            
+                            <button 
+                                onClick={skipToNextMatch}
+                                disabled={isPlayingMatch}
+                                className="text-sm text-slate-500 hover:text-white transition-colors flex items-center gap-2"
+                            >
+                                <SkipForward size={14} /> Quick Simulate (Skip Draft)
                             </button>
                         </div>
-                     );
-                 }
-                 
-                 const teamA = activeLeague.teams.find(t => t.id === nextMatch?.teamAId);
-                 const teamB = activeLeague.teams.find(t => t.id === nextMatch?.teamBId);
-
-                 return (
-                    <>
-                        <div className="flex items-center justify-center gap-8 py-8">
-                            <div className="text-center">
-                            <TeamLogo team={teamA} size="w-24 h-24" className="mx-auto mb-2" />
-                            <h3 className="text-2xl font-display font-bold text-white">{teamA?.shortName}</h3>
-                            </div>
-                            <div className="text-4xl font-display font-bold text-gray-600">VS</div>
-                            <div className="text-center">
-                            <TeamLogo team={teamB} size="w-24 h-24" className="mx-auto mb-2" />
-                            <h3 className="text-2xl font-display font-bold text-white">{teamB?.shortName}</h3>
-                            </div>
-                        </div>
-
-                        <button 
-                        onClick={() => initiateMatch()}
-                        disabled={isPlayingMatch}
-                        className="px-12 py-4 bg-white hover:bg-gray-200 text-black font-bold text-xl rounded-full shadow-[0_0_20px_rgba(255,255,255,0.3)] transition-all flex items-center justify-center gap-3 mx-auto disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            {isPlayingMatch ? 'Simulating...' : <><Play size={24} fill="currentColor" /> Play Match</>}
-                        </button>
-                    </>
-                 )
-             })()}
-          </div>
-       ) : (
-          <div className="w-full max-w-2xl bg-dark-900 border-2 border-yellow-400 rounded-2xl p-8 text-center space-y-6 shadow-[0_0_30px_rgba(250,204,21,0.3)]">
-             <div className="text-sm font-bold text-yellow-300 uppercase tracking-widest">
-                Mid-Season Invitational
-             </div>
-             
-             {(() => {
-                 const nextMatch = gameState.playoffMatches.find(m => !m.winnerId && (m.teamAId === gameState.teamId || m.teamBId === gameState.teamId));
-
-                 if (!nextMatch) {
-                     const isMsiOver = gameState.playoffMatches.every(m => m.winnerId);
-                     if (isMsiOver) {
-                         return (
-                            <div className="py-8">
-                                <Trophy size={64} className="mx-auto text-yellow-400 mb-4" />
-                                <h2 className="text-2xl font-bold text-white mb-2">MSI Concluded</h2>
-                                <p className="text-gray-400 mb-6">The tournament is over. Time to prepare for the Summer Split.</p>
-                                <button onClick={advanceToNextStage} className="px-8 py-3 bg-gray-700 hover:bg-gray-600 text-white font-bold rounded-xl">
-                                    Continue to Summer Split
-                                </button>
-                            </div>
-                         );
-                     }
-                     const anyPending = gameState.playoffMatches.some(m => !m.winnerId && m.teamAId && m.teamBId);
-                     if (anyPending || (!isMsiOver && !nextMatch)) {
-                         return (
-                             <div className="py-8">
-                                 <div className="text-xl text-gray-400 mb-4">No match scheduled for your team.</div>
-                                 <div className="flex justify-center gap-4">
-                                    <button 
-                                      onClick={() => initiateMatch()}
-                                      disabled={isPlayingMatch}
-                                      className="px-6 py-3 bg-yellow-600 hover:bg-yellow-500 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2"
-                                    >
-                                       {isPlayingMatch ? 'Simulating...' : <><FastForward size={20} /> Simulate Match</>}
-                                    </button>
-                                    <button 
-                                      onClick={() => skipToNextMatch()}
-                                      disabled={isPlayingMatch}
-                                      className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2"
-                                    >
-                                       {isPlayingMatch ? 'Skipping...' : <><SkipForward size={20} /> Skip to Your Match</>}
-                                    </button>
-                                 </div>
-                             </div>
-                         );
-                     }
-                     return <div className="py-8 text-xl text-gray-400">Waiting for tournament processing...</div>;
-                 }
-                 
-                 const teamA = allTeams.find(t => t.id === nextMatch?.teamAId);
-                 const teamB = allTeams.find(t => t.id === nextMatch?.teamBId);
-
-                 return (
-                    <>
-                        <div className="flex items-center justify-center gap-8 py-8">
-                            <TeamLogo team={teamA} size="w-24 h-24" />
-                            <div className="text-4xl font-display font-bold text-gray-600">VS</div>
-                            <TeamLogo team={teamB} size="w-24 h-24" />
-                        </div>
-                        <button onClick={() => initiateMatch()} disabled={isPlayingMatch} className="px-12 py-4 bg-white hover:bg-gray-200 text-black font-bold text-xl rounded-full shadow-[0_0_20px_rgba(255,255,255,0.3)]">
-                            {isPlayingMatch ? 'Simulating...' : 'Play MSI Match'}
-                        </button>
-                    </>
+                    </div>
                  )
              })()}
           </div>
