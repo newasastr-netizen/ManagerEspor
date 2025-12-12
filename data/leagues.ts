@@ -57,11 +57,11 @@ export const LEAGUES: Record<LeagueKey, LeagueDefinition> = {
     teams: LEC_TEAMS,
     players: REAL_LEC_PLAYERS,
     settings: { 
-        teamCount: 10, 
-        groupCount: 1, 
-        scheduleType: 'DOUBLE_ROBIN', 
-        format: 'LEC',
-        isBo3: false
+        format: 'STANDARD',
+        matchesPerWeek: 2,
+        scheduleType: 'SINGLE_ROBIN',
+        playoffTeams: 8,
+        isBo3: false,
     }
   },
   LTA: {
