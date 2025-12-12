@@ -32,6 +32,17 @@ export const LEC_TEAMS: TeamData[] = [
   { id: 'kc', name: 'Karmine Corp', shortName: 'KC', primaryColor: '#0075C2', logoUrl: '/logos/lec/KC.png' },
 ];
 
+export const LTA_TEAMS: TeamData[] = [
+    { id: 'c9', name: 'Cloud9', shortName: 'C9', logoUrl: '/logos/lta/C9.png', primaryColor: '#00AEEF'},
+    { id: 'tl', name: 'Team Liquid', shortName: 'TL', logoUrl: '/logos/lta/TL.png', primaryColor: '#0C223F'},
+    { id: 'fly', name: 'FlyQuest', shortName: 'FLY', logoUrl: '/logos/lta/FLY.png', primaryColor: '#C3A857'},
+    { id: '100t', name: '100 Thieves', shortName: '100T', logoUrl: '/logos/lta/100T.png', primaryColor:'#FF0000'},
+    { id: 'dig', name: 'Dignitas', shortName: 'DIG', logoUrl: '/logos/lta/DIG.png', primaryColor: '#FFD100',},
+    { id: 'sr', name: 'Shopify Rebellion', shortName: 'SR', logoUrl: '/logos/lta/SR.png', primaryColor: '#6CE583'},
+    { id: 'lyn', name: 'Lyon Gaming', shortName: 'LYN', logoUrl: '/logos/lta/LYN.png', primaryColor: '#D32F2F'},
+    { id: 'dsg', name: 'Disguised', shortName: 'DSG', logoUrl: '/logos/lta/DSG.png', primaryColor: '#F6B93B'},
+];
+
 export const TCL_TEAMS: TeamData[] = [
   { id: 'bjk', name: 'Beşiktaş Esports', shortName: 'BJK', primaryColor: '#000000', logoUrl: '/logos/tcl/BJK.png' },
   { id: 'dp', name: 'Dark Passage', shortName: 'DP', primaryColor: '#0088CE', logoUrl: '/logos/tcl/DP.png' },

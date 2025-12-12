@@ -1,6 +1,6 @@
 import { TeamData, PlayerCard } from '../types';
-import { REAL_LCK_PLAYERS, REAL_LEC_PLAYERS, REAL_LPL_PLAYERS, REAL_TCL_PLAYERS } from './players';
-import { LCK_TEAMS, LEC_TEAMS, LPL_TEAMS, TCL_TEAMS } from './teams';
+import { REAL_LCK_PLAYERS, REAL_LPL_PLAYERS, REAL_LEC_PLAYERS, REAL_TCL_PLAYERS, REAL_LTA_PLAYERS } from './players';
+import { LCK_TEAMS, LEC_TEAMS, LPL_TEAMS, TCL_TEAMS, LTA_TEAMS } from './teams';
 
 export type LeagueKey = 'LCK' | 'LPL' | 'LEC'| 'TCL';
 
@@ -63,6 +63,21 @@ export const LEAGUES: Record<LeagueKey, LeagueDefinition> = {
         format: 'LEC',
         isBo3: false
     }
+  },
+  LTA: {
+    id: 'lta',
+    name: 'LTA North',
+    region: 'Americas',
+    logoUrl: '/logos/lta/LTA.png',
+    teams: LTA_TEAMS,
+    players: REAL_LTA_PLAYERS,
+    settings: {
+      format: 'STANDARD',
+      matchesPerWeek: 2,
+      scheduleType: 'DOUBLE_ROBIN',
+      playoffTeams: 6,
+      isBo3: true,
+    },
   },
   TCL: {
     key: 'TCL',

@@ -106,7 +106,7 @@ export interface MatchResult {
   isBo5: boolean;
 }
 
-export type LeagueKey = 'LCK' | 'LPL' | 'LEC' | 'TCL';
+export type LeagueKey = 'LCK' | 'LPL' | 'LEC' | 'TCL' | 'LTA';
 
 export interface GameState {
   managerName: string;

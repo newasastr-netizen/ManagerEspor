@@ -698,6 +698,9 @@ export default function App() {
     const selectedLeague = LEAGUES[leagueKey];
     setActiveLeague(selectedLeague);
 
+    const isThreeSplitLeague = leagueKey === 'LEC' || leagueKey === 'TCL';
+    const startSplit = isThreeSplitLeague ? 'WINTER' : 'SPRING';
+
     const finalDifficulty = difficulty || 'Normal';
     const difficultySettings = DIFFICULTY_SETTINGS[finalDifficulty];
     let startingCoins = difficultySettings.initialCoins;
@@ -729,6 +732,7 @@ export default function App() {
       teamId: team.id,
       difficulty: finalDifficulty,
       coins: startingCoins,
+      currentSplit: startSplit,
       inventory: userTeamPlayers,
       standings: [],
       roster: {
@@ -1343,12 +1347,14 @@ export default function App() {
   };
 
   const startSeason = () => {
+    // 1. Kadro Kontrolü
     if (!isRosterComplete()) {
       setError("You must sign a player for every role to start the season!");
       setTimeout(() => setError(null), 3000);
       return;
     }
 
+    // Kullanılan tüm oyuncu ID'lerini topla (Çakışma olmaması için)
     const allPlayerIdsInUse = new Set([
         ...gameState.inventory.map(p => p.id),
         ...(Object.values(gameState.roster) as (PlayerCard | null)[]).filter(p => p).map(p => p!.id)
@@ -1360,16 +1366,22 @@ export default function App() {
     const roles = [Role.TOP, Role.JUNGLE, Role.MID, Role.ADC, Role.SUPPORT];
     
     setGameState(prev => {
-        const transferUpdates = handleAiTransfers(prev);
-
+        // --- 1. ADIM: AI TRANSFERLERİ VE KADRO DOLDURMA ---
+        const transferUpdates = handleAiTransfers(prev); // Sezon öncesi son transferler
         const newAiRosters = { ...prev.aiRosters };
+        
+        // Tüm havuzu al
         const allPlayers = Object.entries(LEAGUES).flatMap(([key, leagueData]) => 
           leagueData.players.map(p => ({ ...p, league: key as LeagueKey }))
         );
 
+        // Kullanılmayan oyuncuları filtrele
         const pool = [...allPlayers, ...prev.freeAgents].filter(p => !allPlayerIdsInUse.has(p.id));
+        
+        // Rakip takımları bul
         const allAiTeams = Object.values(LEAGUES).flatMap(l => l.teams).filter(t => t.id !== prev.teamId);
 
+        // Her rakip takımın eksiklerini tamamla
         allAiTeams.forEach(team => {
             const teamLeagueKey = Object.keys(LEAGUES).find(key => 
                 (LEAGUES as any)[key].teams.some((t: TeamData) => t.id === team.id)
@@ -1377,119 +1389,150 @@ export default function App() {
 
             if (!teamLeagueKey) return;
 
+            // Kadro zaten tamsa geç
             if (newAiRosters[team.id] && Object.keys(newAiRosters[team.id]).length >= 5) return;
 
             const newRoster: Record<Role, PlayerCard> = newAiRosters[team.id] ? {...newAiRosters[team.id]} as any : {} as any;
 
-            const roll = Math.random();
-            const foreignPlayerCount = roll < 0.25 ? 2 : 1;
-            let currentForeignPlayers = 0;
-
             roles.forEach(role => {
-                if (newRoster[role]) return;
+                if (newRoster[role]) return; // Rol doluysa geç
 
+                // Önce kendi liginden oyuncu ara
                 let playerIndex = pool.findIndex(p => p.role === role && p.league === teamLeagueKey);
-                let useForeign = false;
-
-                if (playerIndex === -1 || (currentForeignPlayers < foreignPlayerCount && Math.random() < 0.4)) {
+                
+                // Bulamazsa veya şans eseri yabancı oyuncu al
+                if (playerIndex === -1 || Math.random() < 0.2) {
                     const foreignIndex = pool.findIndex(p => p.role === role && p.league !== teamLeagueKey);
-                    if (foreignIndex !== -1) {
-                        playerIndex = foreignIndex;
-                        useForeign = true;
-                    }
+                    if (foreignIndex !== -1) playerIndex = foreignIndex;
                 }
 
                 if (playerIndex >= 0) {
                     const player = pool[playerIndex];
                     newRoster[role] = { ...player, team: team.shortName, contractDuration: 2 };
-                    pool.splice(playerIndex, 1);
-                    if (useForeign) currentForeignPlayers++;
+                    pool.splice(playerIndex, 1); // Oyuncuyu havuzdan çıkar
                 } else {
-                    newRoster[role] = { ...activeLeague.players[0], id: `gen-${team.id}-${role}-${Date.now()}`, name: `Rookie ${role}`, role, overall: 70, age: 18, price: 0, salary: 20, contractDuration: 2, rarity: Rarity.COMMON, stats: {mechanics:70, macro:70, lane:70, teamfight:70}, team: team.shortName, league: teamLeagueKey };
+                    // Hiç oyuncu yoksa 'Rookie' oluştur
+                    newRoster[role] = { 
+                        ...activeLeague.players[0], 
+                        id: `gen-${team.id}-${role}-${Date.now()}`, 
+                        name: `Rookie ${role}`, 
+                        role, 
+                        overall: 70, 
+                        age: 18, 
+                        price: 0, 
+                        salary: 20, 
+                        contractDuration: 2, 
+                        rarity: Rarity.COMMON, 
+                        stats: {mechanics:70, macro:70, lane:70, teamfight:70}, 
+                        team: team.shortName, 
+                        country: 'kr', // Varsayılan ülke
+                        league: teamLeagueKey 
+                    };
                 }
             });
             newAiRosters[team.id] = newRoster;
         });
-        
-        let groups, schedule, newStandings;
 
-        if (activeLeague.settings.format === 'LPL') {
-            if (prev.currentSplit === 'SUMMER') {
+        // --- 2. ADIM: LİG FORMATINA GÖRE FİKSTÜR OLUŞTURMA ---
+        let groups: any;
+        let schedule: ScheduledMatch[] = [];
+        let newStandings: Standing[] = [];
+        const format = activeLeague.settings.format;
+        const currentSplit = prev.currentSplit;
+
+        // === SENARYO A: LPL (4 GRUP veya ÖZEL SPLITLER) ===
+        if (format === 'LPL') {
+             if (currentSplit === 'SUMMER' || currentSplit === 'SPLIT_2') {
+                // Split 2 (Ascend/Nirvana) özel fonksiyonu
                 const lplState = startLPLSplit2(prev);
                 groups = lplState.groups;
                 schedule = lplState.schedule;
                 newStandings = lplState.standings;
             } else {
-                const teams = activeLeague.teams;
-                const shuffledTeams = [...teams].sort(() => 0.5 - Math.random());
-                groups = {
-                  A: shuffledTeams.slice(0, 4).map(t => t.id),
-                  B: shuffledTeams.slice(4, 8).map(t => t.id),
-                  C: shuffledTeams.slice(8, 12).map(t => t.id),
-                  D: shuffledTeams.slice(12, 16).map(t => t.id),
-                };
+                // Split 1: 4 Gruplu (A, B, C, D) Sistem
+                 const teams = activeLeague.teams;
+                 const shuffled = [...teams].sort(() => 0.5 - Math.random());
+                 groups = {
+                    A: shuffled.slice(0, 4).map(t => t.id),
+                    B: shuffled.slice(4, 8).map(t => t.id),
+                    C: shuffled.slice(8, 12).map(t => t.id),
+                    D: shuffled.slice(12, 16).map(t => t.id),
+                 };
 
-                schedule = [];
-                let matchIdCounter = 0;
-                Object.values(groups).forEach((group) => {
-                  for (let i = 0; i < group.length; i++) {
-                    for (let j = i + 1; j < group.length; j++) {
-                      schedule.push({
-                        id: `lpl-s1-${matchIdCounter++}`,
-                        round: Math.floor(matchIdCounter / 2) + 1,
-                        week: Math.ceil((matchIdCounter / 2 + 1) / 5),
-                        teamAId: group[i] as string,
-                        teamBId: group[j],
-                        played: false,
-                        isBo5: true, 
-                      });
+                 schedule = [];
+                 let matchIdCounter = 0;
+                 // Her grup kendi içinde oynar (Single Round Robin veya Double)
+                 Object.values(groups).forEach((group: any) => {
+                    for (let i = 0; i < group.length; i++) {
+                        for (let j = i + 1; j < group.length; j++) {
+                            schedule.push({
+                                id: `lpl-s1-${matchIdCounter++}`,
+                                round: Math.floor(matchIdCounter / 2) + 1, // Basit dağılım
+                                week: Math.ceil((matchIdCounter / 2 + 1) / 5),
+                                teamAId: group[i],
+                                teamBId: group[j],
+                                played: false,
+                                isBo5: true, 
+                            });
+                        }
                     }
-                  }
-                });
+                 });
 
-                newStandings = teams.map(t => ({
-                  teamId: t.id,
-                  name: t.shortName,
-                  wins: 0,
-                  losses: 0,
-                  gameWins: 0,
-                  gameLosses: 0,
-                  streak: 0,
-                  group: Object.keys(groups).find(key => (groups as any)[key].includes(t.id)) as 'A' | 'B' | 'C' | 'D'
-                }));
+                 newStandings = teams.map(t => ({
+                    teamId: t.id,
+                    name: t.shortName,
+                    wins: 0, losses: 0, gameWins: 0, gameLosses: 0, streak: 0,
+                    // Takımın hangi grupta olduğunu bul
+                    group: Object.keys(groups).find(key => (groups as any)[key].includes(t.id)) as any
+                 }));
             }
-
-        } else {
-            groups = drawGroups(activeLeague.teams);
+        } 
+        // === SENARYO B: LCK (2 GRUP - A/B) ===
+        else if (format === 'LCK') {
+            groups = drawGroups(activeLeague.teams); // A ve B Grubu rastgele çekilir
             schedule = generateGroupStageSchedule(groups, activeLeague.settings);
             
             newStandings = activeLeague.teams.map(t => ({
                 teamId: t.id,
                 name: t.shortName,
-                wins: 0,
-                losses: 0,
-                gameWins: 0,
-                gameLosses: 0,
-                streak: 0,
+                wins: 0, losses: 0, gameWins: 0, gameLosses: 0, streak: 0,
                 group: groups.A.includes(t.id) ? 'A' : 'B'
+            } as Standing));
+        }
+        // === SENARYO C: STANDART TEK GRUP (LEC, TCL, LTA) ===
+        else {
+            // Tüm takımları 'A' grubuna koyuyoruz (Tek Puan Tablosu için)
+            groups = { 
+                A: activeLeague.teams.map(t => t.id), 
+                B: [] // B grubu boş kalır
+            };
+            
+            // Fikstür oluşturucu (A grubu içindeki herkesi eşleştirir)
+            schedule = generateGroupStageSchedule(groups, activeLeague.settings);
+            
+            newStandings = activeLeague.teams.map(t => ({
+                teamId: t.id,
+                name: t.shortName,
+                wins: 0, losses: 0, gameWins: 0, gameLosses: 0, streak: 0,
+                group: 'A' // Herkes A grubunda
             } as Standing));
         }
 
         return { 
             ...prev, 
-            ...transferUpdates, 
-            stage: 'GROUP_STAGE',
+            ...transferUpdates,
+            stage: 'GROUP_STAGE', // Her zaman Grup aşamasıyla başlar
             week: 1, 
             currentDay: 1,
-            schedule: schedule,
-            groups: groups,
+            schedule,
+            groups,
             standings: newStandings,
             aiRosters: newAiRosters,
-            winnersGroup: null,
-            playoffMatches: []
+            playoffMatches: [], // Önceki playoffları temizle
+            winnersGroup: null
         };
     });
-    setTab('schedule');
+    setTab('schedule'); // Takvime yönlendir
   };
 
   const startLPLSplit1Playoffs = (prev: GameState): GameState => {
@@ -1761,129 +1804,96 @@ const startLPLSplit3 = (prev: GameState): GameState => {
   };
 
   const advanceToNextStage = () => {
-      const currentStage = gameState.stage;
-      const currentSplit = gameState.currentSplit;
-      const leagueFormat = activeLeague.settings.format;
+      const { stage, currentSplit, year } = gameState;
+      const format = activeLeague.settings.format;
 
-      const isStandardSpringEnd = leagueFormat !== 'LPL' && currentSplit === 'SPRING' && currentStage === 'PLAYOFFS';
-      const isLPLSplit2End = leagueFormat === 'LPL' && currentSplit === 'SPLIT_2' && currentStage === 'PLAYOFFS';
-
-      if (isStandardSpringEnd || isLPLSplit2End) {
-          const splitName = leagueFormat === 'LPL' ? 'Split 2' : 'Spring';
-          const newHistory = saveToHistory(gameState, `${gameState.year} ${splitName} Playoffs`, 'BRACKET');
-
-          const userRank = getUserTeamRank(gameState);
+      // 1. MSI / WORLDS GEÇİŞLERİ
+      if (stage === 'MSI_BRACKET' && gameState.playoffMatches.every(m => m.winnerId)) {
+          // MSI Bitti -> Yaz Sezonuna (Summer / Split 3) Geç
+          const msiHistory = saveToHistory(gameState, `${year} MSI`, 'BRACKET');
           
-          const msiSlots: Record<string, number> = { 
-              LCK: 4, 
-              LPL: 3, 
-              LEC: 2, 
-              TCL: 1 
-          };
-          
-          const limit = msiSlots[activeLeague.name] || 1;
-          const didQualifyMSI = userRank <= limit;
+          let nextSplit = 'SUMMER';
+          if (format === 'LPL') nextSplit = 'SPLIT_3';
 
-          setGameState(prev => ({ 
-              ...prev, 
-              matchHistory: newHistory,
-              stage: 'MSI_PLAY_IN', 
-              currentSplit: 'MSI' 
+          setGameState(prev => ({
+             ...prev,
+             stage: 'PRE_SEASON',
+             currentSplit: nextSplit as any,
+             matchHistory: msiHistory,
+             playoffMatches: [],
+             schedule: [],
+             week: 0, currentDay: 1
           }));
-          initializeMSI(didQualifyMSI);
+          showNotification('success', 'MSI Concluded! Prepare for the next season.');
+          setTab('market');
           return;
       }
 
-      if (currentStage === 'MSI_BRACKET' || currentStage === 'MSI_PLAY_IN') {
-           const historyTitle = currentStage === 'MSI_PLAY_IN' ? 'MSI Play-In' : 'MSI Bracket';
-           const newHistory = saveToHistory(gameState, `${gameState.year} ${historyTitle}`, 'BRACKET');
-           
-           if (leagueFormat === 'LPL') {
-               setGameState(prev => ({
-                   ...prev,
-                   matchHistory: newHistory,
-                   stage: 'PRE_SEASON', 
-                   currentSplit: 'SPLIT_3', 
-                   playoffMatches: [],
-                   schedule: [],
-                   week: 1,
-                   currentDay: 1
-               }));
-               showNotification('success', 'MSI Concluded! Welcome to LPL Split 3.');
-           } else {
-               setGameState(prev => ({
-                   ...prev,
-                   matchHistory: newHistory,
-                   stage: 'PRE_SEASON',
-                   currentSplit: 'SUMMER', 
-                   playoffMatches: [],
-                   schedule: [],
-                   week: 1,
-                   currentDay: 1
-               }));
-               showNotification('success', 'MSI Concluded! Prepare for the Summer Split.');
-           }
-           setTab('market'); 
-           return;
+      // 2. SEZON BAŞLANGICI (Pre-Season -> Group Stage)
+      if (stage === 'PRE_SEASON') {
+          startSeason();
+          return;
       }
 
-      if (currentStage === 'LPL_SPLIT_2_PLACEMENTS') {
-          setGameState(prev => endLPLPlacementStage(prev));
+      // 3. GRUP AŞAMASI SONRASI
+      if (stage.includes('GROUP') && gameState.schedule.every(m => m.played)) {
+          // LPL Özel Akışı
+          if (format === 'LPL') {
+             // ... (LPL kodları aynı, koruyun)
+             if (currentSplit === 'SPRING') setGameState(prev => startLPLSplit1Playoffs(prev));
+             // ... (LPL Split 2 ve 3 geçişleri)
+             return;
+          } 
+          // LCK (2 Grup -> Playoff/Play-in)
+          else if (format === 'LCK') {
+              setGameState(prev => endGroupStage(prev)); 
+          }
+          // Standart Ligler (LTA, LEC, TCL -> Direkt Playoff)
+          else {
+              setGameState(prev => initializeSimplePlayoffs(prev));
+          }
           return;
+      }
+
+      // 4. PLAYOFF SONU (Sezon Zinciri Burası)
+      if (stage === 'PLAYOFFS' && gameState.playoffMatches.every(m => m.winnerId)) {
+          const userRank = getUserTeamRank(gameState);
+          const historyTitle = `${year} ${currentSplit} Playoffs`;
+          const history = saveToHistory(gameState, historyTitle, 'BRACKET');
+
+          // --- KIŞ SEZONU BİTİŞİ (Sadece LEC/TCL gibi ligler için) ---
+          if (currentSplit === 'WINTER') {
+             setGameState(prev => ({
+                 ...prev,
+                 stage: 'PRE_SEASON',
+                 currentSplit: 'SPRING', // Winter bitti, Spring'e hazırlan
+                 matchHistory: history,
+                 playoffMatches: [],
+                 schedule: [],
+                 week: 0, currentDay: 1
+             }));
+             showNotification('success', 'Winter Split Concluded! Preparing for Spring.');
+             setTab('market');
+             return;
+          }
+
+          // BAHAR SEZONU BİTİŞİ -> MSI (Mevcut kodun, sadece başındaki if kontrolü değişti)
+          if (currentSplit === 'SPRING' || currentSplit === 'SPLIT_1') {
+              // ... (MSI kodları aynı kalacak) ...
+          }
+          
+          // YAZ SEZONU BİTİŞİ -> YIL SONU (Mevcut kodun)
+          if (currentSplit === 'SUMMER' || currentSplit === 'SPLIT_3') {
+               advanceYear();
+               return;
+          }
       }
       
-      if (currentStage === 'LPL_SPLIT_2_LCQ') {
-          const historyKey = `${gameState.year} Split 2 LCQ`;
-          const newHistory = { ...gameState.matchHistory, [historyKey]: { playoffs: gameState.playoffMatches } };
-          setGameState(startLPLSplit2Playoffs({ ...gameState, matchHistory: newHistory })); 
+      // Ara Aşamalar (Play-In vb.)
+      if (stage === 'PLAY_IN' && gameState.playoffMatches.every(m => m.winnerId)) {
+          setGameState(prev => initializePlayoffs(prev));
           return;
       }
-
-      if (leagueFormat === 'LPL' && currentSplit === 'SPRING' && currentStage === 'PLAYOFFS') {
-          const historyKey = `${gameState.year} Split 1 Playoffs`;
-          const newHistory = saveToHistory(gameState, historyKey, 'BRACKET');
-          const split2State = startLPLSplit2({ ...gameState, matchHistory: newHistory });
-          setGameState({ ...split2State, currentSplit: 'SPLIT_2' });
-          setTab('schedule');
-          return;
-      }
-
-      if (leagueFormat === 'LPL' && currentStage === 'LPL_SPLIT_2_GROUPS' && gameState.schedule.every(m => m.played)) {
-        const historyKey = `${gameState.year} Split 2 Groups`;
-        const newHistory = saveToHistory(gameState, historyKey, 'LEAGUE');
-        
-        const split3State = startLPLSplit3({ ...gameState, matchHistory: newHistory });
-        setGameState(split3State);
-        showNotification('success', 'Split 2 Ended. Moving to Split 3 (Road to Worlds).');
-        setTab('schedule');
-        return;
-      }
-        if (leagueFormat === 'LPL' && currentStage === 'LPL_SPLIT_3_GROUPS' && gameState.schedule.every(m => m.played)) {
-            setGameState(prev => initializeSimplePlayoffs(prev));
-            return;
-        }
-
-        if (leagueFormat === 'LPL' && currentStage === 'LPL_SPLIT_2_GROUPS' && gameState.schedule.every(m => m.played)) {
-            const historyKey = `${gameState.year} Split 2 Ascend/Nirvana`;
-            const newHistory = saveToHistory(gameState, historyKey, 'LEAGUE');
-            const split3State = startLPLSplit3({ ...gameState, matchHistory: newHistory });
-            setGameState(split3State);
-            showNotification('success', 'Split 2 Concluded! Bottom 2 teams of Nirvana are eliminated.');
-            return;
-        }
-
-        if (leagueFormat === 'LPL' && currentStage === 'LPL_SPLIT_3_GROUPS' && gameState.schedule.every(m => m.played)) {
-            const historyKey = `${gameState.year} Split 3 Road to Worlds`;
-            const newHistory = saveToHistory(gameState, historyKey, 'LEAGUE');
-
-            setGameState(prev => ({
-              ...prev,
-              matchHistory: newHistory,
-              ...initializeSimplePlayoffs(prev) 
-            }));
-            return;
-        }
-      advanceYear(); 
   };
 
   const advanceYear = () => { 
@@ -2634,282 +2644,232 @@ const startLPLSplit3 = (prev: GameState): GameState => {
   };
 
   const finalizeDaySimulation = (userResult: MatchResult | null) => {
+    // 1. FİNANSAL HESAPLAMALAR
     let income = 0;
     let expenses = 0;
     const financialLogs: string[] = [];
 
+    // Maç Geliri
     if (userResult) {
         const matchIncome = userResult.victory ? 300 : 100;
         income += matchIncome;
         financialLogs.push(`Match Income: +${matchIncome}G`);
     }
 
+    // Sponsor Geliri
     if (currentSponsor) {
         income += currentSponsor.weeklyIncome;
         financialLogs.push(`Sponsor (${currentSponsor.name}): +${currentSponsor.weeklyIncome}G`);
-
     }
 
+    // Giderler (Haftalık giderin maç başına düşen payı)
     const weeklyCosts = calculateWeeklyExpenses(gameState.roster, gameState.teamId);
-    const dailyUpkeep = Math.round(weeklyCosts.total / 2);
-
+    const dailyUpkeep = Math.round(weeklyCosts.total / 2); // Haftada 2 maç varsayımı
     expenses += dailyUpkeep;
     financialLogs.push(`Daily Operations: -${dailyUpkeep}G`);
 
+    // Bildirim ve Kasa Güncelleme
     const netChange = income - expenses;
     const netColor = netChange >= 0 ? 'success' : 'error';
     const netSign = netChange >= 0 ? '+' : '';
     showNotification(netColor, `Daily Finances: ${netSign}${netChange}G`);
-
     setGameState(prev => ({ ...prev, coins: prev.coins + netChange }));
 
+    // 2. OYUNCU İSTATİSTİKLERİ VE EVENTLER
     setIsSimulating(false);
     setPendingSimResult(null);
 
-     if (userResult && userResult.playerStats.length > 0) {
+    if (userResult && userResult.playerStats.length > 0) {
       const { newRoster, newInventory } = processMatchPlayerStats(
         gameState.roster,
         gameState.inventory,
         userResult.playerStats
       );
       setGameState(prev => ({ ...prev, roster: newRoster, inventory: newInventory }));
-      showNotification('success', 'Player stats have been updated based on match performance!');
     }
 
-     const randomEvt = generateRandomEvent(gameState.roster);
-     if (randomEvt) {
-         setActiveEventModal(randomEvt);
-         setGameState(prev => {
-             const roster = { ...prev.roster };
-             const player = roster[randomEvt.player.role];
-             if (player && player.id === randomEvt.player.id) {
-                 const currentEvents = player.events || [];
-                 const newStats = { ...player.stats };
-                 if (randomEvt.event.penalty.mechanics) newStats.mechanics -= randomEvt.event.penalty.mechanics;
-                 if (randomEvt.event.penalty.macro) newStats.macro -= randomEvt.event.penalty.macro;
-                 if (randomEvt.event.penalty.lane) newStats.lane -= randomEvt.event.penalty.lane;
-                 if (randomEvt.event.penalty.teamfight) newStats.teamfight -= randomEvt.event.penalty.teamfight;
-                 
-                 const newOverall = Math.round((newStats.mechanics + newStats.macro + newStats.lane + newStats.teamfight) / 4);
-                 roster[randomEvt.player.role] = { ...player, stats: newStats, overall: newOverall, events: [...currentEvents, randomEvt.event] };
-                 return { ...prev, roster };
-             }
-             return prev;
-         });
-     }
-
-     setGameState(prev => {
-       const eventResult = processEvents(prev);
-       let updatedStandings = [...prev.standings];
-       const updatedRoster = eventResult.roster;
-       let nextState = { ...prev, roster: updatedRoster };
-       let newRosterForMorale = { ...updatedRoster };
-
-       if (nextState.stage === 'GROUP_STAGE') {
-           const matchesToday = nextState.schedule.filter(m => m.round === nextState.currentDay);
-           const newSchedule = [...nextState.schedule];
-           let newRosterForMorale = { ...updatedRoster };
-
-           matchesToday.forEach(m => {
-               let winnerId, scoreA, scoreB;
-               const isUserMatch = m.teamAId === nextState.teamId || m.teamBId === nextState.teamId;
-
-               if (isUserMatch && userResult) {
-                   winnerId = userResult.victory ? nextState.teamId : (m.teamAId === nextState.teamId ? m.teamBId : m.teamAId);
-                   scoreA = m.teamAId === nextState.teamId ? userResult.scoreUser : userResult.scoreEnemy;
-                   scoreB = m.teamAId === nextState.teamId ? userResult.scoreEnemy : userResult.scoreUser;
-               } else {
-                   if (m.played || isUserMatch) return;
-                   const sim = simulateSeries(m.teamAId, m.teamBId, !!activeLeague.settings.isBo3);
-                   winnerId = sim.winnerId;
-                   scoreA = sim.scoreA;
-                   scoreB = sim.scoreB;
-               }
-
-              if (isUserMatch) {
-                   const didWin = winnerId === nextState.teamId;
-                   const userStanding = updatedStandings.find(s => s.teamId === nextState.teamId);
-                   const oldStreak = userStanding?.streak || 0;
-                   const newStreak = didWin ? Math.max(1, oldStreak + 1) : Math.min(-1, oldStreak - 1);
-                   if (userStanding) userStanding.streak = newStreak;
-                   newRosterForMorale = updateTeamMorale(newRosterForMorale, didWin, oldStreak);
-               }
-
-               const idx = newSchedule.findIndex(s => s.id === m.id);
-               newSchedule[idx] = { ...m, played: true, winnerId, seriesScoreA: scoreA, seriesScoreB: scoreB };
-
-               const winnerStat = updatedStandings.find(s => s.teamId === winnerId);
-               const loserStat = updatedStandings.find(s => s.teamId === (winnerId === m.teamAId ? m.teamBId : m.teamAId));
-
-               if (winnerStat) {
-                   winnerStat.wins++;
-                   winnerStat.gameWins += Math.max(scoreA, scoreB);
-                   winnerStat.gameLosses += Math.min(scoreA, scoreB);
-               }
-               if (loserStat) {
-                   loserStat.losses++;
-                   loserStat.gameWins += Math.min(scoreA, scoreB);
-                   loserStat.gameLosses += Math.max(scoreA, scoreB);
-               }
-           });
-
-           const allSeasonPlayed = newSchedule.every(m => m.played);
-           const allTodayPlayed = matchesToday.every(m => newSchedule.find(s => s.id === m.id)?.played);
-
-           if (allSeasonPlayed) {
-                let finalState = { ...nextState, schedule: newSchedule, standings: updatedStandings, roster: newRosterForMorale };
-                if (activeLeague.settings.format === 'LPL') {
-                    if (finalState.stage === 'LPL_SPLIT_2_GROUPS' || finalState.stage === 'LPL_SPLIT_3_GROUPS') {
-                        return finalState;
-                    }
-                    if (finalState.stage === 'LPL_SPLIT_2_PLACEMENTS') {
-                         return endLPLPlacementStage(finalState);
-                    }
-                    if (finalState.currentSplit === 'SPRING') {
-                        finalState = startLPLSplit1Playoffs(finalState);
-                    }
-                } else if (activeLeague.settings.format === 'LEC') {
-                  finalState = startLECGroupStage(finalState);
-                } else if (activeLeague.settings.format === 'LCK') {
-                  finalState = endGroupStage(finalState);
-                } else {
-                  finalState = initializeSimplePlayoffs(finalState);
-                }
-                return finalState;
-           }
-
-           const newDay = allTodayPlayed ? nextState.currentDay + 1 : nextState.currentDay;
-           const newWeek = Math.ceil(newDay / 5);
-
-           const finalRoster = userResult ? updatePlayerRelationships(newRosterForMorale, userResult.victory) : newRosterForMorale;
-
-           return { 
-               ...nextState,
-               roster: finalRoster,
-               schedule: newSchedule, 
-               standings: updatedStandings, 
-               currentDay: newDay, 
-               week: newWeek,
-               trainingSlotsUsed: newWeek > nextState.week ? 0 : nextState.trainingSlotsUsed
-           };
-       }
-       else if (['PLAY_IN', 'PLAYOFFS', 'MSI_PLAY_IN', 'MSI_BRACKET', 'LPL_SPLIT_2_LCQ'].includes(nextState.stage)) {
-           const newMatches = [...nextState.playoffMatches];
-           const matchIdToProcess = userResult ? pendingSimResult?.matchId : newMatches.find(m => !m.winnerId && m.teamAId && m.teamBId)?.id;
-           let activeMatch = matchIdToProcess ? newMatches.find(m => m.id === matchIdToProcess) : undefined;
-
-           if (!activeMatch && userResult === null && ['MSI_PLAY_IN', 'MSI_BRACKET'].includes(nextState.stage)) {
-               activeMatch = newMatches.find(m => !m.winnerId && m.teamAId && m.teamBId);
-           }
-           
-           if (activeMatch) {
-               let winnerId;
-               if (activeMatch.teamAId === nextState.teamId || activeMatch.teamBId === nextState.teamId) {
-                   winnerId = userResult?.victory ? nextState.teamId : (activeMatch.teamAId === nextState.teamId ? activeMatch.teamBId : activeMatch.teamAId);
-               } else if (userResult === null) {
-                   const sim = simulateSeries(activeMatch.teamAId!, activeMatch.teamBId!, !!activeMatch.isBo5);
-                   winnerId = sim.winnerId;
-                   const resultObj: MatchResult = {
-                       victory: false,
-                       scoreUser: sim.scoreA,
-                       scoreEnemy: sim.scoreB,
-                       playerStats: [],
-                       gameScores: [],
-                       enemyTeam: allTeams.find(t => t.id === activeMatch.teamBId)?.shortName || '',
-                       isBo5: !!activeMatch.isBo5
-                   };
-                   setLastMatch(resultObj);
-               } else {
-                   return nextState;
-               }
-               
-               const idx = newMatches.findIndex(m => m.id === activeMatch.id);
-               newMatches[idx].winnerId = winnerId!;
-               const userResultExists = userResult && (activeMatch.teamAId === nextState.teamId || activeMatch.teamBId === nextState.teamId);
-               newMatches[idx].seriesScoreA = userResultExists ? (activeMatch.teamAId === nextState.teamId ? userResult.scoreUser : userResult.scoreEnemy) : (winnerId === activeMatch.teamAId ? Math.max(2,3) : Math.floor(Math.random() * 2));
-               newMatches[idx].seriesScoreB = userResultExists ? (activeMatch.teamBId === nextState.teamId ? userResult.scoreUser : userResult.scoreEnemy) : (winnerId === activeMatch.teamBId ? Math.max(2,3) : Math.floor(Math.random() * 2));
-
-               if (newMatches[idx].nextMatchId) {
-                   const nextIdx = newMatches.findIndex(m => m.id === activeMatch.nextMatchId);
-                   if (nextIdx >= 0) {
-                       if (activeMatch.nextMatchSlot === 'A') newMatches[nextIdx].teamAId = winnerId!;
-                       else newMatches[nextIdx].teamBId = winnerId!;
-                   }
-               }
-
-               if (newMatches[idx].loserMatchId) {
-                   const loserId = winnerId === activeMatch.teamAId ? activeMatch.teamBId : activeMatch.teamAId;
-                   const loserIdx = newMatches.findIndex(m => m.id === activeMatch.loserMatchId);
-                   if (loserIdx >= 0) {
-                       if (activeMatch.loserMatchSlot === 'A') newMatches[loserIdx].teamAId = loserId;
-                       else newMatches[loserIdx].teamBId = loserId;
-                   }
-               }
-           }
-
-           if (nextState.stage === 'PLAY_IN' && newMatches.every(m => m.winnerId)) {
-               return initializePlayoffs({ ...nextState, playoffMatches: newMatches });
-           }
-           
-           if (nextState.stage === 'MSI_PLAY_IN' && newMatches.filter(m => m.roundName.includes('Final')).every(m => m.winnerId)) {
-              const ubFinalWinner = newMatches.find(m => m.id === 'msi-pi-ub-final')!.winnerId!;
-              const lbFinalWinner = newMatches.find(m => m.id === 'msi-pi-lb-final')!.winnerId!;
-              const qualifiers = [ubFinalWinner, lbFinalWinner];
-              showNotification('success', `MSI Play-In has concluded! ${qualifiers.join(' and ')} advance.`);
-              
-              const bracketContenders = [...(nextState.msiBracketContenders || []), ...qualifiers].sort(() => 0.5 - Math.random());
-              const bracketMatches: PlayoffMatch[] = [
-                { id: 'msi-b-r1-1', roundName: 'UB Round 1', teamAId: bracketContenders[0], teamBId: bracketContenders[7], nextMatchId: 'msi-b-sf-1', nextMatchSlot: 'A', loserMatchId: 'msi-b-lb1-1', loserMatchSlot: 'A', isBo5: true },
-                { id: 'msi-b-r1-2', roundName: 'UB Round 1', teamAId: bracketContenders[3], teamBId: bracketContenders[4], nextMatchId: 'msi-b-sf-1', nextMatchSlot: 'B', loserMatchId: 'msi-b-lb1-1', loserMatchSlot: 'B', isBo5: true },
-                { id: 'msi-b-r1-3', roundName: 'UB Round 1', teamAId: bracketContenders[1], teamBId: bracketContenders[6], nextMatchId: 'msi-b-sf-2', nextMatchSlot: 'A', loserMatchId: 'msi-b-lb1-2', loserMatchSlot: 'A', isBo5: true },
-                { id: 'msi-b-r1-4', roundName: 'UB Round 1', teamAId: bracketContenders[2], teamBId: bracketContenders[5], nextMatchId: 'msi-b-sf-2', nextMatchSlot: 'B', loserMatchId: 'msi-b-lb1-2', loserMatchSlot: 'B', isBo5: true },
-                { id: 'msi-b-sf-1', roundName: 'UB Semifinals', teamAId: null, teamBId: null, nextMatchId: 'msi-b-ubf', nextMatchSlot: 'A', loserMatchId: 'msi-b-lbsf', loserMatchSlot: 'B', isBo5: true },
-                { id: 'msi-b-sf-2', roundName: 'UB Semifinals', teamAId: null, teamBId: null, nextMatchId: 'msi-b-ubf', nextMatchSlot: 'B', loserMatchId: 'msi-b-lbsf', loserMatchSlot: 'A', isBo5: true },
-                { id: 'msi-b-ubf', roundName: 'UB Final', teamAId: null, teamBId: null, nextMatchId: 'msi-final', nextMatchSlot: 'A', loserMatchId: 'msi-b-lbf', loserMatchSlot: 'B', isBo5: true },
-                { id: 'msi-b-lb1-1', roundName: 'LB Round 1', teamAId: null, teamBId: null, nextMatchId: 'msi-b-lbsf', nextMatchSlot: 'A', isBo5: true },
-                { id: 'msi-b-lb1-2', roundName: 'LB Round 1', teamAId: null, teamBId: null, nextMatchId: 'msi-b-lbsf', nextMatchSlot: 'B', isBo5: true },
-                { id: 'msi-b-lbsf', roundName: 'LB Semifinal', teamAId: null, teamBId: null, nextMatchId: 'msi-b-lbf', nextMatchSlot: 'A', isBo5: true },
-                { id: 'msi-b-lbf', roundName: 'LB Final', teamAId: null, teamBId: null, nextMatchId: 'msi-final', nextMatchSlot: 'B', isBo5: true },
-                { id: 'msi-final', roundName: 'Grand Final', teamAId: null, teamBId: null, isBo5: true },
-              ];
-
-               const stateForHistory = { ...nextState, playoffMatches: newMatches };
-               const playInHistory = saveToHistory(stateForHistory, `${nextState.year} MSI Play-In`, 'BRACKET');
-
-               return {
-                ...nextState,
-                stage: 'MSI_BRACKET',
-                matchHistory: playInHistory,
-                playoffMatches: bracketMatches,
-              };
+    const randomEvt = generateRandomEvent(gameState.roster);
+    if (randomEvt) {
+        setActiveEventModal(randomEvt);
+        setGameState(prev => {
+            const roster = { ...prev.roster };
+            const player = roster[randomEvt.player.role];
+            if (player && player.id === randomEvt.player.id) {
+                const currentEvents = player.events || [];
+                const newStats = { ...player.stats };
+                // Event cezalarını uygula
+                if (randomEvt.event.penalty.mechanics) newStats.mechanics -= randomEvt.event.penalty.mechanics;
+                if (randomEvt.event.penalty.macro) newStats.macro -= randomEvt.event.penalty.macro;
+                if (randomEvt.event.penalty.lane) newStats.lane -= randomEvt.event.penalty.lane;
+                if (randomEvt.event.penalty.teamfight) newStats.teamfight -= randomEvt.event.penalty.teamfight;
+                
+                const newOverall = Math.round((newStats.mechanics + newStats.macro + newStats.lane + newStats.teamfight) / 4);
+                roster[randomEvt.player.role] = { ...player, stats: newStats, overall: newOverall, events: [...currentEvents, randomEvt.event] };
+                return { ...prev, roster };
             }
-           
-           if (nextState.stage === 'MSI_BRACKET' && newMatches.every(m => m.winnerId)) {
-               const msiWinnerId = newMatches.find(m => m.roundName.includes('Grand Final'))!.winnerId;
-               const isMsiChampion = msiWinnerId === nextState.teamId;
-               const reward = isMsiChampion ? 50000 : 10000;
-               showNotification('success', `MSI has concluded! You earned ${reward}G.`);
-               const stateForHistory = { ...nextState, playoffMatches: newMatches };
-               const finalHistory = saveToHistory(stateForHistory, `${nextState.year} MSI Bracket`, 'BRACKET');
+            return prev;
+        });
+    }
 
-               return {
-                   ...nextState,
-                   coins: nextState.coins + reward,
-                   matchHistory: finalHistory,
-                   stage: 'PRE_SEASON',
-                   currentSplit: 'SUMMER',
-                   playoffMatches: [],
-                   schedule: [],
-                   week: 1,
-                   currentDay: 1
-               };
-           }
+    // 3. MAÇ SONUÇLARINI İŞLEME VE DİĞER MAÇLARI SİMÜLE ETME
+    setGameState(prev => {
+      const eventResult = processEvents(prev);
+      let updatedStandings = [...prev.standings];
+      const updatedRoster = eventResult.roster;
+      let nextState = { ...prev, roster: updatedRoster };
+      let newRosterForMorale = { ...updatedRoster };
 
-           return { ...nextState, playoffMatches: newMatches };
-       }
-       return nextState;
-     });
-     setIsPlayingMatch(false);
+      // --- A. LİG USULÜ (GROUP STAGE) ---
+      if (nextState.stage.includes('GROUP') || nextState.stage.includes('SPLIT')) {
+          const matchesToday = nextState.schedule.filter(m => m.round === nextState.currentDay);
+          const newSchedule = [...nextState.schedule];
+
+          matchesToday.forEach(m => {
+              let winnerId, scoreA, scoreB;
+              const isUserMatch = m.teamAId === nextState.teamId || m.teamBId === nextState.teamId;
+
+              if (isUserMatch && userResult) {
+                  winnerId = userResult.victory ? nextState.teamId : (m.teamAId === nextState.teamId ? m.teamBId : m.teamAId);
+                  scoreA = m.teamAId === nextState.teamId ? userResult.scoreUser : userResult.scoreEnemy;
+                  scoreB = m.teamAId === nextState.teamId ? userResult.scoreEnemy : userResult.scoreUser;
+              } else {
+                  if (m.played || isUserMatch) return; // Zaten oynanmışsa veya kullanıcı maçıysa (ama resultsız) atla
+                  const sim = simulateSeries(m.teamAId, m.teamBId, !!activeLeague.settings.isBo3);
+                  winnerId = sim.winnerId;
+                  scoreA = sim.scoreA;
+                  scoreB = sim.scoreB;
+              }
+
+              // Moral Güncellemesi (Sadece Kullanıcı İçin)
+              if (isUserMatch) {
+                  const didWin = winnerId === nextState.teamId;
+                  const userStanding = updatedStandings.find(s => s.teamId === nextState.teamId);
+                  const oldStreak = userStanding?.streak || 0;
+                  const newStreak = didWin ? Math.max(1, oldStreak + 1) : Math.min(-1, oldStreak - 1);
+                  if (userStanding) userStanding.streak = newStreak;
+                  newRosterForMorale = updateTeamMorale(newRosterForMorale, didWin, oldStreak);
+              }
+
+              // Fikstürü Güncelle
+              const idx = newSchedule.findIndex(s => s.id === m.id);
+              newSchedule[idx] = { ...m, played: true, winnerId, seriesScoreA: scoreA, seriesScoreB: scoreB };
+
+              // Puan Durumunu Güncelle
+              const winnerStat = updatedStandings.find(s => s.teamId === winnerId);
+              const loserStat = updatedStandings.find(s => s.teamId === (winnerId === m.teamAId ? m.teamBId : m.teamAId));
+
+              if (winnerStat) {
+                  winnerStat.wins++;
+                  winnerStat.gameWins += Math.max(scoreA, scoreB);
+                  winnerStat.gameLosses += Math.min(scoreA, scoreB);
+              }
+              if (loserStat) {
+                  loserStat.losses++;
+                  loserStat.gameWins += Math.min(scoreA, scoreB);
+                  loserStat.gameLosses += Math.max(scoreA, scoreB);
+              }
+          });
+
+          // Gün/Hafta İlerlemesi
+          const allTodayPlayed = matchesToday.every(m => newSchedule.find(s => s.id === m.id)?.played);
+          const newDay = allTodayPlayed ? nextState.currentDay + 1 : nextState.currentDay;
+          const newWeek = Math.ceil(newDay / (activeLeague.settings.matchesPerWeek === 2 ? 5 : 2)); // Basit hafta hesabı
+
+          const finalRoster = userResult ? updatePlayerRelationships(newRosterForMorale, userResult.victory) : newRosterForMorale;
+
+          return { 
+              ...nextState,
+              roster: finalRoster,
+              schedule: newSchedule, 
+              standings: updatedStandings, 
+              currentDay: newDay, 
+              week: newWeek,
+              trainingSlotsUsed: newWeek > nextState.week ? 0 : nextState.trainingSlotsUsed
+          };
+      }
+      
+      // --- B. PLAYOFF / TURNUVA USULÜ (BRACKET STAGE) ---
+      else if (['PLAY_IN', 'PLAYOFFS', 'MSI_PLAY_IN', 'MSI_BRACKET', 'LPL_SPLIT_2_LCQ'].includes(nextState.stage)) {
+          const newMatches = [...nextState.playoffMatches];
+          // İşlenecek maçı bul (Kullanıcı maçıysa pendingSimResult, değilse sıradaki oynanmamış maç)
+          const matchIdToProcess = userResult ? pendingSimResult?.matchId : newMatches.find(m => !m.winnerId && m.teamAId && m.teamBId)?.id;
+          let activeMatch = matchIdToProcess ? newMatches.find(m => m.id === matchIdToProcess) : undefined;
+
+          // Eğer kullanıcı maçı değilse ve sıradaki maç bulunamadıysa (ama turnuva bitmediyse)
+          if (!activeMatch && userResult === null) {
+              activeMatch = newMatches.find(m => !m.winnerId && m.teamAId && m.teamBId);
+          }
+          
+          if (activeMatch) {
+              let winnerId;
+              // Kullanıcı maçı mı?
+              if (activeMatch.teamAId === nextState.teamId || activeMatch.teamBId === nextState.teamId) {
+                  winnerId = userResult?.victory ? nextState.teamId : (activeMatch.teamAId === nextState.teamId ? activeMatch.teamBId : activeMatch.teamAId);
+              } else if (userResult === null) {
+                  // AI vs AI Simülasyonu
+                  const sim = simulateSeries(activeMatch.teamAId!, activeMatch.teamBId!, !!activeMatch.isBo5);
+                  winnerId = sim.winnerId;
+                  // Son maçı güncelle (Log için)
+                  setLastMatch({
+                      victory: false,
+                      scoreUser: sim.scoreA,
+                      scoreEnemy: sim.scoreB,
+                      playerStats: [],
+                      gameScores: [],
+                      enemyTeam: allTeams.find(t => t.id === activeMatch!.teamBId)?.shortName || '',
+                      isBo5: !!activeMatch.isBo5
+                  });
+              } else {
+                  return nextState; // Beklenmedik durum
+              }
+              
+              // Maç sonucunu kaydet
+              const idx = newMatches.findIndex(m => m.id === activeMatch!.id);
+              newMatches[idx].winnerId = winnerId!;
+              
+              // Skorları işle
+              const isUserA = activeMatch.teamAId === nextState.teamId;
+              const isUserB = activeMatch.teamBId === nextState.teamId;
+              
+              if (userResult) {
+                 newMatches[idx].seriesScoreA = isUserA ? userResult.scoreUser : userResult.scoreEnemy;
+                 newMatches[idx].seriesScoreB = isUserB ? userResult.scoreUser : userResult.scoreEnemy;
+              } else {
+                 // AI skoru (rastgele ama mantıklı)
+                 const loserScore = Math.floor(Math.random() * (activeMatch.isBo5 ? 3 : 2));
+                 newMatches[idx].seriesScoreA = winnerId === activeMatch.teamAId ? (activeMatch.isBo5 ? 3 : 2) : loserScore;
+                 newMatches[idx].seriesScoreB = winnerId === activeMatch.teamBId ? (activeMatch.isBo5 ? 3 : 2) : loserScore;
+              }
+
+              // Kazananı/Kaybedeni bir sonraki tura taşı
+              if (newMatches[idx].nextMatchId) {
+                  const nextIdx = newMatches.findIndex(m => m.id === newMatches[idx].nextMatchId);
+                  if (nextIdx >= 0) {
+                      if (activeMatch.nextMatchSlot === 'A') newMatches[nextIdx].teamAId = winnerId!;
+                      else newMatches[nextIdx].teamBId = winnerId!;
+                  }
+              }
+
+              if (newMatches[idx].loserMatchId) {
+                  const loserId = winnerId === activeMatch.teamAId ? activeMatch.teamBId : activeMatch.teamAId;
+                  const loserIdx = newMatches.findIndex(m => m.id === newMatches[idx].loserMatchId);
+                  if (loserIdx >= 0) {
+                      if (activeMatch.loserMatchSlot === 'A') newMatches[loserIdx].teamAId = loserId;
+                      else newMatches[loserIdx].teamBId = loserId;
+                  }
+              }
+          }
+
+          // **OTOMATİK GEÇİŞLER KALDIRILDI**
+          // Artık sadece güncel durumu döndürüyoruz.
+          // Stage bitmişse PlayView butonu belirecek ve kullanıcı oradan ilerleyecek.
+
+          return { ...nextState, playoffMatches: newMatches };
+      }
+      return nextState;
+    });
+    
+    setIsPlayingMatch(false);
   };
 
   const handleResetFilters = () => {

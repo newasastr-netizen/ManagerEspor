@@ -349,3 +349,61 @@ export const REAL_LPL_PLAYERS: PlayerCard[] = [
   createPlayer('Doinb', 'FA', Role.MID, 88, 27, 'KR', 'C', ['Kled', 'Nautilus', 'Ryze']),
   createPlayer('Lwx', 'FA', Role.ADC, 86, 26, 'CN'),
 ];
+
+export const REAL_LTA_PLAYERS: PlayerCard[] = [
+  // Cloud9 (C9)
+  createPlayer('Thanatos', 'C9', Role.TOP, 86, 20, 'KR', 'A'),
+  createPlayer('Blaber', 'C9', Role.JUNGLE, 89, 24, 'US', 'A', ['Lee Sin', 'Kindred', 'Olaf']),
+  createPlayer('Jojopyun', 'C9', Role.MID, 88, 20, 'CA', 'S', ['Sylas', 'Akali']),
+  createPlayer('Berserker', 'C9', Role.ADC, 91, 21, 'KR', 'S', ['Kalista', 'Ezreal']),
+  createPlayer('Vulcan', 'C9', Role.SUPPORT, 85, 25, 'CA'),
+
+  // Team Liquid (TL)
+  createPlayer('Impact', 'TL', Role.TOP, 88, 29, 'KR', 'B', ['Gnar', 'Sion']),
+  createPlayer('UmTi', 'TL', Role.JUNGLE, 85, 25, 'KR'),
+  createPlayer('APA', 'TL', Role.MID, 84, 22, 'US', 'B', ['Ziggs', 'Taliyah']),
+  createPlayer('Yeon', 'TL', Role.ADC, 86, 22, 'US'),
+  createPlayer('CoreJJ', 'TL', Role.SUPPORT, 89, 30, 'KR', 'A', ['Rell', 'Nautilus']),
+
+  // FlyQuest (FLY)
+  createPlayer('Bwipo', 'FLY', Role.TOP, 87, 25, 'BE', 'B', ['Aatrox', 'Renekton']),
+  createPlayer('Inspired', 'FLY', Role.JUNGLE, 90, 22, 'PL', 'S', ['Viego', 'Sejuani']),
+  createPlayer('Quad', 'FLY', Role.MID, 85, 22, 'KR'),
+  createPlayer('Massu', 'FLY', Role.ADC, 83, 19, 'CA', 'A'),
+  createPlayer('Busio', 'FLY', Role.SUPPORT, 82, 21, 'US'),
+
+  // 100 Thieves (100T)
+  createPlayer('Sniper', '100T', Role.TOP, 82, 18, 'CA', 'S', ['Riven', 'K\'Sante']),
+  createPlayer('River', '100T', Role.JUNGLE, 85, 25, 'KR'),
+  createPlayer('Quid', '100T', Role.MID, 84, 20, 'KR'),
+  createPlayer('Tomo', '100T', Role.ADC, 80, 23, 'US'),
+  createPlayer('Eyla', '100T', Role.SUPPORT, 81, 24, 'AU'),
+
+  // Dignitas (DIG)
+  createPlayer('Licorice', 'DIG', Role.TOP, 83, 27, 'CA'),
+  createPlayer('Spica', 'DIG', Role.JUNGLE, 85, 23, 'CN'),
+  createPlayer('Jensen', 'DIG', Role.MID, 86, 29, 'DK'),
+  createPlayer('Zven', 'DIG', Role.ADC, 84, 27, 'DK'),
+  createPlayer('Isles', 'DIG', Role.SUPPORT, 80, 23, 'AU'),
+
+  // Shopify Rebellion (SR)
+  createPlayer('FakeGod', 'SR', Role.TOP, 78, 24, 'US'),
+  createPlayer('Bugi', 'SR', Role.JUNGLE, 82, 26, 'KR'),
+  createPlayer('Insanity', 'SR', Role.MID, 81, 25, 'US'),
+  createPlayer('Bvoy', 'SR', Role.ADC, 83, 26, 'KR'),
+  createPlayer('Zeyzal', 'SR', Role.SUPPORT, 80, 25, 'US'),
+
+  // Lyon Gaming (LYN) - LLA Representative
+  createPlayer('Bong', 'LYN', Role.TOP, 79, 20, 'KR'),
+  createPlayer('Oddie', 'LYN', Role.JUNGLE, 80, 26, 'PE'),
+  createPlayer('Seiya', 'LYN', Role.MID, 82, 27, 'MX', 'C', ['Azir', 'Corki']),
+  createPlayer('Ceo', 'LYN', Role.ADC, 81, 20, 'AR'),
+  createPlayer('IgnaV1lus', 'LYN', Role.SUPPORT, 78, 22, 'AR'),
+
+  // Disguised (DSG) - Guest Team
+  createPlayer('Balls', 'DSG', Role.TOP, 76, 29, 'US'), // Placeholder/Guest roster
+  createPlayer('Meteos', 'DSG', Role.JUNGLE, 77, 30, 'US'),
+  createPlayer('Hai', 'DSG', Role.MID, 78, 31, 'US', 'C', ['Zed', 'Twisted Fate']),
+  createPlayer('Sneaky', 'DSG', Role.ADC, 80, 30, 'US'),
+  createPlayer('Aphromoo', 'DSG', Role.SUPPORT, 79, 31, 'US'),
+];
