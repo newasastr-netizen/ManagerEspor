@@ -2027,6 +2027,7 @@ const startLPLSplit3 = (prev: GameState): GameState => {
       };
   };
 
+  // --- MSI BAŞLATMA (DÜZELTİLMİŞ & GÜÇLENDİRİLMİŞ) ---
   const initializeMSI = (isUserQualified: boolean) => {
     if (isUserQualified) {
         showNotification('success', `Congratulations! You have qualified for MSI.`);
@@ -2034,49 +2035,87 @@ const startLPLSplit3 = (prev: GameState): GameState => {
         showNotification('info', `You didn't qualify, but the show goes on! Spectating MSI...`);
     }
     
-    // YARDIMCI: Ligden takım çek, veri yoksa SAHTE TAKIM oluştur (Hata Çözümü)
-    const getRepresentative = (leagueKey: string, count: number): string[] => {
-        const league = LEAGUES[leagueKey as LeagueKey];
-        // Lig verisi yoksa veya boşsa dummy ID dön
-        if (!league || !league.teams || league.teams.length === 0) {
-            return Array(count).fill(0).map((_, i) => `mock-${leagueKey}-${i}`);
-        }
-        
-        let candidates = league.teams.filter(t => t.id !== gameState.teamId);
-        const needed = (gameState.teamId && activeLeague.id === league.id && isUserQualified) ? count - 1 : count;
-        
-        const selected = candidates.sort(() => 0.5 - Math.random()).slice(0, needed).map(t => t.id);
+    // YARDIMCI: Ligden en iyi takımları çek
+    // YARDIMCI: Ligden en iyi takımları çek
+    const getTopTeamsFromLeague = (leagueKey: string, count: number): string[] => {
+        // DÜZELTME: Veri yapısındaki id/key karışıklığını çözmek için güvenli erişim
+        // @ts-ignore
+        const currentLeagueId = (activeLeague.id || activeLeague.key || '').toUpperCase();
 
-        if (gameState.teamId && activeLeague.id === league.id && isUserQualified) {
-            selected.unshift(gameState.teamId);
+        // 1. Eğer kullanıcının ligi ise, güncel puan durumunu kullan
+        if (activeLeague.name === leagueKey || currentLeagueId === leagueKey) {
+            // Playoff sonuçlarına göre sırala
+            const winner = gameState.playoffMatches.find(m => m.roundName === 'Grand Final')?.winnerId;
+            // Finalist mantığı (Kazanan A ise B, B ise A finalisttir)
+            const grandFinal = gameState.playoffMatches.find(m => m.roundName === 'Grand Final');
+            let finalist = null;
+            if (grandFinal && grandFinal.winnerId) {
+                finalist = grandFinal.winnerId === grandFinal.teamAId ? grandFinal.teamBId : grandFinal.teamAId;
+            }
+            
+            // Sıralı liste oluştur
+            let sortedIds: string[] = [];
+            if (winner) sortedIds.push(winner);
+            if (finalist) sortedIds.push(finalist);
+            
+            // Geri kalanı normal puan durumundan ekle
+            const others = gameState.standings
+                .filter(s => !sortedIds.includes(s.teamId))
+                .sort((a, b) => b.wins - a.wins || (b.gameWins - b.gameLosses) - (a.gameWins - a.gameLosses))
+                .map(s => s.teamId);
+                
+            sortedIds = [...sortedIds, ...others];
+            return sortedIds.slice(0, count);
         }
         
-        // Hala eksik varsa (örn: ligde yeterli takım yoksa) tamamla
-        while (selected.length < count) {
-            selected.push(`mock-${leagueKey}-${selected.length}`);
+        // 2. Diğer ligler için statik listeden 'Tier'a göre en iyileri al
+        const league = LEAGUES[leagueKey as LeagueKey];
+        
+        // Eğer lig verisi bulunamazsa (örn: LTA North vs LTA isim farkı varsa) boş dönme, mock dön
+        if (!league) {
+            // Fallback: Eğer LEAGUES içinde yoksa (isim uyuşmazlığı), boş dizi dön
+            return [];
         }
-        return selected; 
+
+        const sortedTeams = [...league.teams].sort((a, b) => {
+             const tierOrder: Record<string, number> = { 'S': 4, 'A': 3, 'B': 2, 'C': 1, 'D': 0 };
+             // @ts-ignore
+             return (tierOrder[b.tier] || 0) - (tierOrder[a.tier] || 0);
+        });
+
+        return sortedTeams.slice(0, count).map(t => t.id);
     };
 
-    // MSI Kotaları
-    const lckTeams = getRepresentative('LCK', 4);
-    const lplTeams = getRepresentative('LPL', 3);
-    const lecTeams = getRepresentative('LEC', 2);
-    const tclTeams = getRepresentative('TCL', 1);
+    // --- TAKIMLARI SEÇ ---
+    // Her bölgeden en iyi takımları alıyoruz
+    const lckTeams = getTopTeamsFromLeague('LCK', 4); // [GenG, T1, HLE, DK] gibi
+    const lplTeams = getTopTeamsFromLeague('LPL', 3); // [BLG, TES, JDG] gibi
+    const lecTeams = getTopTeamsFromLeague('LEC', 2); // [G2, FNC] gibi
+    const tclTeams = getTopTeamsFromLeague('TCL', 1); // [SUP] veya LTA
+    // LTA için kontrol (Eğer LTA oynuyorsak TCL yerine LTA alabiliriz veya ikisi birden)
+    const ltaTeams = getTopTeamsFromLeague('LTA', 1); 
 
-    // Bracket (Ana Tablo) ve Play-In Ayrımı
+    // TCL yoksa LTA kullan, o da yoksa dummy (ama LEAGUES'de TCL varsa gelir)
+    const wildcardTeam = tclTeams.length > 0 ? tclTeams[0] : (ltaTeams.length > 0 ? ltaTeams[0] : 'mock-wildcard');
+
+    // --- AŞAMALARA YERLEŞTİR ---
+    
+    // Bracket (Ana Tablo) Takımları (8 Takım)
+    // Kural: LCK #1-3, LPL #1-2, LEC #1 (Toplam 6) + Play-In'den gelecek 2 takım
     const bracketContenders = [
         ...lckTeams.slice(0, 3), 
         ...lplTeams.slice(0, 2), 
         ...lecTeams.slice(0, 1)
     ];
 
+    // Play-In Takımları (4 Takım)
+    // Kural: LCK #4, LPL #3, LEC #2, Wildcard #1
     const playInContenders = [
-        lckTeams[3], 
-        lplTeams[2], 
-        lecTeams[1], 
-        tclTeams[0]
-    ].filter(t => t); 
+        lckTeams[3], // LCK #4
+        lplTeams[2], // LPL #3
+        lecTeams[1], // LEC #2
+        wildcardTeam // TCL #1
+    ].filter(t => t); // Undefined varsa temizle
 
     // Play-In Eşleşmeleri
     const playInMatches: PlayoffMatch[] = [
@@ -2263,6 +2302,49 @@ const startLPLSplit3 = (prev: GameState): GameState => {
                advanceYear();
                return;
           }
+      }
+
+      // --- MSI PLAY-IN SONRASI BRACKET'A GEÇİŞ ---
+      if (stage === 'MSI_PLAY_IN' && gameState.playoffMatches.every(m => m.winnerId)) {
+           // 1. Play-In Sonuçlarını Kaydet
+           const playInHistory = saveToHistory(gameState, `${year} MSI Play-In`, 'BRACKET');
+           
+           // 2. Kazananları Belirle (UB Final ve LB Final kazananları)
+           const ubFinalWinner = gameState.playoffMatches.find(m => m.id === 'msi-pi-ub-final')?.winnerId;
+           const lbFinalWinner = gameState.playoffMatches.find(m => m.id === 'msi-pi-lb-final')?.winnerId;
+           
+           if (!ubFinalWinner || !lbFinalWinner) return; 
+           
+           const qualifiers = [ubFinalWinner, lbFinalWinner];
+           
+           // 3. Bracket Takımlarını Hazırla (initializeMSI'da oluşturulan bracketContenders + kazananlar)
+           const bracketContenders = [...(gameState.msiBracketContenders || []), ...qualifiers].sort(() => 0.5 - Math.random());
+           
+           // 4. Ana Tablo (Bracket) Eşleşmeleri
+           const bracketMatches: PlayoffMatch[] = [
+             { id: 'msi-b-r1-1', roundName: 'UB Round 1', teamAId: bracketContenders[0], teamBId: bracketContenders[7], nextMatchId: 'msi-b-sf-1', nextMatchSlot: 'A', loserMatchId: 'msi-b-lb1-1', loserMatchSlot: 'A', isBo5: true },
+             { id: 'msi-b-r1-2', roundName: 'UB Round 1', teamAId: bracketContenders[3], teamBId: bracketContenders[4], nextMatchId: 'msi-b-sf-1', nextMatchSlot: 'B', loserMatchId: 'msi-b-lb1-1', loserMatchSlot: 'B', isBo5: true },
+             { id: 'msi-b-r1-3', roundName: 'UB Round 1', teamAId: bracketContenders[1], teamBId: bracketContenders[6], nextMatchId: 'msi-b-sf-2', nextMatchSlot: 'A', loserMatchId: 'msi-b-lb1-2', loserMatchSlot: 'A', isBo5: true },
+             { id: 'msi-b-r1-4', roundName: 'UB Round 1', teamAId: bracketContenders[2], teamBId: bracketContenders[5], nextMatchId: 'msi-b-sf-2', nextMatchSlot: 'B', loserMatchId: 'msi-b-lb1-2', loserMatchSlot: 'B', isBo5: true },
+             { id: 'msi-b-sf-1', roundName: 'UB Semifinals', teamAId: null, teamBId: null, nextMatchId: 'msi-b-ubf', nextMatchSlot: 'A', loserMatchId: 'msi-b-lbsf', loserMatchSlot: 'B', isBo5: true },
+             { id: 'msi-b-sf-2', roundName: 'UB Semifinals', teamAId: null, teamBId: null, nextMatchId: 'msi-b-ubf', nextMatchSlot: 'B', loserMatchId: 'msi-b-lbsf', loserMatchSlot: 'A', isBo5: true },
+             { id: 'msi-b-ubf', roundName: 'UB Final', teamAId: null, teamBId: null, nextMatchId: 'msi-final', nextMatchSlot: 'A', loserMatchId: 'msi-b-lbf', loserMatchSlot: 'B', isBo5: true },
+             { id: 'msi-b-lb1-1', roundName: 'LB Round 1', teamAId: null, teamBId: null, nextMatchId: 'msi-b-lbsf', nextMatchSlot: 'A', isBo5: true },
+             { id: 'msi-b-lb1-2', roundName: 'LB Round 1', teamAId: null, teamBId: null, nextMatchId: 'msi-b-lbsf', nextMatchSlot: 'B', isBo5: true },
+             { id: 'msi-b-lbsf', roundName: 'LB Semifinal', teamAId: null, teamBId: null, nextMatchId: 'msi-b-lbf', nextMatchSlot: 'A', isBo5: true },
+             { id: 'msi-b-lbf', roundName: 'LB Final', teamAId: null, teamBId: null, nextMatchId: 'msi-final', nextMatchSlot: 'B', isBo5: true },
+             { id: 'msi-final', roundName: 'Grand Final', teamAId: null, teamBId: null, isBo5: true },
+           ];
+           
+           setGameState(prev => ({
+               ...prev,
+               stage: 'MSI_BRACKET', // Yeni Aşama
+               matchHistory: playInHistory,
+               playoffMatches: bracketMatches,
+               schedule: []
+           }));
+           setTab('play');
+           return;
       }
 
       if (stage === 'PLAY_IN' && gameState.playoffMatches.every(m => m.winnerId)) {
@@ -2825,12 +2907,12 @@ const startLPLSplit3 = (prev: GameState): GameState => {
                   const loserStat = newStandings.find(s => s.teamId === (sim.winnerId === m.teamAId ? m.teamBId : m.teamAId));
 
                   if (winnerStat) {
-                    winnerStat.wins++;
-                    winnerStat.gameWins += Math.max(sim.scoreA, sim.scoreB);
-                    winnerStat.gameLosses += Math.min(sim.scoreA, sim.scoreB);
+                    winnerStat.wins += 1; // DÜZELTME: Sadece 1 seri galibiyeti ekle
+                    winnerStat.gameWins += Math.max(sim.scoreA, sim.scoreB); // Harita galibiyeti
+                    winnerStat.gameLosses += Math.min(sim.scoreA, sim.scoreB); // Harita mağlubiyeti
                   }
                   if (loserStat) {
-                    loserStat.losses++;
+                    loserStat.losses += 1; // DÜZELTME: Sadece 1 seri mağlubiyeti ekle
                     loserStat.gameWins += Math.min(sim.scoreA, sim.scoreB);
                     loserStat.gameLosses += Math.max(sim.scoreA, sim.scoreB);
                   }
@@ -2976,6 +3058,7 @@ const startLPLSplit3 = (prev: GameState): GameState => {
      }
   };
 
+  // --- GÜNÜN SİMÜLASYONUNU BİTİRME ---
   const finalizeDaySimulation = (userResult: MatchResult | null) => {
     // 1. FİNANSAL HESAPLAMALAR
     let income = 0;
@@ -3005,7 +3088,7 @@ const startLPLSplit3 = (prev: GameState): GameState => {
     const netChange = income - expenses;
     const netColor = netChange >= 0 ? 'success' : 'error';
     const netSign = netChange >= 0 ? '+' : '';
-   //  showNotification(netColor, `Daily Finances: ${netSign}${netChange}G`);
+    // showNotification(netColor, `Daily Finances: ${netSign}${netChange}G`); // İstersen açabilirsin
     setGameState(prev => ({ ...prev, coins: prev.coins + netChange }));
 
     // 2. OYUNCU İSTATİSTİKLERİ VE EVENTLER
@@ -3053,7 +3136,7 @@ const startLPLSplit3 = (prev: GameState): GameState => {
       let newRosterForMorale = { ...updatedRoster };
 
       // --- A. LİG USULÜ (GROUP STAGE) ---
-      if (nextState.stage.includes('GROUP') || nextState.stage.includes('SPLIT')) {
+      if (nextState.stage.includes('GROUP') || nextState.stage.includes('SPLIT') || nextState.stage.includes('PLACEMENTS')) {
           const matchesToday = nextState.schedule.filter(m => m.round === nextState.currentDay);
           const newSchedule = [...nextState.schedule];
 
@@ -3067,7 +3150,12 @@ const startLPLSplit3 = (prev: GameState): GameState => {
                   scoreB = m.teamAId === nextState.teamId ? userResult.scoreEnemy : userResult.scoreUser;
               } else {
                   if (m.played || isUserMatch) return; // Zaten oynanmışsa veya kullanıcı maçıysa (ama resultsız) atla
-                  const sim = simulateSeries(m.teamAId, m.teamBId, !!activeLeague.settings.isBo3);
+                  const league = Object.values(LEAGUES).find(l => l.teams.some(t => t.id === m.teamAId));
+                  const isBo3 = league ? league.settings.isBo3 : false;
+                  // LPL'de Split 1 (Placement hariç) genelde Bo5 olabilir veya Rumble Bo3 olabilir
+                  const isMatchBo5 = !!m.isBo5;
+
+                  const sim = simulateSeries(m.teamAId, m.teamBId, isMatchBo5 || isBo3);
                   winnerId = sim.winnerId;
                   scoreA = sim.scoreA;
                   scoreB = sim.scoreB;
@@ -3088,16 +3176,17 @@ const startLPLSplit3 = (prev: GameState): GameState => {
               newSchedule[idx] = { ...m, played: true, winnerId, seriesScoreA: scoreA, seriesScoreB: scoreB };
 
               // Puan Durumunu Güncelle
+              // KAZANILAN SERİ SAYISINI (+1) EKLE
               const winnerStat = updatedStandings.find(s => s.teamId === winnerId);
               const loserStat = updatedStandings.find(s => s.teamId === (winnerId === m.teamAId ? m.teamBId : m.teamAId));
 
               if (winnerStat) {
-                  winnerStat.wins++;
+                  winnerStat.wins += 1; // Seri galibiyeti
                   winnerStat.gameWins += Math.max(scoreA, scoreB);
                   winnerStat.gameLosses += Math.min(scoreA, scoreB);
               }
               if (loserStat) {
-                  loserStat.losses++;
+                  loserStat.losses += 1; // Seri mağlubiyeti
                   loserStat.gameWins += Math.min(scoreA, scoreB);
                   loserStat.gameLosses += Math.max(scoreA, scoreB);
               }
@@ -3160,7 +3249,7 @@ const startLPLSplit3 = (prev: GameState): GameState => {
       }
       
       // --- B. PLAYOFF / TURNUVA USULÜ (BRACKET STAGE) ---
-      else if (['PLAY_IN', 'PLAYOFFS', 'MSI_PLAY_IN', 'MSI_BRACKET', 'LPL_SPLIT_2_LCQ'].includes(nextState.stage)) {
+      else if (['PLAY_IN', 'PLAYOFFS', 'MSI_PLAY_IN', 'MSI_BRACKET', 'LPL_SPLIT_2_LCQ', 'LPL_SPLIT_3_PLAYIN'].includes(nextState.stage)) {
           const newMatches = [...nextState.playoffMatches];
           // İşlenecek maçı bul (Kullanıcı maçıysa pendingSimResult, değilse sıradaki oynanmamış maç)
           const matchIdToProcess = userResult ? pendingSimResult?.matchId : newMatches.find(m => !m.winnerId && m.teamAId && m.teamBId)?.id;
@@ -4201,14 +4290,17 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
   const StandingsView = () => {
     let groupsToShow: string[] = ['A', 'B'];
     
+    // LPL için hangi grupların gösterileceğini belirle
     if (activeLeague.settings.format === 'LPL') {
         if (gameState.stage === 'LPL_SPLIT_2_GROUPS') {
             groupsToShow = ['Ascend', 'Nirvana'];
         } else if (gameState.stage === 'LPL_SPLIT_3_GROUPS') {
-             groupsToShow = ['A'];
-        } else {
+             groupsToShow = ['Ascend', 'Nirvana']; // Split 3 de Ascend/Nirvana kullanır
+        } else if (gameState.stage.includes('SPLIT_1') || gameState.currentSplit === 'SPLIT_1' || gameState.currentSplit === 'SPRING') {
             groupsToShow = ['A', 'B', 'C', 'D'];
         }
+    } else if (activeLeague.settings.format === 'STANDARD') {
+        groupsToShow = ['A']; // Tek gruplu ligler
     }
 
     return (
@@ -4222,14 +4314,15 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
                 {gameState.winnersGroup === group && <span className="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded">Winners Group</span>}
               </div>
               <table className="w-full text-sm text-left">
+                {/* --- BAŞLIKLAR (DÜZELTİLDİ) --- */}
                 <thead className="bg-dark-950 text-gray-500 font-bold uppercase text-xs">
                   <tr>
                     <th className="px-4 py-3">Team</th>
-                    <th className="px-4 py-3 text-center">W</th>
-                    <th className="px-4 py-3 text-center">L</th>
-                    <th className="px-4 py-3 text-center">+/-</th>
+                    <th className="px-4 py-3 text-center">Series</th>
+                    <th className="px-4 py-3 text-center">Games (+/-)</th>
                   </tr>
                 </thead>
+                {/* --- İÇERİK (DÜZELTİLDİ) --- */}
                 <tbody className="divide-y divide-dark-800">
                   {gameState.standings
                     .filter(s => s.group === group)
@@ -4242,10 +4335,15 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
                             team={activeLeague.teams.find(t => t.id === s.teamId)}
                             streak={s.streak} />
                           {s.name}
+                          {s.isEliminated && <span className="text-xs text-red-500 font-normal ml-auto">(E)</span>}
                         </td>
-                        <td className="px-4 py-3 text-center text-white">{s.wins}</td>
-                        <td className="px-4 py-3 text-center text-gray-400">{s.losses}</td>
-                        <td className="px-4 py-3 text-center text-gray-500">{s.gameWins - s.gameLosses}</td>
+                        {/* SERİ SKORU (örn: 6 - 0) */}
+                        <td className="px-4 py-3 text-center font-bold text-white font-mono">{s.wins} - {s.losses}</td>
+                        
+                        {/* OYUN DETAYI (örn: 12-2 (+10)) */}
+                        <td className="px-4 py-3 text-center text-gray-400 text-xs font-mono">
+                           {s.gameWins} - {s.gameLosses} <span className={(s.gameWins - s.gameLosses) >= 0 ? 'text-green-500' : 'text-red-500'}>({(s.gameWins - s.gameLosses) > 0 ? '+' : ''}{s.gameWins - s.gameLosses})</span>
+                        </td>
                       </tr>
                     ))}
                 </tbody>
@@ -4256,7 +4354,7 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
       </div>
     );
   };
-
+  
   const PlayView = () => (
     <div className="flex flex-col items-center justify-center min-h-[400px] space-y-8 animate-fade-in w-full">
        

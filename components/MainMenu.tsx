@@ -58,7 +58,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({ onNewGame, onContinue, hasSa
       </div>
       
       <div className="mt-12 text-gray-600 text-sm font-mono">
-        v0.2.0 • Offline Mode • Auto-Save Enabled
+        v0.2.1 • Offline Mode • Auto-Save Enabled
       </div>
     </div>
   );

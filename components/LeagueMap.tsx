@@ -9,11 +9,11 @@ interface LeagueMapProps {
 
 // Liglerin Harita Üzerindeki Konumları (Yüzde olarak)
 const LEAGUE_LOCATIONS: Record<string, { top: string, left: string, name: string, region: string }> = {
-  'LTA': { top: '32%', left: '22%', name: 'LTA North', region: 'Americas' },
-  'LEC': { top: '28%', left: '51%', name: 'LEC', region: 'Europe' },
-  'TCL': { top: '34%', left: '56%', name: 'TCL', region: 'Türkiye' },
-  'LPL': { top: '38%', left: '76%', name: 'LPL', region: 'China' },
-  'LCK': { top: '38%', left: '84%', name: 'LCK', region: 'Korea' },
+  'LTA': { top: '15%', left: '18%', name: 'LTA North', region: 'Americas' },
+  'LEC': { top: '10%', left: '51%', name: 'LEC', region: 'Europe' },
+  'TCL': { top: '14%', left: '54%', name: 'TCL', region: 'Türkiye' },
+  'LPL': { top: '18%', left: '71%', name: 'LPL', region: 'China' },
+  'LCK': { top: '27%', left: '73%', name: 'LCK', region: 'Korea' },
 };
 
 export const LeagueMap: React.FC<LeagueMapProps> = ({ onSelectLeague, selectedLeague }) => {
