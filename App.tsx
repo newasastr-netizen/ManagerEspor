@@ -3500,7 +3500,7 @@ interface DraftStep {
     role?: Role; // Sadece PICK ise zorunlu
 }
 
-// Tournament Draft Sıralaması (Senin istediğin özel rol sırası ile)
+// DRAFT AKIŞI (Sıralama - Rol Zorunluluğu Kaldırıldı)
 const DRAFT_SEQUENCE: DraftStep[] = [
     // FAZ 1: BANLAR (3'er tane)
     { side: 'BLUE', type: 'BAN' },
@@ -3510,25 +3510,25 @@ const DRAFT_SEQUENCE: DraftStep[] = [
     { side: 'BLUE', type: 'BAN' },
     { side: 'RED', type: 'BAN' },
     
-    // FAZ 1: SEÇİMLER
-    { side: 'BLUE', type: 'PICK', role: Role.TOP },          // Blue 1
-    { side: 'RED', type: 'PICK', role: Role.TOP },           // Red 1
-    { side: 'RED', type: 'PICK', role: Role.JUNGLE },        // Red 2
-    { side: 'BLUE', type: 'PICK', role: Role.JUNGLE },       // Blue 2
-    { side: 'BLUE', type: 'PICK', role: Role.MID },          // Blue 3
-    { side: 'RED', type: 'PICK', role: Role.MID },           // Red 3
+    // FAZ 1: SEÇİMLER (Sıra kimde? - Rol serbest)
+    { side: 'BLUE', type: 'PICK' },          // Blue 1
+    { side: 'RED', type: 'PICK' },           // Red 1
+    { side: 'RED', type: 'PICK' },           // Red 2
+    { side: 'BLUE', type: 'PICK' },          // Blue 2
+    { side: 'BLUE', type: 'PICK' },          // Blue 3
+    { side: 'RED', type: 'PICK' },           // Red 3
 
     // FAZ 2: BANLAR (2'şer tane - Kırmızı Başlar)
-    { side: 'RED', type: 'BAN' },                            // Red Ban 4
-    { side: 'BLUE', type: 'BAN' },                           // Blue Ban 4
-    { side: 'RED', type: 'BAN' },                            // Red Ban 5
-    { side: 'BLUE', type: 'BAN' },                           // Blue Ban 5
+    { side: 'RED', type: 'BAN' },            // Red Ban 4
+    { side: 'BLUE', type: 'BAN' },           // Blue Ban 4
+    { side: 'RED', type: 'BAN' },            // Red Ban 5
+    { side: 'BLUE', type: 'BAN' },           // Blue Ban 5
 
     // FAZ 2: SEÇİMLER
-    { side: 'RED', type: 'PICK', role: Role.ADC },           // Red 4
-    { side: 'BLUE', type: 'PICK', role: Role.ADC },          // Blue 4
-    { side: 'BLUE', type: 'PICK', role: Role.SUPPORT },      // Blue 5
-    { side: 'RED', type: 'PICK', role: Role.SUPPORT },       // Red 5
+    { side: 'RED', type: 'PICK' },           // Red 4
+    { side: 'BLUE', type: 'PICK' },          // Blue 4
+    { side: 'BLUE', type: 'PICK' },          // Blue 5
+    { side: 'RED', type: 'PICK' },           // Red 5
 ];
 
 const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftComplete }) => {
@@ -3543,9 +3543,11 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
   const [draftState, setDraftState] = useState<'DRAFTING' | 'ANALYZING' | 'RESULT'>('DRAFTING');
   const [resultData, setResultData] = useState<{ bonus: number, msg: string, userStyle: string, enemyStyle: string } | null>(null);
 
+  // --- YENİ EKLENEN STATE'LER (FİLTRE VE ARAMA) ---
+  const [roleFilter, setRoleFilter] = useState<Role | 'ALL'>('ALL');
+  const [searchQuery, setSearchQuery] = useState('');
+
   const currentStep = DRAFT_SEQUENCE[currentStepIndex];
-  
-  // Kullanıcı her zaman MAVİ (BLUE) taraf olsun
   const userSide: DraftSide = 'BLUE'; 
   const isUserTurn = currentStep?.side === userSide;
 
@@ -3567,31 +3569,50 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
     if (!isUserTurn) {
         const timer = setTimeout(() => {
             handleAiAction();
-        }, 800); // 0.8 saniye düşünme payı
+        }, 800); 
         return () => clearTimeout(timer);
     }
   }, [currentStepIndex, draftState]);
 
+  // Ekran Değiştiğinde veya Sıra Değiştiğinde Filtreleri Sıfırla (İsteğe bağlı)
+  useEffect(() => {
+      setSearchQuery('');
+      setRoleFilter('ALL');
+  }, [currentStepIndex]);
+
   const handleAiAction = () => {
-      // AI Rastgele ama kurallara uygun seçer
-      let candidates = availableChampions;
+      // AI: Sadece yasaklama mı yoksa seçim mi?
+      if (currentStep.type === 'BAN') {
+           const randomBan = availableChampions[Math.floor(Math.random() * availableChampions.length)];
+           processAction(randomBan);
+      } else {
+           // AI PICK: Kendi takımındaki boş rolleri bul
+           const currentRoster = currentStep.side === 'BLUE' ? bluePicks : redPicks;
+           const allRoles = [Role.TOP, Role.JUNGLE, Role.MID, Role.ADC, Role.SUPPORT];
+           // @ts-ignore
+           const openRoles = allRoles.filter(r => !currentRoster[r]);
+           
+           if (openRoles.length === 0) return; // Hata koruması
 
-      if (currentStep.type === 'PICK' && currentStep.role) {
-          candidates = candidates.filter(c => c.role === currentStep.role);
+           // Boş rollerden rastgele birini hedefle
+           const targetRole = openRoles[Math.floor(Math.random() * openRoles.length)];
+           
+           // O role uygun şampiyonları filtrele
+           const candidates = availableChampions.filter(c => c.role === targetRole);
+           
+           if (candidates.length > 0) {
+               const selection = candidates[Math.floor(Math.random() * candidates.length)];
+               processAction(selection);
+           } else {
+               // Fallback
+               const randomPick = availableChampions[Math.floor(Math.random() * availableChampions.length)];
+               processAction(randomPick);
+           }
       }
-
-      if (candidates.length === 0) {
-          // Fallback (Çok nadir)
-          candidates = CHAMPIONS; 
-      }
-
-      const selection = candidates[Math.floor(Math.random() * candidates.length)];
-      processAction(selection);
   };
 
   const handleUserClick = (champ: Champion) => {
       if (!isUserTurn) return;
-      // Eğer PICK aşamasındaysak ve rol uyumsuzsa seçtirme (İsteğe bağlı, şimdilik role filter uyguluyoruz UI'da)
       processAction(champ);
   };
 
@@ -3600,9 +3621,9 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
           if (currentStep.side === 'BLUE') setBlueBans(prev => [...prev, champ]);
           else setRedBans(prev => [...prev, champ]);
       } else {
-          // PICK
-          if (currentStep.side === 'BLUE') setBluePicks(prev => ({ ...prev, [currentStep.role!]: champ }));
-          else setRedPicks(prev => ({ ...prev, [currentStep.role!]: champ }));
+          // PICK: Şampiyonu otomatik olarak kendi rolüne ata
+          if (currentStep.side === 'BLUE') setBluePicks(prev => ({ ...prev, [champ.role]: champ }));
+          else setRedPicks(prev => ({ ...prev, [champ.role]: champ }));
       }
 
       // Sonraki adıma geç
@@ -3635,17 +3656,9 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
       setDraftState('ANALYZING');
       
       setTimeout(() => {
-          // State güncellemelerinin oturması için picks'i buradan hesaplamak yerine state'den alırken dikkat etmeliyiz.
-          // React state update batching yüzünden son pick hemen yansımazsa diye parametre geçmeye gerek yok, 
-          // çünkü finishDraft setRedPicks'ten sonra çağrılıyor ama aynı render cycle'da eski değeri görebilir.
-          // Bu yüzden AI veya User son hamleyi yapınca state setter callback içinde bitişi tetiklemek daha güvenli olurdu 
-          // ama şimdilik setTimeout (analiz süresi) bunu kurtarır.
-          
           const blueStyle = calculateTeamStyle(bluePicks);
           const redStyle = calculateTeamStyle(redPicks);
           
-          // Mavi (User) vs Kırmızı (AI)
-          // Aggressive > Scaling > Control > Aggressive
           let bonus = 0;
           let msg = "EVEN DRAFT";
 
@@ -3673,13 +3686,23 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
       }, 1000);
   };
 
-  // UI İçin Gösterilecek Şampiyonlar
+  // --- GELİŞMİŞ FİLTRELEME MANTIĞI ---
   const championsToDisplay = availableChampions.filter(c => {
-      if (currentStep.type === 'PICK' && currentStep.role) {
-          return c.role === currentStep.role;
+      // 1. Dolu Rol Kontrolü (Sadece PICK aşamasında ve sıra bizdeyse)
+      if (currentStep.type === 'PICK' && isUserTurn) {
+          // Eğer o rol bizde zaten doluysa, o roldeki şampiyonları gösterme
+          // @ts-ignore
+          if (bluePicks[c.role]) return false;
       }
-      return true; // BAN aşamasında hepsi açık
-  });
+
+      // 2. Kullanıcı Rol Filtresi
+      if (roleFilter !== 'ALL' && c.role !== roleFilter) return false;
+
+      // 3. Arama Filtresi
+      if (searchQuery && !c.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+
+      return true;
+  }).sort((a, b) => a.name.localeCompare(b.name));
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-xl overflow-hidden pl-72">
@@ -3687,16 +3710,16 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
 
       <div className="relative w-full max-w-7xl h-full p-6 flex flex-col">
          
-         {/* HEADER: TAKIMLAR VE BANLAR */}
+         {/* HEADER */}
          <div className="flex justify-between items-start mb-4 h-24">
-            {/* BLUE SIDE (USER) */}
+            {/* BLUE SIDE */}
             <div className="flex flex-col gap-1 w-1/3">
                 <div className="flex items-center gap-3 mb-1">
                     <TeamLogo team={userTeam} size="w-10 h-10" />
                     <span className="text-xl font-bold text-blue-400 uppercase font-display">Blue Side</span>
                     {isUserTurn && <span className="text-xs bg-blue-500 text-white px-2 py-0.5 rounded animate-pulse">YOUR TURN</span>}
                 </div>
-                {/* Blue Bans */}
+                {/* Bans */}
                 <div className="flex gap-1">
                     {[0,1,2,3,4].map(i => (
                         <div key={i} className="w-10 h-10 bg-black/50 border border-gray-700 rounded flex items-center justify-center overflow-hidden">
@@ -3706,7 +3729,7 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
                 </div>
             </div>
 
-            {/* ORTA BİLGİ */}
+            {/* INFO */}
             <div className="flex-1 text-center pt-2">
                 {draftState === 'DRAFTING' && (
                     <div className="flex flex-col items-center">
@@ -3714,7 +3737,7 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
                             {currentStep.side === 'BLUE' ? 'BLUE' : 'RED'} {currentStep.type}
                         </div>
                         <div className="text-sm text-gray-400 uppercase tracking-widest">
-                            {currentStep.type === 'PICK' ? currentStep.role : 'ANY CHAMPION'}
+                            {currentStep.type === 'PICK' ? 'SELECT CHAMPION' : 'BAN CHAMPION'}
                         </div>
                     </div>
                 )}
@@ -3730,13 +3753,13 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
                 )}
             </div>
 
-            {/* RED SIDE (ENEMY) */}
+            {/* RED SIDE */}
             <div className="flex flex-col gap-1 items-end w-1/3">
                 <div className="flex items-center gap-3 mb-1">
                     <span className="text-xl font-bold text-red-500 uppercase font-display">Red Side</span>
                     <TeamLogo team={enemyTeam} size="w-10 h-10" />
                 </div>
-                {/* Red Bans */}
+                {/* Bans */}
                 <div className="flex gap-1">
                     {[0,1,2,3,4].map(i => (
                         <div key={i} className="w-10 h-10 bg-black/50 border border-gray-700 rounded flex items-center justify-center overflow-hidden">
@@ -3747,15 +3770,14 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
             </div>
          </div>
 
-         {/* ANA ALAN: PICK GÖSTERİMİ */}
-         <div className="flex justify-between items-center px-10 mb-6">
-             {/* BLUE PICKS (SOL) */}
+         {/* PICKS AREA */}
+         <div className="flex justify-between items-center px-10 mb-4">
+             {/* BLUE PICKS */}
              <div className="flex flex-col gap-2">
                  {[Role.TOP, Role.JUNGLE, Role.MID, Role.ADC, Role.SUPPORT].map(r => {
                      const pick = bluePicks[r];
-                     const isActiveSlot = currentStep.side === 'BLUE' && currentStep.type === 'PICK' && currentStep.role === r;
                      return (
-                         <div key={r} className={`relative w-64 h-20 bg-dark-800 border-l-4 ${pick ? 'border-blue-500' : isActiveSlot ? 'border-yellow-400 animate-pulse bg-blue-900/20' : 'border-dark-600'} flex items-center overflow-hidden transition-all`}>
+                         <div key={r} className={`relative w-64 h-20 bg-dark-800 border-l-4 ${pick ? 'border-blue-500' : 'border-dark-600'} flex items-center overflow-hidden transition-all`}>
                              {pick ? (
                                  <>
                                     <div className="w-20 h-full shrink-0">
@@ -3774,46 +3796,102 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
                  })}
              </div>
              
-             {/* ORTA: ŞAMPİYON LİSTESİ (SADECE DRAFTING SIRASINDA) */}
-             <div className="flex-1 h-[500px] mx-8 bg-dark-900/80 border border-dark-700 rounded-xl overflow-hidden flex flex-col">
+             {/* ORTA: ŞAMPİYON SEÇİM EKRANI */}
+             <div className="flex-1 h-[520px] mx-8 bg-dark-900/90 border border-dark-700 rounded-xl overflow-hidden flex flex-col shadow-2xl">
                  {draftState === 'DRAFTING' ? (
                      <>
-                        <div className="p-3 bg-dark-950 border-b border-dark-800 text-center text-gray-400 text-xs font-bold uppercase">
-                            Available Champions {currentStep.type === 'PICK' ? `for ${currentStep.role}` : ''}
+                        {/* --- YENİ FİLTRE VE ARAMA ÇUBUĞU --- */}
+                        <div className="p-3 bg-dark-950 border-b border-dark-800 flex justify-between items-center gap-4">
+                            {/* Rol Filtreleri */}
+                            <div className="flex gap-1">
+                                <button 
+                                    onClick={() => setRoleFilter('ALL')}
+                                    className={`px-3 py-1 rounded text-xs font-bold transition-all ${roleFilter === 'ALL' ? 'bg-hextech-600 text-white' : 'bg-dark-800 text-gray-400 hover:bg-dark-700'}`}
+                                >
+                                    ALL
+                                </button>
+                                {Object.values(Role).filter(r => r !== Role.COACH).map(role => {
+                                    // Rol adını kısalt (TOP, JGL, MID, BOT, SUP)
+                                    const shortName = role === Role.JUNGLE ? 'JGL' : role === Role.ADC ? 'BOT' : role === Role.SUPPORT ? 'SUP' : role;
+                                    // Eğer o rol bizde doluysa butonu pasif yap veya işaretle
+                                    // @ts-ignore
+                                    const isFilled = isUserTurn && currentStep.type === 'PICK' && !!bluePicks[role];
+                                    
+                                    return (
+                                        <button 
+                                            key={role}
+                                            onClick={() => !isFilled && setRoleFilter(role)}
+                                            disabled={isFilled}
+                                            className={`px-3 py-1 rounded text-xs font-bold transition-all 
+                                                ${roleFilter === role ? 'bg-hextech-600 text-white' : 'bg-dark-800 text-gray-400 hover:bg-dark-700'}
+                                                ${isFilled ? 'opacity-30 cursor-not-allowed decoration-line-through' : ''}
+                                            `}
+                                        >
+                                            {shortName}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+
+                            {/* Arama Kutusu */}
+                            <div className="relative">
+                                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500" size={14} />
+                                <input 
+                                    type="text" 
+                                    placeholder="Search..." 
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="w-40 bg-dark-800 border border-dark-700 text-white text-xs font-bold pl-8 pr-3 py-1.5 rounded-lg focus:outline-none focus:border-hextech-500 transition-colors"
+                                />
+                            </div>
                         </div>
-                        <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
-                            <div className="grid grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+
+                        {/* Şampiyon Listesi */}
+                        <div className="flex-1 overflow-y-auto p-4 custom-scrollbar bg-dark-900/50">
+                            <div className="grid grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-3">
                                 {championsToDisplay.map(c => (
                                     <div 
                                         key={c.id} 
                                         onClick={() => handleUserClick(c)}
                                         className={`relative group aspect-square bg-dark-800 border border-dark-600 rounded cursor-pointer overflow-hidden ${!isUserTurn ? 'opacity-50 grayscale cursor-not-allowed' : 'hover:border-gold-400 hover:scale-105 transition-all'}`}
                                     >
-                                        <img src={c.imageUrl} className="w-full h-full object-cover" />
-                                        <div className="absolute inset-x-0 bottom-0 bg-black/70 p-1 text-center">
-                                            <div className="text-[10px] text-white font-bold truncate">{c.name}</div>
+                                        <img src={c.imageUrl} className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-500" />
+                                        
+                                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/80 to-transparent p-1.5 pt-4 text-center">
+                                            <div className="text-[10px] text-white font-bold truncate leading-tight">{c.name}</div>
                                         </div>
-                                        {/* Stil İkonu */}
-                                        <div className={`absolute top-1 right-1 w-3 h-3 rounded-full ${c.style === 'AGGRESSIVE' ? 'bg-red-500' : c.style === 'CONTROL' ? 'bg-blue-500' : 'bg-purple-500'}`} title={c.style}></div>
+                                        
+                                        {/* Stil İkonu (Köşede küçük nokta) */}
+                                        <div className={`absolute top-1 right-1 w-2.5 h-2.5 rounded-full border border-black/50 shadow-sm ${c.style === 'AGGRESSIVE' ? 'bg-red-500' : c.style === 'CONTROL' ? 'bg-blue-500' : 'bg-purple-500'}`} title={c.style}></div>
+
+                                        {/* Ban Overlay */}
+                                        {currentStep.type === 'BAN' && isUserTurn && (
+                                            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-red-900/60 font-bold text-red-500 text-xl backdrop-blur-[1px] transition-opacity">BAN</div>
+                                        )}
                                     </div>
                                 ))}
+                                {championsToDisplay.length === 0 && (
+                                    <div className="col-span-full flex flex-col items-center justify-center text-gray-500 py-10">
+                                        <p>No champions found.</p>
+                                    </div>
+                                )}
                             </div>
                         </div>
                      </>
                  ) : (
-                     <div className="flex items-center justify-center h-full text-white font-bold text-xl">
+                     <div className="flex items-center justify-center h-full text-white font-bold text-xl flex-col gap-4">
+                         <div className="animate-spin w-10 h-10 border-4 border-hextech-500 border-t-transparent rounded-full"></div>
                          {draftState === 'ANALYZING' ? 'Analyzing Team Comps...' : 'Match Ready!'}
                      </div>
                  )}
              </div>
 
-             {/* RED PICKS (SAĞ) */}
+             {/* RED PICKS */}
              <div className="flex flex-col gap-2 items-end">
                  {[Role.TOP, Role.JUNGLE, Role.MID, Role.ADC, Role.SUPPORT].map(r => {
                      const pick = redPicks[r];
-                     const isActiveSlot = currentStep.side === 'RED' && currentStep.type === 'PICK' && currentStep.role === r;
                      return (
-                         <div key={r} className={`relative w-64 h-20 bg-dark-800 border-r-4 ${pick ? 'border-red-500' : isActiveSlot ? 'border-red-400 animate-pulse bg-red-900/20' : 'border-dark-600'} flex flex-row-reverse items-center overflow-hidden transition-all`}>
+                         <div key={r} className={`relative w-64 h-20 bg-dark-800 border-r-4 ${pick ? 'border-red-500' : 'border-dark-600'} flex flex-row-reverse items-center overflow-hidden transition-all`}>
                              {pick ? (
                                  <>
                                     <div className="w-20 h-full shrink-0">
