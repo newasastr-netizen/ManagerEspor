@@ -8,6 +8,7 @@ import { TrainingView } from './components/TrainingView';
 import { Onboarding } from './components/Onboarding';
 import { LEAGUES, LeagueKey, LeagueDefinition } from './data/leagues';
 import { drawGroups, generateGroupStageSchedule, generateLPLSplit2Schedule } from './utils/scheduler';
+import { CHAMPIONS, Champion, ChampionStyle } from './data/champions';
 import { Trophy, RotateCcw, AlertTriangle, Play, Handshake, Wand2, FastForward, SkipForward, XCircle, ArrowDownUp, Search, Mail, Newspaper, MessageSquare, Heart, HeartCrack } from 'lucide-react';
 import { Role, PlayerCard, GameState, MatchResult, Rarity, TeamData, ScheduledMatch, PlayoffMatch, Standing, PlayerEvent, HistoryEntry, HistoryViewType } from './types';
 import { MainMenu } from './components/MainMenu';
@@ -3489,146 +3490,349 @@ const startLPLSplit3 = (prev: GameState): GameState => {
   onDraftComplete: (draftScore: number) => void;
 }
 
+// DRAFT AKIŞI (Sıralama)
+type DraftActionType = 'BAN' | 'PICK';
+type DraftSide = 'BLUE' | 'RED';
+
+interface DraftStep {
+    side: DraftSide;
+    type: DraftActionType;
+    role?: Role; // Sadece PICK ise zorunlu
+}
+
+// Tournament Draft Sıralaması (Senin istediğin özel rol sırası ile)
+const DRAFT_SEQUENCE: DraftStep[] = [
+    // FAZ 1: BANLAR (3'er tane)
+    { side: 'BLUE', type: 'BAN' },
+    { side: 'RED', type: 'BAN' },
+    { side: 'BLUE', type: 'BAN' },
+    { side: 'RED', type: 'BAN' },
+    { side: 'BLUE', type: 'BAN' },
+    { side: 'RED', type: 'BAN' },
+    
+    // FAZ 1: SEÇİMLER
+    { side: 'BLUE', type: 'PICK', role: Role.TOP },          // Blue 1
+    { side: 'RED', type: 'PICK', role: Role.TOP },           // Red 1
+    { side: 'RED', type: 'PICK', role: Role.JUNGLE },        // Red 2
+    { side: 'BLUE', type: 'PICK', role: Role.JUNGLE },       // Blue 2
+    { side: 'BLUE', type: 'PICK', role: Role.MID },          // Blue 3
+    { side: 'RED', type: 'PICK', role: Role.MID },           // Red 3
+
+    // FAZ 2: BANLAR (2'şer tane - Kırmızı Başlar)
+    { side: 'RED', type: 'BAN' },                            // Red Ban 4
+    { side: 'BLUE', type: 'BAN' },                           // Blue Ban 4
+    { side: 'RED', type: 'BAN' },                            // Red Ban 5
+    { side: 'BLUE', type: 'BAN' },                           // Blue Ban 5
+
+    // FAZ 2: SEÇİMLER
+    { side: 'RED', type: 'PICK', role: Role.ADC },           // Red 4
+    { side: 'BLUE', type: 'PICK', role: Role.ADC },          // Blue 4
+    { side: 'BLUE', type: 'PICK', role: Role.SUPPORT },      // Blue 5
+    { side: 'RED', type: 'PICK', role: Role.SUPPORT },       // Red 5
+];
+
 const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftComplete }) => {
-  const [step, setStep] = useState<'SELECT' | 'REVEAL' | 'RESULT'>('SELECT');
-  const [selectedStratId, setSelectedStratId] = useState<string | null>(null);
-  const [enemyStrat, setEnemyStrat] = useState<any>(null);
-  const [resultData, setResultData] = useState<{ bonus: number, msg: string } | null>(null);
+  const [currentStepIndex, setCurrentStepIndex] = useState(0);
+  
+  const [blueBans, setBlueBans] = useState<Champion[]>([]);
+  const [redBans, setRedBans] = useState<Champion[]>([]);
+  
+  const [bluePicks, setBluePicks] = useState<Partial<Record<Role, Champion>>>({});
+  const [redPicks, setRedPicks] = useState<Partial<Record<Role, Champion>>>({});
 
-  const strategies = [
-    { id: 'AGGRESSIVE', name: 'Aggressive', sub: 'Early Game', icon: '🗡️', color: 'from-red-600 to-orange-600', beats: 'SCALING', loseTo: 'CONTROL' },
-    { id: 'CONTROL', name: 'Control', sub: 'Macro Play', icon: '🛡️', color: 'from-blue-600 to-cyan-600', beats: 'AGGRESSIVE', loseTo: 'SCALING' },
-    { id: 'SCALING', name: 'Scaling', sub: 'Late Game', icon: '⏳', color: 'from-purple-600 to-pink-600', beats: 'CONTROL', loseTo: 'AGGRESSIVE' },
-  ];
+  const [draftState, setDraftState] = useState<'DRAFTING' | 'ANALYZING' | 'RESULT'>('DRAFTING');
+  const [resultData, setResultData] = useState<{ bonus: number, msg: string, userStyle: string, enemyStyle: string } | null>(null);
 
-  const handleSelect = (stratId: string) => {
-    setSelectedStratId(stratId);
-    
-    const enemyChoice = strategies[Math.floor(Math.random() * strategies.length)];
-    setEnemyStrat(enemyChoice);
+  const currentStep = DRAFT_SEQUENCE[currentStepIndex];
+  
+  // Kullanıcı her zaman MAVİ (BLUE) taraf olsun
+  const userSide: DraftSide = 'BLUE'; 
+  const isUserTurn = currentStep?.side === userSide;
 
-    const userChoice = strategies.find(s => s.id === stratId)!;
-    let bonus = 0;
-    let msg = "";
+  // Seçilebilir Şampiyonlar (Yasaklı veya seçili olmayanlar)
+  const availableChampions = useMemo(() => {
+    const bannedIds = new Set([...blueBans, ...redBans].map(c => c.id));
+    const pickedIds = new Set([
+        ...Object.values(bluePicks).map(c => c!.id),
+        ...Object.values(redPicks).map(c => c!.id)
+    ]);
 
-    if (userChoice.beats === enemyChoice.id) {
-        bonus = 6; msg = "COUNTER PICK!";
-    } else if (userChoice.loseTo === enemyChoice.id) {
-        bonus = -4; msg = "OUTDRAFTED...";
-    } else {
-        bonus = 0; msg = "SKILL MATCHUP";
+    return CHAMPIONS.filter(c => !bannedIds.has(c.id) && !pickedIds.has(c.id));
+  }, [blueBans, redBans, bluePicks, redPicks]);
+
+  // AI Hareketi (Otomatik)
+  useEffect(() => {
+    if (draftState !== 'DRAFTING') return;
+
+    if (!isUserTurn) {
+        const timer = setTimeout(() => {
+            handleAiAction();
+        }, 800); // 0.8 saniye düşünme payı
+        return () => clearTimeout(timer);
     }
+  }, [currentStepIndex, draftState]);
 
-    setResultData({ bonus, msg });
-    
-    setStep('REVEAL');
-    setTimeout(() => setStep('RESULT'), 2000);
-    setTimeout(() => onDraftComplete(bonus), 3500);
+  const handleAiAction = () => {
+      // AI Rastgele ama kurallara uygun seçer
+      let candidates = availableChampions;
+
+      if (currentStep.type === 'PICK' && currentStep.role) {
+          candidates = candidates.filter(c => c.role === currentStep.role);
+      }
+
+      if (candidates.length === 0) {
+          // Fallback (Çok nadir)
+          candidates = CHAMPIONS; 
+      }
+
+      const selection = candidates[Math.floor(Math.random() * candidates.length)];
+      processAction(selection);
   };
 
-  const getSelectedStrategy = () => strategies.find(s => s.id === selectedStratId);
+  const handleUserClick = (champ: Champion) => {
+      if (!isUserTurn) return;
+      // Eğer PICK aşamasındaysak ve rol uyumsuzsa seçtirme (İsteğe bağlı, şimdilik role filter uyguluyoruz UI'da)
+      processAction(champ);
+  };
+
+  const processAction = (champ: Champion) => {
+      if (currentStep.type === 'BAN') {
+          if (currentStep.side === 'BLUE') setBlueBans(prev => [...prev, champ]);
+          else setRedBans(prev => [...prev, champ]);
+      } else {
+          // PICK
+          if (currentStep.side === 'BLUE') setBluePicks(prev => ({ ...prev, [currentStep.role!]: champ }));
+          else setRedPicks(prev => ({ ...prev, [currentStep.role!]: champ }));
+      }
+
+      // Sonraki adıma geç
+      if (currentStepIndex < DRAFT_SEQUENCE.length - 1) {
+          setCurrentStepIndex(prev => prev + 1);
+      } else {
+          finishDraft();
+      }
+  };
+
+  const calculateTeamStyle = (picks: Partial<Record<Role, Champion>>): ChampionStyle => {
+      const counts = { AGGRESSIVE: 0, CONTROL: 0, SCALING: 0 };
+      Object.values(picks).forEach(p => {
+          if (p) counts[p.style]++;
+      });
+
+      let maxStyle: ChampionStyle = 'AGGRESSIVE';
+      let maxCount = -1;
+      
+      (Object.keys(counts) as ChampionStyle[]).forEach(style => {
+          if (counts[style] > maxCount) {
+              maxCount = counts[style];
+              maxStyle = style;
+          }
+      });
+      return maxStyle;
+  };
+
+  const finishDraft = () => {
+      setDraftState('ANALYZING');
+      
+      setTimeout(() => {
+          // State güncellemelerinin oturması için picks'i buradan hesaplamak yerine state'den alırken dikkat etmeliyiz.
+          // React state update batching yüzünden son pick hemen yansımazsa diye parametre geçmeye gerek yok, 
+          // çünkü finishDraft setRedPicks'ten sonra çağrılıyor ama aynı render cycle'da eski değeri görebilir.
+          // Bu yüzden AI veya User son hamleyi yapınca state setter callback içinde bitişi tetiklemek daha güvenli olurdu 
+          // ama şimdilik setTimeout (analiz süresi) bunu kurtarır.
+          
+          const blueStyle = calculateTeamStyle(bluePicks);
+          const redStyle = calculateTeamStyle(redPicks);
+          
+          // Mavi (User) vs Kırmızı (AI)
+          // Aggressive > Scaling > Control > Aggressive
+          let bonus = 0;
+          let msg = "EVEN DRAFT";
+
+          if (blueStyle === redStyle) {
+              bonus = 0; msg = "MIRROR MATCHUP";
+          } else if (
+              (blueStyle === 'AGGRESSIVE' && redStyle === 'SCALING') ||
+              (blueStyle === 'SCALING' && redStyle === 'CONTROL') ||
+              (blueStyle === 'CONTROL' && redStyle === 'AGGRESSIVE')
+          ) {
+              bonus = 6; msg = "DRAFT KINGDOM!";
+          } else {
+              bonus = -4; msg = "OUTDRAFTED...";
+          }
+
+          setResultData({ 
+              bonus, 
+              msg, 
+              userStyle: blueStyle, 
+              enemyStyle: redStyle 
+          });
+          setDraftState('RESULT');
+          
+          setTimeout(() => onDraftComplete(bonus), 3000);
+      }, 1000);
+  };
+
+  // UI İçin Gösterilecek Şampiyonlar
+  const championsToDisplay = availableChampions.filter(c => {
+      if (currentStep.type === 'PICK' && currentStep.role) {
+          return c.role === currentStep.role;
+      }
+      return true; // BAN aşamasında hepsi açık
+  });
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-xl overflow-hidden pl-72">
-      {/* Dinamik Arka Plan */}
-      <div className={`absolute inset-0 bg-gradient-to-br transition-all duration-1000 opacity-20 ${step === 'RESULT' && resultData?.bonus! > 0 ? 'from-green-500 to-green-900' : step === 'RESULT' && resultData?.bonus! < 0 ? 'from-red-900 to-black' : 'from-blue-900 to-gray-900'}`} />
+      <div className="absolute inset-0 bg-gradient-to-br from-blue-900/20 to-red-900/20 pointer-events-none" />
 
-      <div className="relative w-full max-w-7xl p-4 flex flex-col items-center">
+      <div className="relative w-full max-w-7xl h-full p-6 flex flex-col">
          
-         {/* ÜST KISIM: TAKIMLAR VE DURUM */}
-         <div className="flex justify-between items-start w-full px-20 mb-8 h-32">
-            <div className="text-center animate-in slide-in-from-top duration-700">
-                <TeamLogo team={userTeam} size="w-20 h-20" className="mx-auto shadow-[0_0_20px_rgba(59,130,246,0.5)] rounded-full" />
+         {/* HEADER: TAKIMLAR VE BANLAR */}
+         <div className="flex justify-between items-start mb-4 h-24">
+            {/* BLUE SIDE (USER) */}
+            <div className="flex flex-col gap-1 w-1/3">
+                <div className="flex items-center gap-3 mb-1">
+                    <TeamLogo team={userTeam} size="w-10 h-10" />
+                    <span className="text-xl font-bold text-blue-400 uppercase font-display">Blue Side</span>
+                    {isUserTurn && <span className="text-xs bg-blue-500 text-white px-2 py-0.5 rounded animate-pulse">YOUR TURN</span>}
+                </div>
+                {/* Blue Bans */}
+                <div className="flex gap-1">
+                    {[0,1,2,3,4].map(i => (
+                        <div key={i} className="w-10 h-10 bg-black/50 border border-gray-700 rounded flex items-center justify-center overflow-hidden">
+                            {blueBans[i] ? <img src={blueBans[i].imageUrl} className="w-full h-full object-cover grayscale opacity-70" /> : <span className="text-gray-600 text-[10px]">BAN</span>}
+                        </div>
+                    ))}
+                </div>
             </div>
 
-            <div className="text-center flex-1 pt-4">
-                {step === 'SELECT' && <div className="text-4xl font-bold text-white animate-pulse font-display">CHOOSE YOUR STRATEGY</div>}
-                {step === 'REVEAL' && <div className="text-4xl font-bold text-yellow-400 animate-bounce font-display">OPPONENT IS CHOOSING...</div>}
-                {step === 'RESULT' && (
-                    <div className="flex flex-col items-center animate-in zoom-in duration-300">
-                        <div className={`text-6xl font-black italic ${resultData?.bonus! > 0 ? 'text-green-400 drop-shadow-[0_0_10px_rgba(74,222,128,0.5)]' : resultData?.bonus! < 0 ? 'text-red-500 drop-shadow-[0_0_10px_rgba(239,68,68,0.5)]' : 'text-gray-300'}`}>
-                            {resultData?.msg}
+            {/* ORTA BİLGİ */}
+            <div className="flex-1 text-center pt-2">
+                {draftState === 'DRAFTING' && (
+                    <div className="flex flex-col items-center">
+                        <div className={`text-2xl font-black font-display ${currentStep.side === 'BLUE' ? 'text-blue-400' : 'text-red-500'}`}>
+                            {currentStep.side === 'BLUE' ? 'BLUE' : 'RED'} {currentStep.type}
                         </div>
-                        <div className="text-2xl font-mono mt-2 text-white bg-black/50 px-6 py-1 rounded-full border border-white/20">
-                            {resultData?.bonus! > 0 ? '+' : ''}{resultData?.bonus} Power
+                        <div className="text-sm text-gray-400 uppercase tracking-widest">
+                            {currentStep.type === 'PICK' ? currentStep.role : 'ANY CHAMPION'}
                         </div>
                     </div>
                 )}
-            </div>
-
-            <div className="text-center animate-in slide-in-from-top duration-700 delay-100">
-                <TeamLogo team={enemyTeam} size="w-20 h-20" className="mx-auto shadow-[0_0_20px_rgba(239,68,68,0.5)] rounded-full" />
-            </div>
-         </div>
-
-         {/* ANA KART ALANI - 3D Perspektif Konteyneri */}
-         <div className="relative w-full flex items-center justify-center perspective-1000 min-h-[500px]">
-            
-            {/* --- DURUM 1: SEÇİM EKRANI (3 KART YANYANA) --- */}
-            {step === 'SELECT' && (
-                <div className="flex justify-center items-center gap-10 animate-fade-in">
-                    {strategies.map((strat, index) => (
-                    <div 
-                        key={strat.id}
-                        onClick={() => handleSelect(strat.id)}
-                        className={`relative w-72 h-[420px] rounded-2xl bg-gradient-to-br ${strat.color} p-1 shadow-xl cursor-pointer hover:scale-105 hover:-translate-y-4 transition-all duration-300 ease-out border-2 border-white/10 group animate-in slide-in-from-bottom fade-in duration-700 fill-mode-backwards`}
-                        style={{ animationDelay: `${index * 150}ms` }}
-                    >
-                        <div className="w-full h-full bg-dark-900/95 rounded-xl flex flex-col items-center justify-center p-6 text-center backdrop-blur-md group-hover:bg-dark-900/80 transition-colors">
-                            <div className="text-7xl mb-6 filter drop-shadow-lg group-hover:scale-110 transition-transform">{strat.icon}</div>
-                            <h3 className="text-3xl font-bold text-white uppercase font-display">{strat.name}</h3>
-                            <p className="text-md text-gray-300 font-mono mt-2">{strat.sub}</p>
-                            <div className="mt-8 opacity-0 group-hover:opacity-100 transition-opacity text-sm font-bold">
-                                <span className="text-green-400 block">Strong vs: {strat.beats}</span>
-                                <span className="text-red-400 block mt-1">Weak vs: {strat.loseTo}</span>
-                            </div>
+                {draftState === 'RESULT' && resultData && (
+                     <div className="animate-in zoom-in">
+                        <div className={`text-4xl font-black italic ${resultData.bonus > 0 ? 'text-green-400' : resultData.bonus < 0 ? 'text-red-500' : 'text-gray-300'}`}>
+                            {resultData.msg}
                         </div>
-                    </div>
+                        <div className="flex justify-center gap-4 mt-1 text-sm font-bold text-white">
+                             <span className="text-blue-300">{resultData.userStyle}</span> vs <span className="text-red-300">{resultData.enemyStyle}</span>
+                        </div>
+                     </div>
+                )}
+            </div>
+
+            {/* RED SIDE (ENEMY) */}
+            <div className="flex flex-col gap-1 items-end w-1/3">
+                <div className="flex items-center gap-3 mb-1">
+                    <span className="text-xl font-bold text-red-500 uppercase font-display">Red Side</span>
+                    <TeamLogo team={enemyTeam} size="w-10 h-10" />
+                </div>
+                {/* Red Bans */}
+                <div className="flex gap-1">
+                    {[0,1,2,3,4].map(i => (
+                        <div key={i} className="w-10 h-10 bg-black/50 border border-gray-700 rounded flex items-center justify-center overflow-hidden">
+                            {redBans[i] ? <img src={redBans[i].imageUrl} className="w-full h-full object-cover grayscale opacity-70" /> : <span className="text-gray-600 text-[10px]">BAN</span>}
+                        </div>
                     ))}
                 </div>
-            )}
+            </div>
+         </div>
 
-            {/* --- DURUM 2 & 3: SONUÇ EKRANI (SOLDA SEN, SAĞDA RAKİP) --- */}
-            {(step === 'REVEAL' || step === 'RESULT') && getSelectedStrategy() && (
-                <div className="flex w-full justify-center items-center gap-4 md:gap-16 lg:gap-24 animate-in fade-in zoom-in duration-500 min-h-[500px]">
-
-                    {/* SOL: SENİN SEÇTİĞİN KART */}
-                    <div className={`w-80 h-[480px] shrink-0 rounded-2xl bg-gradient-to-br ${getSelectedStrategy()!.color} p-1 shadow-[0_0_50px_rgba(200,160,50,0.5)] z-20 animate-in slide-in-from-left-20 duration-700 ring-4 ring-gold-400`}>
-                        <div className="w-full h-full bg-dark-900/90 rounded-xl flex flex-col items-center justify-center p-8 text-center">
-                            <div className="text-8xl mb-8 filter drop-shadow-2xl">{getSelectedStrategy()!.icon}</div>
-                            <h3 className="text-4xl font-bold text-white uppercase font-display">{getSelectedStrategy()!.name}</h3>
-                            <div className="mt-6 px-4 py-2 bg-blue-600/80 text-white text-sm font-bold rounded-full uppercase tracking-wider">Your Pick</div>
+         {/* ANA ALAN: PICK GÖSTERİMİ */}
+         <div className="flex justify-between items-center px-10 mb-6">
+             {/* BLUE PICKS (SOL) */}
+             <div className="flex flex-col gap-2">
+                 {[Role.TOP, Role.JUNGLE, Role.MID, Role.ADC, Role.SUPPORT].map(r => {
+                     const pick = bluePicks[r];
+                     const isActiveSlot = currentStep.side === 'BLUE' && currentStep.type === 'PICK' && currentStep.role === r;
+                     return (
+                         <div key={r} className={`relative w-64 h-20 bg-dark-800 border-l-4 ${pick ? 'border-blue-500' : isActiveSlot ? 'border-yellow-400 animate-pulse bg-blue-900/20' : 'border-dark-600'} flex items-center overflow-hidden transition-all`}>
+                             {pick ? (
+                                 <>
+                                    <div className="w-20 h-full shrink-0">
+                                        <img src={pick.imageUrl} className="w-full h-full object-cover object-top" />
+                                    </div>
+                                    <div className="flex-1 px-3">
+                                        <div className="text-lg font-bold text-white uppercase font-display">{pick.name}</div>
+                                        <div className="text-xs text-blue-300 font-bold">{pick.style}</div>
+                                    </div>
+                                 </>
+                             ) : (
+                                 <div className="px-4 text-gray-500 font-bold text-xl">{r}</div>
+                             )}
+                         </div>
+                     )
+                 })}
+             </div>
+             
+             {/* ORTA: ŞAMPİYON LİSTESİ (SADECE DRAFTING SIRASINDA) */}
+             <div className="flex-1 h-[500px] mx-8 bg-dark-900/80 border border-dark-700 rounded-xl overflow-hidden flex flex-col">
+                 {draftState === 'DRAFTING' ? (
+                     <>
+                        <div className="p-3 bg-dark-950 border-b border-dark-800 text-center text-gray-400 text-xs font-bold uppercase">
+                            Available Champions {currentStep.type === 'PICK' ? `for ${currentStep.role}` : ''}
                         </div>
-                    </div>
-
-                    {/* ORTA: VS YAZISI (Artık akışın içinde, kartları itiyor) */}
-                    <div className="flex flex-col items-center justify-center z-30 shrink-0">
-                        <div className="text-9xl font-black text-white mix-blend-overlay animate-pulse font-display drop-shadow-[0_0_15px_rgba(255,255,255,0.5)]">VS</div>
-                    </div>
-
-                    {/* SAĞ: RAKİP KARTI */}
-                    <div className={`relative w-80 h-[480px] shrink-0 transition-all duration-700 transform transform-style-3d z-20 animate-in slide-in-from-right-20 duration-700
-                        ${step === 'REVEAL' ? 'rotate-y-180' : 'rotate-y-0'} rounded-2xl shadow-[0_0_50px_rgba(220,38,38,0.5)]`}>
-                        
-                        {/* Arka Yüz (Kapalı) */}
-                        <div className="absolute inset-0 w-full h-full bg-dark-800 border-4 border-gray-600 rounded-2xl flex items-center justify-center backface-hidden bg-[url('/assets/card-back-pattern.png')] bg-repeat opacity-90 shadow-inner">
-                            <div className="text-8xl animate-spin text-gray-500">❓</div>
-                        </div>
-
-                        {/* Ön Yüz (Açık) */}
-                        <div className={`absolute inset-0 w-full h-full rounded-2xl bg-gradient-to-br ${enemyStrat.color} p-1 backface-hidden rotate-y-0`}>
-                             <div className="w-full h-full bg-dark-900/90 rounded-xl flex flex-col items-center justify-center p-8 text-center">
-                                <div className="text-8xl mb-8 filter drop-shadow-2xl">{enemyStrat.icon}</div>
-                                <h3 className="text-4xl font-bold text-white uppercase font-display">{enemyStrat.name}</h3>
-                                <div className="mt-6 px-4 py-2 bg-red-600/80 text-white text-sm font-bold rounded-full uppercase tracking-wider">Enemy Pick</div>
+                        <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+                            <div className="grid grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+                                {championsToDisplay.map(c => (
+                                    <div 
+                                        key={c.id} 
+                                        onClick={() => handleUserClick(c)}
+                                        className={`relative group aspect-square bg-dark-800 border border-dark-600 rounded cursor-pointer overflow-hidden ${!isUserTurn ? 'opacity-50 grayscale cursor-not-allowed' : 'hover:border-gold-400 hover:scale-105 transition-all'}`}
+                                    >
+                                        <img src={c.imageUrl} className="w-full h-full object-cover" />
+                                        <div className="absolute inset-x-0 bottom-0 bg-black/70 p-1 text-center">
+                                            <div className="text-[10px] text-white font-bold truncate">{c.name}</div>
+                                        </div>
+                                        {/* Stil İkonu */}
+                                        <div className={`absolute top-1 right-1 w-3 h-3 rounded-full ${c.style === 'AGGRESSIVE' ? 'bg-red-500' : c.style === 'CONTROL' ? 'bg-blue-500' : 'bg-purple-500'}`} title={c.style}></div>
+                                    </div>
+                                ))}
                             </div>
                         </div>
-                    </div>
+                     </>
+                 ) : (
+                     <div className="flex items-center justify-center h-full text-white font-bold text-xl">
+                         {draftState === 'ANALYZING' ? 'Analyzing Team Comps...' : 'Match Ready!'}
+                     </div>
+                 )}
+             </div>
 
-                </div>
-            )}
-
+             {/* RED PICKS (SAĞ) */}
+             <div className="flex flex-col gap-2 items-end">
+                 {[Role.TOP, Role.JUNGLE, Role.MID, Role.ADC, Role.SUPPORT].map(r => {
+                     const pick = redPicks[r];
+                     const isActiveSlot = currentStep.side === 'RED' && currentStep.type === 'PICK' && currentStep.role === r;
+                     return (
+                         <div key={r} className={`relative w-64 h-20 bg-dark-800 border-r-4 ${pick ? 'border-red-500' : isActiveSlot ? 'border-red-400 animate-pulse bg-red-900/20' : 'border-dark-600'} flex flex-row-reverse items-center overflow-hidden transition-all`}>
+                             {pick ? (
+                                 <>
+                                    <div className="w-20 h-full shrink-0">
+                                        <img src={pick.imageUrl} className="w-full h-full object-cover object-top" />
+                                    </div>
+                                    <div className="flex-1 px-3 text-right">
+                                        <div className="text-lg font-bold text-white uppercase font-display">{pick.name}</div>
+                                        <div className="text-xs text-red-300 font-bold">{pick.style}</div>
+                                    </div>
+                                 </>
+                             ) : (
+                                 <div className="px-4 text-gray-500 font-bold text-xl">{r}</div>
+                             )}
+                         </div>
+                     )
+                 })}
+             </div>
          </div>
+
       </div>
     </div>
   );
