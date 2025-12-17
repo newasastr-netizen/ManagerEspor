@@ -1,4 +1,4 @@
-export enum Role {
+﻿export enum Role {
   TOP = 'TOP',
   JUNGLE = 'JUNGLE',
   MID = 'MID',
@@ -120,12 +120,12 @@ export interface GameState {
   difficulty: 'Easy' | 'Normal' | 'Hard';
   currentDay: number;
   stage: GameStage;
-
+  facilities: Record<FacilityType, Facility>;
   roster: Record<Role, PlayerCard | null>;
   inventory: PlayerCard[];
   aiRosters: Record<string, Record<Role, PlayerCard>>;
   freeAgents: PlayerCard[];
-  
+  activeHousingId: string;
   groups: { A: string[], B: string[], C?: string[], D?: string[] };
   winnersGroup: 'A' | 'B' | null;
   schedule: ScheduledMatch[];
@@ -185,6 +185,18 @@ export interface HistoryEntry {
     standings?: Standing[];
     playoffs?: PlayoffMatch[];
     stage?: string;
+}
+
+export type FacilityType = 'GAMING_HOUSE' | 'STREAM_ROOM' | 'GYM' | 'MEDICAL_CENTER';
+
+export interface Facility {
+  id: FacilityType;
+  name: string;
+  level: number;
+  maxLevel: number;
+  upgradeCost: number[];
+  description: string;
+  benefit: string;
 }
 
 export interface PlayerEvent {

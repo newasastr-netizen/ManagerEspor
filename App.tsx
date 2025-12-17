@@ -5,11 +5,14 @@ import { TeamLogo, getTeamTier } from './components/TeamLogo';
 import { TeamStatsView } from './components/TeamStatsView';
 import { MatchSimulationView } from './components/MatchSimulationView';
 import { TrainingView } from './components/TrainingView';
+import { FacilitiesView } from './components/FacilitiesView';
+import { FacilityType } from './src/types/types';
 import { Onboarding } from './components/Onboarding';
 import { LEAGUES, LeagueKey, LeagueDefinition } from './data/leagues';
+import { HOUSING_OPTIONS } from './data/realestate';
 import { drawGroups, generateGroupStageSchedule, generateLPLSplit2Schedule } from './utils/scheduler';
 import { CHAMPIONS, Champion, ChampionStyle } from './data/champions';
-import { Trophy, RotateCcw, AlertTriangle, Play, Handshake, Wand2, FastForward, SkipForward, XCircle, ArrowDownUp, Search, Mail, Newspaper, MessageSquare, Heart, HeartCrack } from 'lucide-react';
+import { Trophy, RotateCcw, AlertTriangle, Play, Handshake, Wand2, FastForward, SkipForward, XCircle, ArrowDownUp, Search, Mail, Newspaper, MessageSquare, Heart, HeartCrack, Swords, Skull, Crown, Ghost, TreeDeciduous, Axe, Crosshair, Sparkles, Flame, Shield, Circle, Hexagon, Home } from 'lucide-react';
 import { Role, PlayerCard, GameState, MatchResult, Rarity, TeamData, ScheduledMatch, PlayoffMatch, Standing, PlayerEvent, HistoryEntry, HistoryViewType } from './types';
 import { MainMenu } from './components/MainMenu';
 import { SponsorsView } from './components/SponsorsView'; 
@@ -539,6 +542,12 @@ const INITIAL_STATE: GameState = {
   matchHistory: [],
   newsFeed: [],
   playerMessages: [],
+  activeHousingId: 'starter', // Başlangıçta bodrum katındayız
+  facilities: {
+      STREAM_ROOM: { id: 'STREAM_ROOM', name: 'Stream Room', level: 1, maxLevel: 5, upgradeCost: [300, 800, 2000, 5000], description: 'Generates passive weekly income from player streams.', benefit: '+{lvl}00 G / Week' },
+      GYM: { id: 'GYM', name: 'Gym & Fitness', level: 1, maxLevel: 3, upgradeCost: [1000, 3000], description: 'Increases stamina recovery and reduces injury chance.', benefit: '+{lvl}0 Stamina Recovery' },
+      MEDICAL_CENTER: { id: 'MEDICAL_CENTER', name: 'Medical Center', level: 1, maxLevel: 3, upgradeCost: [2000, 5000], description: 'Drastically reduces injury duration.', benefit: '-{lvl}0% Injury Time' }
+  },
 };
 
 export default function App() {
@@ -611,7 +620,7 @@ export default function App() {
   }
   const [negotiationSession, setNegotiationSession] = useState<NegotiationSession | null>(null);
   const [negotiationFeedback, setNegotiationFeedback] = useState<string | null>(null);
-
+  const [draftPicks, setDraftPicks] = useState<{user: Champion[], enemy: Champion[]} | null>(null);
   const [activeEventModal, setActiveEventModal] = useState<{event: PlayerEvent, player: PlayerCard} | null>(null);
   const [retiredPlayerModal, setRetiredPlayerModal] = useState<PlayerCard | null>(null);
   const [incomingOffers, setIncomingOffers] = useState<IncomingOffer[]>([]);
@@ -699,7 +708,6 @@ export default function App() {
     const selectedLeague = LEAGUES[leagueKey];
     setActiveLeague(selectedLeague);
 
-    // --- LPL İÇİN ÖZEL BAŞLANGIÇ: SPLIT 1 ---
     let startSplit: any = 'SPRING'; 
     if (leagueKey === 'LPL') startSplit = 'SPLIT_1';
     else if (leagueKey === 'LCK') startSplit = 'LCK_CUP';
@@ -709,12 +717,34 @@ export default function App() {
     const difficultySettings = DIFFICULTY_SETTINGS[finalDifficulty];
     let startingCoins = difficultySettings.initialCoins;
 
-    const teamTier = getTeamTier(team.id);
+    const teamTier = getTeamTier(team.id); // Takımın gücünü al (S, A, B, C, D)
     let tierBonus = 0;
-    if (teamTier === 'S') tierBonus = 5000;
-    else if (teamTier === 'A') tierBonus = 2500;
-    else if (teamTier === 'B') tierBonus = 0;
-    else if (teamTier === 'C') tierBonus = -1000;
+    
+    // --- YENİ: TIER'A GÖRE BAŞLANGIÇ EVİ VE TESİS SEVİYESİ ---
+    let startingHouseId = 'starter';
+    let startingFacilityLevel = 1;
+
+    if (teamTier === 'S') {
+        tierBonus = 10000;         // S Tier zengindir
+        startingHouseId = 'campus'; // En iyi ev
+        startingFacilityLevel = 4;  // Neredeyse max tesisler
+    } else if (teamTier === 'A') {
+        tierBonus = 5000;
+        startingHouseId = 'villa';
+        startingFacilityLevel = 3;
+    } else if (teamTier === 'B') {
+        tierBonus = 2000;
+        startingHouseId = 'apartment';
+        startingFacilityLevel = 2;
+    } else if (teamTier === 'C') {
+        tierBonus = 500;
+        startingHouseId = 'starter';
+        startingFacilityLevel = 1;
+    } else {
+        tierBonus = 0; // D Tier ve altı
+        startingHouseId = 'starter';
+        startingFacilityLevel = 1;
+    }
 
     startingCoins += tierBonus;
 
@@ -730,6 +760,17 @@ export default function App() {
       .filter(p => p.team !== team.shortName)
       .sort(() => 0.5 - Math.random());
     
+    // Tesisleri Seviyeye Göre Ayarla
+    const initialFacilities = { ...INITIAL_STATE.facilities };
+    (Object.keys(initialFacilities) as FacilityType[]).forEach(key => {
+        // Tesisin max seviyesini aşmamaya dikkat et
+        const maxLvl = initialFacilities[key].maxLevel;
+        initialFacilities[key] = { 
+            ...initialFacilities[key], 
+            level: Math.min(startingFacilityLevel, maxLvl) 
+        };
+    });
+
     setGameState(prev => ({
       ...prev,
       managerName: name,
@@ -739,6 +780,10 @@ export default function App() {
       currentSplit: startSplit,
       inventory: userTeamPlayers,
       standings: [],
+      // --- YENİ DEĞERLER ---
+      activeHousingId: startingHouseId, // Otomatik ev
+      facilities: initialFacilities,    // Otomatik tesisler
+      // ---------------------
       roster: {
         [Role.TOP]: null,
         [Role.JUNGLE]: null,
@@ -756,19 +801,44 @@ export default function App() {
   };
 
   const handleSignSponsor = (sponsor: any) => {
-    if (currentSponsor) {
-        showNotification('error', "You already have an active sponsor.");
-        return;
-    }
-    setCurrentSponsor(sponsor);
-    setGameState(prev => ({ ...prev, coins: prev.coins + sponsor.signingBonus }));
-    showNotification('success', `Signed with ${sponsor.name}! +${sponsor.signingBonus}G`);
-};
+        if (currentSponsor) {
+            showNotification('error', "You already have an active sponsor.");
+            return;
+        }
+        setCurrentSponsor(sponsor);
+        setGameState(prev => ({ ...prev, coins: prev.coins + sponsor.signingBonus }));
+        showNotification('success', `Signed with ${sponsor.name}! +${sponsor.signingBonus}G`);
+  };
+
+  const handleUpgradeFacility = (type: FacilityType) => {
+        const facility = gameState.facilities[type];
+        if (facility.level >= facility.maxLevel) return;
+        
+        const cost = facility.upgradeCost[facility.level - 1];
+        if (gameState.coins < cost) {
+            showNotification('error', 'Not enough coins!');
+            return;
+        }
+
+        setGameState(prev => ({
+            ...prev,
+            coins: prev.coins - cost,
+            facilities: {
+                ...prev.facilities,
+                [type]: { ...facility, level: facility.level + 1 }
+            }
+        }));
+        showNotification('success', `${facility.name} upgraded to Level ${facility.level + 1}!`);
+  };
 
   const processPlayerProgression = (player: PlayerCard, clutchFactor: number) => {
       let newStats = { ...player.stats };
       const age = player.age;
-      let growthChance = 0.4;
+      const houseLvl = gameState.facilities?.GAMING_HOUSE?.level || 1;
+      const currentHouse = HOUSING_OPTIONS.find(h => h.id === gameState.activeHousingId) || HOUSING_OPTIONS[0];
+      const xpBonus = 1 + (houseLvl * 0.10);
+      
+      let growthChance = 0.4 * currentHouse.bonuses.xpMultiplier;
       let declineChance = 0.0;
 
       if (age < 22) growthChance = 0.7;
@@ -949,6 +1019,14 @@ export default function App() {
   };
 
   const generateRandomEvent = (roster: Record<Role, PlayerCard | null>): { player: PlayerCard, event: PlayerEvent } | null => {
+      const gymLvl = gameState.facilities?.GYM?.level || 1;
+      const medLvl = gameState.facilities?.MEDICAL_CENTER?.level || 1;
+
+      let eventChance = 0.05 - (gymLvl * 0.005);
+      eventChance = Math.max(0.01, eventChance); // En az %1 şans kalsın
+
+      if (Math.random() > eventChance) return null;
+      
       if (Math.random() > 0.05) return null;
       const players = Object.values(roster).filter((p): p is PlayerCard => p !== null);
       if (players.length === 0) return null;
@@ -960,8 +1038,11 @@ export default function App() {
         { type: 'DRAMA', title: 'Internal Conflict', description: '{player} argued with the coaching staff.' },
         { type: 'CONTRACT', title: 'Secret Talks', description: 'Rumors say {player} is talking to other teams.' },
       ];
+      let duration = Math.floor(Math.random() * 3) + 2; 
       const scenario = scenarios[Math.floor(Math.random() * scenarios.length)];
-      const duration = Math.floor(Math.random() * 3) + 2; 
+      if (scenario.type === 'INJURY') {
+          duration = Math.max(1, duration - Math.floor(medLvl / 2)); // Med Center yüksekse süre düşer
+      }
       const penalty: Partial<PlayerCard['stats']> = {};
       if (scenario.type === 'INJURY') penalty.mechanics = Math.floor(Math.random() * 5) + 3; 
       else if (scenario.type === 'MORALE') { penalty.lane = 3; penalty.teamfight = 3; }
@@ -2998,9 +3079,10 @@ const startLPLSplit3 = (prev: GameState): GameState => {
     }, 100);
   };
 
-  const handleDraftComplete = (draftBonus: number) => {
+  const handleDraftComplete = (draftBonus: number, userPicks: Champion[], enemyPicks: Champion[]) => {
       setIsDrafting(false); 
       setIsPlayingMatch(true); 
+      setDraftPicks({ user: userPicks, enemy: enemyPicks });
 
       if (!draftMatchInfo) return;
 
@@ -3065,12 +3147,24 @@ const startLPLSplit3 = (prev: GameState): GameState => {
     let income = 0;
     let expenses = 0;
     const financialLogs: string[] = [];
+    const currentHouse = HOUSING_OPTIONS.find(h => h.id === gameState.activeHousingId) || HOUSING_OPTIONS[0];
+    const dailyRent = Math.ceil(currentHouse.weeklyRent / 2); // Haftada 2 maç varsayımıyla günlük kira
+    
+    expenses += dailyRent;
+    financialLogs.push(`HQ Upkeep (${currentHouse.name}): -${dailyRent}G`);
 
     // Maç Geliri
     if (userResult) {
         const matchIncome = userResult.victory ? 300 : 100;
         income += matchIncome;
         financialLogs.push(`Match Income: +${matchIncome}G`);
+    }
+
+    if (gameState.facilities?.STREAM_ROOM) {
+        const streamLvl = gameState.facilities.STREAM_ROOM.level;
+        const streamIncome = streamLvl * 150; // Seviye başına 150G günlük/maçlık gelir
+        income += streamIncome;
+        financialLogs.push(`Stream Revenue: +${streamIncome}G`);
     }
 
     // Sponsor Geliri
@@ -3487,8 +3581,28 @@ const startLPLSplit3 = (prev: GameState): GameState => {
   interface DraftPhaseProps {
   userTeam: TeamData;
   enemyTeam: TeamData;
-  onDraftComplete: (draftScore: number) => void;
+  onDraftComplete: (draftScore: number, userPicks: Champion[], enemyPicks: Champion[]) => void;
 }
+
+const handleMoveHouse = (houseId: string) => {
+      const targetHouse = HOUSING_OPTIONS.find(h => h.id === houseId);
+      if (!targetHouse) return;
+
+      if (gameState.coins < targetHouse.deposit) {
+          showNotification('error', 'Cannot afford the deposit for this move!');
+          return;
+      }
+
+      if (houseId === gameState.activeHousingId) return;
+
+      setGameState(prev => ({
+          ...prev,
+          coins: prev.coins - targetHouse.deposit,
+          activeHousingId: houseId
+      }));
+      
+      showNotification('success', `Moved HQ to ${targetHouse.name}!`);
+};
 
 // DRAFT AKIŞI (Sıralama)
 type DraftActionType = 'BAN' | 'PICK';
@@ -3617,20 +3731,30 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
   };
 
   const processAction = (champ: Champion) => {
+      // Önce güncel durumu kopyala
+      let nextBluePicks = { ...bluePicks };
+      let nextRedPicks = { ...redPicks };
+
       if (currentStep.type === 'BAN') {
           if (currentStep.side === 'BLUE') setBlueBans(prev => [...prev, champ]);
           else setRedBans(prev => [...prev, champ]);
       } else {
-          // PICK: Şampiyonu otomatik olarak kendi rolüne ata
-          if (currentStep.side === 'BLUE') setBluePicks(prev => ({ ...prev, [champ.role]: champ }));
-          else setRedPicks(prev => ({ ...prev, [champ.role]: champ }));
+          // PICK: Önce yerel değişkeni güncelle, sonra state'i
+          if (currentStep.side === 'BLUE') {
+              nextBluePicks[champ.role] = champ;
+              setBluePicks(nextBluePicks);
+          } else {
+              nextRedPicks[champ.role] = champ;
+              setRedPicks(nextRedPicks);
+          }
       }
 
-      // Sonraki adıma geç
+      // Sonraki adıma geç veya bitir
       if (currentStepIndex < DRAFT_SEQUENCE.length - 1) {
           setCurrentStepIndex(prev => prev + 1);
       } else {
-          finishDraft();
+          // KRİTİK DÜZELTME: Güncellenmiş (son hali içeren) listeleri gönder
+          finishDraft(nextBluePicks, nextRedPicks);
       }
   };
 
@@ -3652,12 +3776,17 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
       return maxStyle;
   };
 
-  const finishDraft = () => {
+  const finishDraft = (finalBluePicks?: Partial<Record<Role, Champion>>, finalRedPicks?: Partial<Record<Role, Champion>>) => {
       setDraftState('ANALYZING');
       
+      // Eğer parametre geldiyse onu kullan (en güncel hal), yoksa state'i kullan
+      const currentBluePicks = finalBluePicks || bluePicks;
+      const currentRedPicks = finalRedPicks || redPicks;
+
       setTimeout(() => {
-          const blueStyle = calculateTeamStyle(bluePicks);
-          const redStyle = calculateTeamStyle(redPicks);
+          // Hesaplamaları GÜNCEL verilerle yap
+          const blueStyle = calculateTeamStyle(currentBluePicks);
+          const redStyle = calculateTeamStyle(currentRedPicks);
           
           let bonus = 0;
           let msg = "EVEN DRAFT";
@@ -3682,7 +3811,11 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
           });
           setDraftState('RESULT');
           
-          setTimeout(() => onDraftComplete(bonus), 3000);
+          // Listeyi oluştururken de GÜNCEL verileri (currentBluePicks) kullan
+          const userChampions = [Role.TOP, Role.JUNGLE, Role.MID, Role.ADC, Role.SUPPORT].map(r => currentBluePicks[r]!).filter(Boolean);
+          const enemyChampions = [Role.TOP, Role.JUNGLE, Role.MID, Role.ADC, Role.SUPPORT].map(r => currentRedPicks[r]!).filter(Boolean);
+          
+          setTimeout(() => onDraftComplete(bonus, userChampions, enemyChampions), 3000);
       }, 1000);
   };
 
@@ -4026,95 +4159,104 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
 
     return (
       <div className="space-y-8 animate-fade-in-up">
+        {/* ... (Üstteki Takım Logosu ve Güç Çubuğu kısmı AYNI KALSIN) ... */}
+        {/* Sadece aşağıdaki div'i ve üst kısmını koru, return içindeki grid yapısını güncelle */}
+        
         <div className="bg-dark-900 rounded-2xl p-6 border border-dark-800 flex justify-between items-center">
-          <div>
-            <h2 className="text-3xl font-display font-bold text-white mb-1">
-              {activeTeamData?.name}
-            </h2>
-            <div className="flex gap-3 text-sm text-gray-400 items-center">
-              <span>Power: <span className="text-white font-bold">{getTeamPower()}</span></span>
-              <span className="text-gray-600">|</span>
-              <span>Synergy: <span className="text-cyan-400 font-bold">+{totalBonus}</span> {relationshipBonus !== 0 && <span className={`text-xs font-mono ${relationshipBonus > 0 ? 'text-green-400' : 'text-red-400'}`}>({relationshipBonus > 0 ? '+' : ''}{relationshipBonus})</span>}</span>
-              <span className="text-gray-600">|</span>
-              <span>Coins: <span className="text-gold-400 font-bold">{gameState.coins}</span></span>
-              <span className="text-gray-600">|</span>
-              <span>Season: <span className="text-white font-bold">{gameState.currentSeason}</span></span>
-            </div>
-            {synergies.length > 0 && (
-              <div className="mt-4 flex flex-wrap gap-2">
-                {synergies.map(s => (
-                  <div key={s.league} className="bg-cyan-900/50 border border-cyan-700/50 px-2.5 py-1 rounded-full text-xs">
-                    <span className="font-bold text-cyan-300">{s.league} ({s.count})</span>
-                    <span className="text-cyan-400 font-mono ml-1.5">+{s.bonus}</span>
-                  </div>
-                ))}
-                {relationshipBonus > 0 && (
-                  <div className="bg-green-900/50 border border-green-700/50 px-2.5 py-1 rounded-full text-xs">
-                    <span className="font-bold text-green-300">Friendships</span><span className="text-green-400 font-mono ml-1.5">+{relationshipBonus}</span>
-                  </div>)}
-                {relationshipBonus < 0 && (
-                  <div className="bg-red-900/50 border border-red-700/50 px-2.5 py-1 rounded-full text-xs">
-                    <span className="font-bold text-red-300">Conflicts</span><span className="text-red-400 font-mono ml-1.5">{relationshipBonus}</span>
-                  </div>)}
-              </div>
-            )}
-          </div>
-          <TeamLogo team={activeTeamData} size="w-16 h-16" />
+            {/* ... (Bu kutunun içi AYNI kalsın) ... */}
+            <div>
+             <h2 className="text-3xl font-display font-bold text-white mb-1">
+               {activeTeamData?.name}
+             </h2>
+             {/* ... (Power, Synergy vb. göstergeler aynı kalsın) ... */}
+             <div className="flex gap-3 text-sm text-gray-400 items-center">
+               <span>Power: <span className="text-white font-bold">{getTeamPower()}</span></span>
+               <span className="text-gray-600">|</span>
+               <span>Synergy: <span className="text-cyan-400 font-bold">+{totalBonus}</span> {relationshipBonus !== 0 && <span className={`text-xs font-mono ${relationshipBonus > 0 ? 'text-green-400' : 'text-red-400'}`}>({relationshipBonus > 0 ? '+' : ''}{relationshipBonus})</span>}</span>
+               <span className="text-gray-600">|</span>
+               <span>Coins: <span className="text-gold-400 font-bold">{gameState.coins}</span></span>
+               <span className="text-gray-600">|</span>
+               <span>Season: <span className="text-white font-bold">{gameState.currentSeason}</span></span>
+             </div>
+             {/* ... (Synergy badgeleri aynı kalsın) ... */}
+             {/* ... */}
+           </div>
+           <TeamLogo team={activeTeamData} size="w-16 h-16" />
         </div>
   
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-dark-900 rounded-2xl p-6 border border-dark-800">
-              <h3 className="text-lg font-bold text-white mb-4">Finances</h3>
-              <div className="flex justify-between items-center bg-dark-950 p-3 rounded mb-2">
-                  <span className="text-gray-400">Sponsor</span>
-                  <span className="text-gold-400 font-bold">{currentSponsor ? currentSponsor.name : 'None'}</span>
+          {/* --- GÜNCELLENEN: FINANCES & FACILITIES KARTI --- */}
+          <div className="bg-dark-900 rounded-2xl p-6 border border-dark-800 flex flex-col justify-between">
+              <div>
+                  <div className="flex justify-between items-start mb-4">
+                      <div>
+                          <h3 className="text-lg font-bold text-white">Finances & HQ</h3>
+                          <div className="text-xs text-gray-500">Weekly Income: <span className="text-green-400">+{currentSponsor ? currentSponsor.weeklyIncome : 0} G</span></div>
+                      </div>
+                      <button onClick={() => setTab('economy')} className="text-xs bg-dark-800 hover:bg-dark-700 px-3 py-1 rounded text-gray-300 transition-colors">
+                          Sponsors
+                      </button>
+                  </div>
+                  
+                  {/* Tesis Özeti */}
+                  <div className="grid grid-cols-2 gap-3 mb-6">
+                      {gameState.facilities && Object.values(gameState.facilities).map(fac => (
+                          <div key={fac.id} className="bg-dark-950 p-2 rounded border border-dark-800 flex justify-between items-center">
+                              <span className="text-xs text-gray-400 font-bold truncate pr-2">{fac.name}</span>
+                              <span className={`text-xs font-mono font-bold ${fac.level >= fac.maxLevel ? 'text-gold-400' : 'text-white'}`}>Lvl {fac.level}</span>
+                          </div>
+                      ))}
+                  </div>
               </div>
-              <button onClick={() => setTab('economy')} className="w-full py-2 bg-dark-800 hover:bg-dark-700 text-white rounded text-sm font-bold">
-                  Manage Sponsors
+
+              <button 
+                  onClick={() => setTab('facilities')} 
+                  className="w-full py-3 bg-gradient-to-r from-blue-900 to-blue-800 hover:from-blue-800 hover:to-blue-700 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 border border-blue-500/30 transition-all shadow-lg"
+              >
+                  <Home size={16} /> Upgrade Facilities
               </button>
           </div>
-          <div className="bg-dark-900 rounded-2xl p-6 border border-dark-800">
-           <h3 className="text-lg font-bold text-white mb-4">Active Roster</h3>
-           <div className="space-y-2">
-             {Object.values(Role).filter(r => r !== Role.COACH).map(role => {
-               const p = gameState.roster[role];
-               return (
-                 <div key={role} className="flex justify-between items-center p-2 bg-dark-950 rounded border border-dark-800">
-                   <span className="text-gray-500 text-xs font-bold w-10">{role}</span>
-                   <span className={`flex-1 font-bold ${p ? 'text-white' : 'text-red-500'}`}>
-                     {p ? p.name : 'VACANT'}
-                   </span>
-                   {p && <span className="text-xs text-gray-400">OVR {p.overall}</span>}
-                 </div>
-               )
-             })}
-            </div>
-          </div>
-  
-          <div className="bg-dark-900 rounded-2xl p-6 border border-dark-800 flex flex-col justify-center items-center">
-            <h3 className="text-lg font-bold text-white mb-2">Next Step</h3>
-            <p className="text-gray-400 text-center mb-6">
-              {gameState.stage === 'PRE_SEASON' 
-                ? (isRosterComplete() ? 'Roster complete. Ready to start.' : 'Complete your roster to start season.') 
-                : `Week ${gameState.week} Matches`}
-            </p>
-            
-            <button 
-              onClick={() => {
-                  if (gameState.stage === 'PRE_SEASON') {
-                      if (isRosterComplete()) setTab('play');
-                      else setTab('market');
-                  } else {
-                      setTab('play');
-                  }
-              }}
-              className="px-8 py-3 bg-hextech-600 hover:bg-hextech-500 text-white font-bold rounded-xl shadow-lg transition-all"
-            >
-              {gameState.stage === 'PRE_SEASON' 
-                  ? (isRosterComplete() ? 'Start Season' : 'Go to Market') 
-                  : 'Play Match'}
-            </button>
-          </div>
+
+          {/* ... (Active Roster ve Next Step kartları AYNI kalsın) ... */}
+           <div className="bg-dark-900 rounded-2xl p-6 border border-dark-800">
+             <h3 className="text-lg font-bold text-white mb-4">Active Roster</h3>
+             {/* ... (Roster listesi kodları aynı) ... */}
+             <div className="space-y-2">
+               {Object.values(Role).filter(r => r !== Role.COACH).map(role => {
+                 const p = gameState.roster[role];
+                 return (
+                   <div key={role} className="flex justify-between items-center p-2 bg-dark-950 rounded border border-dark-800">
+                     <span className="text-gray-500 text-xs font-bold w-10">{role}</span>
+                     <span className={`flex-1 font-bold ${p ? 'text-white' : 'text-red-500'}`}>
+                       {p ? p.name : 'VACANT'}
+                     </span>
+                     {p && <span className="text-xs text-gray-400">OVR {p.overall}</span>}
+                   </div>
+                 )
+               })}
+             </div>
+           </div>
+
+           <div className="bg-dark-900 rounded-2xl p-6 border border-dark-800 flex flex-col justify-center items-center">
+              {/* ... (Next Step butonu kodları aynı) ... */}
+              <h3 className="text-lg font-bold text-white mb-2">Next Step</h3>
+              {/* ... */}
+              <button 
+                onClick={() => {
+                    if (gameState.stage === 'PRE_SEASON') {
+                        if (isRosterComplete()) setTab('play');
+                        else setTab('market');
+                    } else {
+                        setTab('play');
+                    }
+                }}
+                className="px-8 py-3 bg-hextech-600 hover:bg-hextech-500 text-white font-bold rounded-xl shadow-lg transition-all"
+              >
+                {gameState.stage === 'PRE_SEASON' 
+                    ? (isRosterComplete() ? 'Start Season' : 'Go to Market') 
+                    : 'Play Match'}
+              </button>
+           </div>
         </div>
       </div>
     );
@@ -4818,11 +4960,21 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
         <Onboarding onComplete={handleOnboardingComplete} />
       )}
 
+      {tab === 'facilities' && (
+       <FacilitiesView 
+           facilities={gameState.facilities} 
+           activeHousingId={gameState.activeHousingId} // <--- Ekle
+           coins={gameState.coins} 
+           onUpgrade={handleUpgradeFacility} 
+           onMoveHouse={handleMoveHouse} // <--- Ekle
+       />
+   )}
+
       {tab === 'economy' && (
           <SponsorsView 
               currentSponsor={currentSponsor}
               onSignSponsor={handleSignSponsor}
-              userTeam={activeTeamData} // <--- BU SATIRI EKLE
+              userTeam={activeTeamData} 
           />
       )}
 
@@ -4846,6 +4998,8 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
                enemyRoster={gameState.aiRosters[pendingSimResult.opponentId] || {}} 
                result={pendingSimResult.userResult}
                onComplete={() => finalizeDaySimulation(pendingSimResult.userResult)}
+               userPicks={draftPicks?.user || []}
+               enemyPicks={draftPicks?.enemy || []}
             />
           )}
           

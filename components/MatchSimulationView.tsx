@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { PlayerCard, MatchResult, TeamData, Role, PlayerStats } from '../src/types/types';
 import { TeamLogo } from './TeamLogo';
-import { FastForward, Hexagon, Shield, Circle, Swords, Skull, Trophy, Crown, Ghost, TreeDeciduous, Axe, Crosshair, HeartHandshake, Sparkles, Flame } from 'lucide-react';
+import { Champion } from '../data/champions';
+import { FastForward, Hexagon, Shield, Circle, Swords, Skull, Trophy, Crown, Ghost, TreeDeciduous, Axe, Crosshair, HeartHandshake, Sparkles, Flame, AlertTriangle, Sword } from 'lucide-react';
 
 interface MatchSimulationViewProps {
   userTeam: TeamData;
@@ -10,6 +11,8 @@ interface MatchSimulationViewProps {
   enemyRoster: Record<string, PlayerCard>;
   result: MatchResult;
   onComplete: () => void;
+  userPicks: Champion[];
+  enemyPicks: Champion[];
 }
 
 type StructureType = 'outer' | 'inner' | 'inhib_turret' | 'inhibitor' | 'nexus_turret' | 'nexus';
@@ -45,6 +48,7 @@ interface MapEntity {
   currentStamina: number;
   isClutching: boolean;
   contributionScore: number;
+  champion?: Champion; // Şampiyon bilgisi eklendi
 }
 
 interface MinionEntity {
@@ -145,7 +149,7 @@ const POSITIONS = {
 };
 
 export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({ 
-  userTeam, enemyTeam, userRoster, enemyRoster, result, onComplete 
+  userTeam, enemyTeam, userRoster, enemyRoster, result, onComplete, userPicks, enemyPicks 
 }) => {
   
   const [gameMinutes, setGameMinutes] = useState(0); 
@@ -153,7 +157,7 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
   const [jungleCamps, setJungleCamps] = useState<JungleCampEntity[]>(() => INITIAL_JUNGLE_CAMPS.map(c => ({ ...c })));
   const [entities, setEntities] = useState<MapEntity[]>([]);
   const [minions, setMinions] = useState<MinionEntity[]>([]);
-  const [logs, setLogs] = useState<{time: string, msg: string, type: 'kill'|'obj'|'normal'|'turret'}[]>([]);
+  const [logs, setLogs] = useState<{time: string, msg: string, type: 'kill'|'obj'|'normal'|'turret'|'critical'}[]>([]);
   const [currentScore, setCurrentScore] = useState({ blue: 0, red: 0 });
   const [dragon, setDragon] = useState<ObjectiveState>({ alive: false, nextSpawnTime: 5 });
   const [dragonStacks, setDragonStacks] = useState({ blue: 0, red: 0 });
@@ -162,6 +166,10 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
   const [baronBuff, setBaronBuff] = useState<{ team: 'blue' | 'red' | null, expiresAt: number }>({ team: null, expiresAt: 0 });
   const [nextMinionSpawn, setNextMinionSpawn] = useState(1.08);
   const [teamPowerDiff, setTeamPowerDiff] = useState(0);
+  
+  // Karar Mekanizması State'leri
+  const [isPaused, setIsPaused] = useState(false);
+  const [pendingDecision, setPendingDecision] = useState<'BARON' | 'DRAGON' | null>(null);
 
   const logContainerRef = useRef<HTMLDivElement>(null);
 
@@ -174,6 +182,8 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
   useEffect(() => {
     const createEntities = (team: 'blue' | 'red'): MapEntity[] => {
       const base = team === 'blue' ? POSITIONS.BLUE_BASE : POSITIONS.RED_BASE;
+      const picks = team === 'blue' ? userPicks : enemyPicks;
+
       return Object.values(Role).filter(r => r !== Role.COACH).map(role => {
         let name = '';
         let card: PlayerCard | null = null;
@@ -189,6 +199,9 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
         const baseDmg = 150 + ((card?.overall || 70) * 3);
         const playerStats = card?.stats || { mechanics: 70, macro: 70, lane: 70, teamfight: 70 };
         const startStamina = 80 + Math.floor(Math.random() * 21);
+        
+        // Şampiyonu Eşleştir
+        const pickedChamp = picks?.find(p => p.role === role);
 
         return {
           id: `${team}-${role}`,
@@ -206,7 +219,8 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
           targetId: null,
           currentStamina: startStamina,
           isClutching: false,
-          contributionScore: 0
+          contributionScore: 0,
+          champion: pickedChamp
         };
       });
     };
@@ -225,13 +239,13 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
   }, []);
 
   useEffect(() => {
-    if (gameOver) return;
+    if (gameOver || isPaused) return; // Pause kontrolü
     const interval = setInterval(() => {
       setGameMinutes(prev => prev + 0.15); 
       updateGameLogic();
     }, 80); 
     return () => clearInterval(interval);
-  }, [gameMinutes, dragon, baron, structures, entities, minions, gameOver, nextMinionSpawn, jungleCamps]);
+  }, [gameMinutes, dragon, baron, structures, entities, minions, gameOver, nextMinionSpawn, jungleCamps, isPaused]);
 
   const getCurrentGameTimeStr = () => {
     const mins = Math.floor(gameMinutes);
@@ -239,8 +253,58 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const addLog = (msg: string, type: 'kill'|'obj'|'normal'|'turret' = 'normal') => {
+  const addLog = (msg: string, type: 'kill'|'obj'|'normal'|'turret'|'critical' = 'normal') => {
     setLogs(prev => [...prev, { time: getCurrentGameTimeStr(), msg, type }]);
+  };
+
+  // Karar Verme Fonksiyonu
+  const handleDecision = (decision: 'FIGHT' | 'SAFE') => {
+      setIsPaused(false);
+      setPendingDecision(null);
+
+      if (decision === 'FIGHT') {
+          // Riskli Hamle: %50 Şans
+          const success = Math.random() > 0.5;
+          if (success) {
+              addLog("TEAM CALL: FORCE THE FIGHT! AND IT PAYS OFF!", 'critical');
+              // Ödül: Baron/Ejder al ve skor kazan
+              if (pendingDecision === 'BARON') {
+                  setBaron({ alive: false, nextSpawnTime: gameMinutes + 7 });
+                  setBaronBuff({ team: 'blue', expiresAt: gameMinutes + 3.0 });
+                  addLog("Blue Team stole the Baron!", 'obj');
+              } else {
+                  setDragon({ alive: false, nextSpawnTime: gameMinutes + 5 });
+                  setDragonStacks(prev => ({ ...prev, blue: prev.blue + 1 }));
+                  addLog("Blue Team secured the Dragon!", 'obj');
+              }
+              // Rakip takıma hasar ver
+              setEntities(prev => prev.map(e => {
+                  if (e.team === 'red' && !e.isDead) return { ...e, hp: 0, isDead: true, respawnTimer: 5 };
+                  return e;
+              }));
+              setCurrentScore(prev => ({ ...prev, blue: prev.blue + 3 }));
+          } else {
+              addLog("DISASTER! The call was a mistake. Team wiped.", 'critical');
+              // Ceza: Takım ölür
+              setEntities(prev => prev.map(e => {
+                  if (e.team === 'blue' && !e.isDead) return { ...e, hp: 0, isDead: true, respawnTimer: 5 };
+                  return e;
+              }));
+              setCurrentScore(prev => ({ ...prev, red: prev.red + 4 }));
+          }
+      } else {
+          addLog("Team decides to play safe and give the objective.", 'normal');
+          // Rakip alır
+          if (pendingDecision === 'BARON') {
+               setBaron({ alive: false, nextSpawnTime: gameMinutes + 7 });
+               setBaronBuff({ team: 'red', expiresAt: gameMinutes + 3.0 });
+               addLog("Red Team secured Baron for free.", 'obj');
+          } else {
+               setDragon({ alive: false, nextSpawnTime: gameMinutes + 5 });
+               setDragonStacks(prev => ({ ...prev, red: prev.red + 1 }));
+               addLog("Red Team secured Dragon.", 'obj');
+          }
+      }
   };
 
   const isStructureVulnerable = (s: StructureEntity, currentStructures: StructureEntity[]): boolean => {
@@ -320,13 +384,26 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
        });
     }
 
+    // --- KARAR MEKANİZMASI TETİKLEYİCİLERİ ---
     if (!dragon.alive && gameMinutes >= dragon.nextSpawnTime) {
-      setDragon(prev => ({ ...prev, alive: true }));
-      addLog("Elemental Drake has spawned", 'obj');
+       if (!pendingDecision && Math.random() < 0.4) { // %40 ihtimalle karar sor
+           setIsPaused(true);
+           setPendingDecision('DRAGON');
+           addLog("Dragon is spawning soon! What's the call?", 'critical');
+       } else {
+           setDragon(prev => ({ ...prev, alive: true }));
+           addLog("Elemental Drake has spawned", 'obj');
+       }
     }
     if (!baron.alive && gameMinutes >= baron.nextSpawnTime) {
-      setBaron(prev => ({ ...prev, alive: true }));
-      addLog("Baron Nashor has spawned", 'obj');
+       if (!pendingDecision && gameMinutes > 25 && Math.random() < 0.5) { // 25. dk sonrası Baron kritik
+           setIsPaused(true);
+           setPendingDecision('BARON');
+           addLog("Baron Nashor has spawned! Critical decision needed.", 'critical');
+       } else {
+           setBaron(prev => ({ ...prev, alive: true }));
+           addLog("Baron Nashor has spawned", 'obj');
+       }
     }
 
     newMinions = newMinions.map(minion => {
@@ -503,18 +580,18 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
       const attackers = enemies.filter(e => !e.isDead && Math.hypot(e.x - moveX, e.y - moveY) < 8);
       if (attackers.length > 0) {
           attackers.forEach(attacker => {
-             let rawDmg = attacker.damage * 0.3;
-             if (baronBuff.team === attacker.team && gameMinutes < baronBuff.expiresAt) rawDmg *= 1.20;
-             const dragonBonus = dragonStacks[attacker.team] * 0.10; rawDmg *= (1 + dragonBonus);
-             rawDmg *= timeScaling;
-             if (attacker.currentStamina < 30) rawDmg *= 0.8; if (attacker.isClutching) rawDmg *= 1.3;
-             if (Math.random() < (attacker.stats.mechanics / 300)) rawDmg *= 1.5;
-             if (Math.random() < (entity.stats.mechanics / 500)) rawDmg *= 0.5;
-             const overallDiff = ((attacker.damage - 150)/3) - ((entity.damage - 150)/3);
-             if (overallDiff > 0) rawDmg *= (1 + (overallDiff / 50));
-             rawDmg *= (Math.random() * 0.4 + 0.8); 
-             newHp -= rawDmg;
-             attacker.currentStamina = Math.max(0, attacker.currentStamina - 0.2);
+              let rawDmg = attacker.damage * 0.3;
+              if (baronBuff.team === attacker.team && gameMinutes < baronBuff.expiresAt) rawDmg *= 1.20;
+              const dragonBonus = dragonStacks[attacker.team] * 0.10; rawDmg *= (1 + dragonBonus);
+              rawDmg *= timeScaling;
+              if (attacker.currentStamina < 30) rawDmg *= 0.8; if (attacker.isClutching) rawDmg *= 1.3;
+              if (Math.random() < (attacker.stats.mechanics / 300)) rawDmg *= 1.5;
+              if (Math.random() < (entity.stats.mechanics / 500)) rawDmg *= 0.5;
+              const overallDiff = ((attacker.damage - 150)/3) - ((entity.damage - 150)/3);
+              if (overallDiff > 0) rawDmg *= (1 + (overallDiff / 50));
+              rawDmg *= (Math.random() * 0.4 + 0.8); 
+              newHp -= rawDmg;
+              attacker.currentStamina = Math.max(0, attacker.currentStamina - 0.2);
           });
       }
 
@@ -552,7 +629,7 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
 
       const distDragonMoved = Math.hypot(moveX - POSITIONS.DRAGON.x, moveY - POSITIONS.DRAGON.y);
       if (dragon.alive && distDragonMoved < 8) {
-           const alliesNearby = entities.filter(e => e.team === entity.team && !e.isDead && Math.hypot(e.x - POSITIONS.DRAGON.x, e.y - POSITIONS.DRAGON.y) < 15).length;
+            const alliesNearby = entities.filter(e => e.team === entity.team && !e.isDead && Math.hypot(e.x - POSITIONS.DRAGON.x, e.y - POSITIONS.DRAGON.y) < 15).length;
           if (alliesNearby >= 1) { if (Math.random() < 0.35) { const captureBaseChance = 0.25; const clutchMod = isClutch ? 0.05 : 0; if (Math.random() < (captureBaseChance + clutchMod)) { setDragon({ alive: false, nextSpawnTime: gameMinutes + 5 }); currentContribution += 50; const newStacks = { ...dragonStacks }; if (entity.team === 'blue') newStacks.blue += 1; else newStacks.red += 1; setDragonStacks(newStacks); addLog(`${entity.team === 'blue' ? 'Blue' : 'Red'} team has slain the Dragon!`, 'obj'); } } }
       }
 
@@ -602,14 +679,14 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
   };
 
   const DragonHUD = ({ stacks }: { stacks: number }) => {
-     return (
+      return (
         <div className="flex gap-1 items-center bg-black/40 px-2 py-1 rounded-full border border-white/10">
            {Array.from({length: 4}).map((_, i) => {
               const active = i < stacks;
               return ( <div key={i} className={`w-3 h-3 rounded-full border ${active ? 'bg-orange-500 border-orange-300 shadow-[0_0_5px_orange]' : 'bg-gray-800 border-gray-600'}`}></div> )
            })}
         </div>
-     );
+      );
   };
 
   const RoleIcon = ({ role, size }: { role: Role, size: number }) => {
@@ -654,9 +731,13 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
              return (
                <div key={e.id} className="relative flex items-center gap-3 group">
                   <div className={`relative w-8 h-8 rounded-full border-2 overflow-hidden shrink-0 ${team === 'blue' ? 'border-blue-600 bg-blue-900' : 'border-red-600 bg-red-900'} ${e.isDead ? 'grayscale brightness-50' : ''}`}>
-                      <div className="flex items-center justify-center w-full h-full">
-                         <RoleIcon role={e.role} size={16} />
-                      </div>
+                      {e.champion ? (
+                          <img src={e.champion.imageUrl} className="w-full h-full object-cover" />
+                      ) : (
+                          <div className="flex items-center justify-center w-full h-full">
+                             <RoleIcon role={e.role} size={16} />
+                          </div>
+                      )}
                       {e.isDead && (
                          <div className="absolute inset-0 flex items-center justify-center bg-black/60 font-mono text-white text-xs font-bold z-10">
                             {displayRespawn}
@@ -690,6 +771,36 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
            .animate-shake { animation: shake 0.3s cubic-bezier(.36,.07,.19,.97) both; }
          `}
       </style>
+
+      {/* KARAR MODALI */}
+      {isPaused && pendingDecision && (
+         <div className="absolute inset-0 z-[150] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-fade-in pl-72">
+             <div className="bg-dark-900 border-2 border-hextech-500 rounded-2xl p-8 max-w-lg text-center shadow-2xl relative overflow-hidden">
+                 <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-transparent via-hextech-500 to-transparent"></div>
+                 <AlertTriangle size={48} className="mx-auto text-yellow-400 mb-4 animate-bounce" />
+                 <h2 className="text-3xl font-bold font-display text-white mb-2 uppercase">Critical Decision!</h2>
+                 <p className="text-gray-300 mb-8 text-lg">
+                    {pendingDecision === 'BARON' 
+                        ? "Baron Nashor is alive and the game is close. Do you want to force a fight?" 
+                        : "The Elemental Drake is spawning. Should we contest it?"}
+                 </p>
+                 <div className="flex gap-4 justify-center">
+                     <button 
+                        onClick={() => handleDecision('FIGHT')}
+                        className="px-8 py-4 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl shadow-lg hover:scale-105 transition-all flex items-center gap-2 group"
+                     >
+                        <Swords size={20} className="group-hover:rotate-45 transition-transform" /> FORCE FIGHT (Risky)
+                     </button>
+                     <button 
+                        onClick={() => handleDecision('SAFE')}
+                        className="px-8 py-4 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl shadow-lg hover:scale-105 transition-all flex items-center gap-2"
+                     >
+                        <Shield size={20} /> PLAY SAFE (Give)
+                     </button>
+                 </div>
+             </div>
+         </div>
+      )}
 
       {/* ÜST BİLGİ PANOSU */}
       <div className="w-full max-w-[90rem] flex justify-between items-center mb-4 text-white shrink-0 pt-4 px-4 mx-auto">
@@ -749,7 +860,24 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
              <div className={`absolute -translate-x-1/2 -translate-y-1/2 z-20 transition-all duration-500 ${baron.alive ? 'opacity-100 scale-100 animate-bounce' : 'opacity-20 scale-90 grayscale'}`} style={{ left: `${POSITIONS.BARON.x}%`, top: `${POSITIONS.BARON.y}%` }}> <div className="w-8 h-8 rounded-full bg-purple-900 border-2 border-purple-500 flex items-center justify-center shadow-[0_0_15px_rgba(192,132,252,0.7)]"><span className="font-bold text-purple-300 text-xs">B</span></div></div>
              <div className={`absolute -translate-x-1/2 -translate-y-1/2 z-20 transition-all duration-500 ${dragon.alive ? 'opacity-100 scale-100 animate-bounce' : 'opacity-20 scale-90 grayscale'}`} style={{ left: `${POSITIONS.DRAGON.x}%`, top: `${POSITIONS.DRAGON.y}%` }}> <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center shadow-[0_0_15px_rgba(251,146,60,0.7)] bg-orange-900 border-orange-500`}><span className={`font-bold text-xs text-orange-300`}>D</span></div></div>
              {minions.map(m => { if (gameMinutes < m.spawnTime) return null; return ( <div key={m.id} className={`absolute w-1.5 h-1.5 rounded-full z-20 shadow-[0_0_4px] ${m.team === 'blue' ? 'bg-blue-400 shadow-blue-400' : 'bg-red-400 shadow-red-400'}`} style={{ left: `${m.x}%`, top: `${m.y}%` }}></div> ) })}
-             {entities.map(e => { if (e.isDead) return null; const hpPercent = (e.hp / e.maxHp) * 100; const isLow = hpPercent < 30; let barColor = e.team === 'blue' ? 'bg-blue-400' : 'bg-red-400'; if (hpPercent < 50) barColor = 'bg-yellow-400'; if (hpPercent < 25) barColor = 'bg-red-500 animate-pulse'; return ( <div key={e.id} className="absolute w-6 h-6 -translate-x-1/2 -translate-y-1/2 z-30 flex flex-col items-center justify-center transition-all duration-100 linear group" style={{ left: `${e.x}%`, top: `${e.y}%` }}> {e.isClutching && ( <div className="absolute -top-6 text-yellow-400 drop-shadow-md animate-bounce"> <Crown size={12} fill="currentColor" /> </div> )} <div className="absolute -top-3 w-8 h-1 bg-black rounded-full overflow-hidden border border-white/20"> <div className={`h-full transition-all duration-300 ${barColor}`} style={{ width: `${hpPercent}%` }}></div> </div> <div className={`w-full h-full rounded-full border-2 border-black/50 shadow-sm flex items-center justify-center ${e.team === 'blue' ? 'bg-blue-600' : 'bg-red-600'} ${isLow ? 'animate-pulse ring-2 ring-red-500' : ''} ${e.isClutching ? 'ring-2 ring-yellow-400' : ''}`}> <span className="text-[8px] font-bold text-white leading-none">{e.role[0]}</span> </div> </div> ) })}
+             {entities.map(e => { 
+                if (e.isDead) return null; 
+                const hpPercent = (e.hp / e.maxHp) * 100; 
+                const isLow = hpPercent < 30; 
+                let barColor = e.team === 'blue' ? 'bg-blue-400' : 'bg-red-400'; 
+                if (hpPercent < 50) barColor = 'bg-yellow-400'; 
+                if (hpPercent < 25) barColor = 'bg-red-500 animate-pulse'; 
+                
+                return ( 
+                   <div key={e.id} className="absolute w-8 h-8 -translate-x-1/2 -translate-y-1/2 z-30 flex flex-col items-center justify-center transition-all duration-100 linear group" style={{ left: `${e.x}%`, top: `${e.y}%` }}> 
+                       {e.isClutching && ( <div className="absolute -top-6 text-yellow-400 drop-shadow-md animate-bounce"> <Crown size={12} fill="currentColor" /> </div> )} 
+                       <div className="absolute -top-3 w-8 h-1 bg-black rounded-full overflow-hidden border border-white/20"> <div className={`h-full transition-all duration-300 ${barColor}`} style={{ width: `${hpPercent}%` }}></div> </div> 
+                       <div className={`w-full h-full rounded-full border-2 border-black/50 shadow-sm overflow-hidden ${e.team === 'blue' ? 'ring-2 ring-blue-500' : 'ring-2 ring-red-500'} ${isLow ? 'animate-pulse ring-red-600' : ''} ${e.isClutching ? 'ring-yellow-400' : ''}`}> 
+                           {e.champion ? <img src={e.champion.imageUrl} className="w-full h-full object-cover" /> : <div className={`w-full h-full flex items-center justify-center ${e.team === 'blue' ? 'bg-blue-600' : 'bg-red-600'}`}><span className="text-[8px] font-bold text-white leading-none">{e.role[0]}</span></div>}
+                       </div> 
+                   </div> 
+                ) 
+             })}
           </div>
 
           <div className="w-80 bg-dark-900/80 border border-dark-700 rounded-xl overflow-hidden flex flex-col shadow-xl shrink-0 backdrop-blur-sm">
@@ -761,8 +889,9 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
                 {logs.map((log, i) => (
                     <div key={i} className="flex gap-2 p-1.5 rounded hover:bg-white/5 transition-colors">
                         <span className="text-gray-500 shrink-0">{log.time}</span>
-                        <span className={`break-words ${ log.type === 'kill' ? 'text-red-400 font-bold' : log.type === 'obj' ? 'text-yellow-400' : log.type === 'turret' ? 'text-blue-300' : 'text-gray-300' }`}>
+                        <span className={`break-words ${ log.type === 'kill' ? 'text-red-400 font-bold' : log.type === 'obj' ? 'text-yellow-400' : log.type === 'turret' ? 'text-blue-300' : log.type === 'critical' ? 'text-orange-400 font-bold' : 'text-gray-300' }`}>
                            {log.type === 'kill' && <Skull size={10} className="inline mr-1" />}
+                           {log.type === 'obj' && <Trophy size={14} className="inline mr-1" />}
                            {log.msg}
                         </span>
                     </div>
