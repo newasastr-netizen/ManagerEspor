@@ -704,6 +704,24 @@ export default function App() {
     }
   };
 
+  useEffect(() => {
+    if (gameState && !gameState.activeHousingId) {
+       console.log("Fixing missing housing data...");
+       
+       // DÜZELTME: "prev => (" EKLENDİ
+       setGameState(prev => ({
+           ...prev,
+           activeHousingId: 'starter',
+           facilities: prev.facilities || {
+              GAMING_HOUSE: { id: 'GAMING_HOUSE', name: 'Gaming House', level: 1, maxLevel: 5, upgradeCost: [500, 1500, 4000, 10000], description: 'Improves player XP gain.', benefit: '+{lvl}0% XP' },
+              STREAM_ROOM: { id: 'STREAM_ROOM', name: 'Stream Room', level: 1, maxLevel: 5, upgradeCost: [300, 800, 2000, 5000], description: 'Passive income.', benefit: '+{lvl}00 G/Wk' },
+              GYM: { id: 'GYM', name: 'Gym', level: 1, maxLevel: 3, upgradeCost: [1000, 3000], description: 'Stamina recovery.', benefit: '+{lvl}0 Stamina' },
+              MEDICAL_CENTER: { id: 'MEDICAL_CENTER', name: 'Medical Center', level: 1, maxLevel: 3, upgradeCost: [2000, 5000], description: 'Less injury time.', benefit: '-{lvl}0% Time' }
+           }
+       })); // KAPATMA PARANTEZİNE DİKKAT
+    }
+  }, [gameState]);
+
   const handleOnboardingComplete = (name: string, team: TeamData, leagueKey: LeagueKey, difficulty?: Difficulty) => {
     const selectedLeague = LEAGUES[leagueKey];
     setActiveLeague(selectedLeague);
@@ -4960,15 +4978,16 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
         <Onboarding onComplete={handleOnboardingComplete} />
       )}
 
-      {tab === 'facilities' && (
-       <FacilitiesView 
-           facilities={gameState.facilities} 
-           activeHousingId={gameState.activeHousingId} // <--- Ekle
-           coins={gameState.coins} 
-           onUpgrade={handleUpgradeFacility} 
-           onMoveHouse={handleMoveHouse} // <--- Ekle
-       />
-   )}
+      {/* Facilities View */}
+          {tab === 'facilities' && (
+              <FacilitiesView 
+                  facilities={gameState.facilities} 
+                  activeHousingId={gameState.activeHousingId} // <--- BU SATIR VAR MI?
+                  coins={gameState.coins} 
+                  onUpgrade={handleUpgradeFacility} 
+                  onMoveHouse={handleMoveHouse} // <--- BU SATIR VAR MI?
+              />
+          )}
 
       {tab === 'economy' && (
           <SponsorsView 
