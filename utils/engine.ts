@@ -29,6 +29,38 @@ export const calculateTeamPower = (
   return power;
 };
 
+export const calculateFanChange = (
+    result: MatchResult,
+    currentFanbase: number,
+    teamTier: string,
+    enemyTier: string
+): number => {
+    let change = 0;
+
+    if (result.victory) {
+        change += 0.05;
+        
+        if (result.scoreUser - result.scoreEnemy >= 2) {
+            change += 0.02;
+        }
+    } else {
+        if (currentFanbase > 0.5) {
+            change -= 0.02;
+        }
+    }
+
+    const tiers = ['D', 'C', 'B', 'A', 'S'];
+    const myTierIdx = tiers.indexOf(teamTier);
+    const enemyTierIdx = tiers.indexOf(enemyTier);
+
+    if (result.victory && enemyTierIdx > myTierIdx) {
+        const diff = enemyTierIdx - myTierIdx;
+        change += (diff * 0.05);
+    }
+    
+    return Number(change.toFixed(3));
+};
+
 export const simulateMatchSeries = (
   teamAId: string,
   teamBId: string,

@@ -2,13 +2,13 @@ export interface GamingHouse {
     id: string;
     name: string;
     weeklyRent: number;
-    deposit: number; // Taşınma ücreti
+    deposit: number;
     img: string;
     description: string;
     bonuses: {
-        xpMultiplier: number; // 1.0 = Normal, 1.5 = %50 fazla XP
-        moraleRegen: number;  // Haftalık moral artışı
-        staminaRegen: number; // Günlük stamina yenileme
+        xpMultiplier: number;
+        moraleRegen: number;
+        staminaRegen: number;
     };
 }
 

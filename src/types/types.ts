@@ -132,7 +132,8 @@ export interface GameState {
   standings: Standing[];
   playoffMatches: PlayoffMatch[];
   msiBracketContenders?: string[];
-
+  fanbase: number;
+  popularity: number;
   matchHistory: HistoryEntry[];
   newsFeed: NewsArticle[];
   playerMessages: PlayerMessage[];

@@ -2257,12 +2257,9 @@ const startLPLSplit3 = (prev: GameState): GameState => {
       if (stage === 'MSI_BRACKET' && gameState.playoffMatches.every(m => m.winnerId)) {
           const msiHistory = saveToHistory(gameState, `${year} MSI`, 'BRACKET');
           
-          // MSI bitti -> Herkes Yaz Sezonuna (LPL ise Split 3'e)
           let nextSplit = 'SUMMER';
           if (format === 'LPL') nextSplit = 'SPLIT_3';
 
-          // LPL Split 3 Hazırlığı (Nirvana'dan elenenleri atmak için startLPLSplit3'ü çağırabiliriz veya direkt başlatabiliriz)
-          // Şimdilik temiz bir sayfa açıyoruz, startSeason fonksiyonu SPLIT_3 olduğunu anlayıp ona göre kuracak.
           setGameState(prev => ({
              ...prev,
              stage: 'PRE_SEASON',
@@ -3201,7 +3198,6 @@ const startLPLSplit3 = (prev: GameState): GameState => {
     const netChange = income - expenses;
     const netColor = netChange >= 0 ? 'success' : 'error';
     const netSign = netChange >= 0 ? '+' : '';
-    // showNotification(netColor, `Daily Finances: ${netSign}${netChange}G`); // İstersen açabilirsin
     setGameState(prev => ({ ...prev, coins: prev.coins + netChange }));
 
     // 2. OYUNCU İSTATİSTİKLERİ VE EVENTLER
@@ -3433,10 +3429,6 @@ const startLPLSplit3 = (prev: GameState): GameState => {
               }
           }
 
-          // **OTOMATİK GEÇİŞLER KALDIRILDI**
-          // Artık sadece güncel durumu döndürüyoruz.
-          // Stage bitmişse PlayView butonu belirecek ve kullanıcı oradan ilerleyecek.
-
           return { ...nextState, playoffMatches: newMatches };
       }
       return nextState;
@@ -3620,7 +3612,7 @@ const handleMoveHouse = (houseId: string) => {
       }));
       
       showNotification('success', `Moved HQ to ${targetHouse.name}!`);
-};
+  };
 
 // DRAFT AKIŞI (Sıralama)
 type DraftActionType = 'BAN' | 'PICK';
@@ -3632,7 +3624,7 @@ interface DraftStep {
     role?: Role; // Sadece PICK ise zorunlu
 }
 
-// DRAFT AKIŞI (Sıralama - Rol Zorunluluğu Kaldırıldı)
+// DRAFT AKIŞI
 const DRAFT_SEQUENCE: DraftStep[] = [
     // FAZ 1: BANLAR (3'er tane)
     { side: 'BLUE', type: 'BAN' },
@@ -3675,7 +3667,6 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
   const [draftState, setDraftState] = useState<'DRAFTING' | 'ANALYZING' | 'RESULT'>('DRAFTING');
   const [resultData, setResultData] = useState<{ bonus: number, msg: string, userStyle: string, enemyStyle: string } | null>(null);
 
-  // --- YENİ EKLENEN STATE'LER (FİLTRE VE ARAMA) ---
   const [roleFilter, setRoleFilter] = useState<Role | 'ALL'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -3683,7 +3674,6 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
   const userSide: DraftSide = 'BLUE'; 
   const isUserTurn = currentStep?.side === userSide;
 
-  // Seçilebilir Şampiyonlar (Yasaklı veya seçili olmayanlar)
   const availableChampions = useMemo(() => {
     const bannedIds = new Set([...blueBans, ...redBans].map(c => c.id));
     const pickedIds = new Set([
@@ -3706,7 +3696,6 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
     }
   }, [currentStepIndex, draftState]);
 
-  // Ekran Değiştiğinde veya Sıra Değiştiğinde Filtreleri Sıfırla (İsteğe bağlı)
   useEffect(() => {
       setSearchQuery('');
       setRoleFilter('ALL');
@@ -3749,7 +3738,6 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
   };
 
   const processAction = (champ: Champion) => {
-      // Önce güncel durumu kopyala
       let nextBluePicks = { ...bluePicks };
       let nextRedPicks = { ...redPicks };
 
@@ -3757,7 +3745,6 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
           if (currentStep.side === 'BLUE') setBlueBans(prev => [...prev, champ]);
           else setRedBans(prev => [...prev, champ]);
       } else {
-          // PICK: Önce yerel değişkeni güncelle, sonra state'i
           if (currentStep.side === 'BLUE') {
               nextBluePicks[champ.role] = champ;
               setBluePicks(nextBluePicks);
@@ -3767,11 +3754,9 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
           }
       }
 
-      // Sonraki adıma geç veya bitir
       if (currentStepIndex < DRAFT_SEQUENCE.length - 1) {
           setCurrentStepIndex(prev => prev + 1);
       } else {
-          // KRİTİK DÜZELTME: Güncellenmiş (son hali içeren) listeleri gönder
           finishDraft(nextBluePicks, nextRedPicks);
       }
   };
@@ -3797,7 +3782,6 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
   const finishDraft = (finalBluePicks?: Partial<Record<Role, Champion>>, finalRedPicks?: Partial<Record<Role, Champion>>) => {
       setDraftState('ANALYZING');
       
-      // Eğer parametre geldiyse onu kullan (en güncel hal), yoksa state'i kullan
       const currentBluePicks = finalBluePicks || bluePicks;
       const currentRedPicks = finalRedPicks || redPicks;
 
@@ -3829,7 +3813,6 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
           });
           setDraftState('RESULT');
           
-          // Listeyi oluştururken de GÜNCEL verileri (currentBluePicks) kullan
           const userChampions = [Role.TOP, Role.JUNGLE, Role.MID, Role.ADC, Role.SUPPORT].map(r => currentBluePicks[r]!).filter(Boolean);
           const enemyChampions = [Role.TOP, Role.JUNGLE, Role.MID, Role.ADC, Role.SUPPORT].map(r => currentRedPicks[r]!).filter(Boolean);
           
@@ -3841,8 +3824,6 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
   const championsToDisplay = availableChampions.filter(c => {
       // 1. Dolu Rol Kontrolü (Sadece PICK aşamasında ve sıra bizdeyse)
       if (currentStep.type === 'PICK' && isUserTurn) {
-          // Eğer o rol bizde zaten doluysa, o roldeki şampiyonları gösterme
-          // @ts-ignore
           if (bluePicks[c.role]) return false;
       }
 
@@ -3962,10 +3943,7 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
                                     ALL
                                 </button>
                                 {Object.values(Role).filter(r => r !== Role.COACH).map(role => {
-                                    // Rol adını kısalt (TOP, JGL, MID, BOT, SUP)
                                     const shortName = role === Role.JUNGLE ? 'JGL' : role === Role.ADC ? 'BOT' : role === Role.SUPPORT ? 'SUP' : role;
-                                    // Eğer o rol bizde doluysa butonu pasif yap veya işaretle
-                                    // @ts-ignore
                                     const isFilled = isUserTurn && currentStep.type === 'PICK' && !!bluePicks[role];
                                     
                                     return (
@@ -4177,16 +4155,12 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
 
     return (
       <div className="space-y-8 animate-fade-in-up">
-        {/* ... (Üstteki Takım Logosu ve Güç Çubuğu kısmı AYNI KALSIN) ... */}
-        {/* Sadece aşağıdaki div'i ve üst kısmını koru, return içindeki grid yapısını güncelle */}
         
         <div className="bg-dark-900 rounded-2xl p-6 border border-dark-800 flex justify-between items-center">
-            {/* ... (Bu kutunun içi AYNI kalsın) ... */}
             <div>
              <h2 className="text-3xl font-display font-bold text-white mb-1">
                {activeTeamData?.name}
              </h2>
-             {/* ... (Power, Synergy vb. göstergeler aynı kalsın) ... */}
              <div className="flex gap-3 text-sm text-gray-400 items-center">
                <span>Power: <span className="text-white font-bold">{getTeamPower()}</span></span>
                <span className="text-gray-600">|</span>
@@ -4196,14 +4170,11 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
                <span className="text-gray-600">|</span>
                <span>Season: <span className="text-white font-bold">{gameState.currentSeason}</span></span>
              </div>
-             {/* ... (Synergy badgeleri aynı kalsın) ... */}
-             {/* ... */}
            </div>
            <TeamLogo team={activeTeamData} size="w-16 h-16" />
         </div>
   
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* --- GÜNCELLENEN: FINANCES & FACILITIES KARTI --- */}
           <div className="bg-dark-900 rounded-2xl p-6 border border-dark-800 flex flex-col justify-between">
               <div>
                   <div className="flex justify-between items-start mb-4">
@@ -4235,10 +4206,8 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
               </button>
           </div>
 
-          {/* ... (Active Roster ve Next Step kartları AYNI kalsın) ... */}
            <div className="bg-dark-900 rounded-2xl p-6 border border-dark-800">
              <h3 className="text-lg font-bold text-white mb-4">Active Roster</h3>
-             {/* ... (Roster listesi kodları aynı) ... */}
              <div className="space-y-2">
                {Object.values(Role).filter(r => r !== Role.COACH).map(role => {
                  const p = gameState.roster[role];
@@ -4256,9 +4225,7 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
            </div>
 
            <div className="bg-dark-900 rounded-2xl p-6 border border-dark-800 flex flex-col justify-center items-center">
-              {/* ... (Next Step butonu kodları aynı) ... */}
               <h3 className="text-lg font-bold text-white mb-2">Next Step</h3>
-              {/* ... */}
               <button 
                 onClick={() => {
                     if (gameState.stage === 'PRE_SEASON') {
@@ -4732,17 +4699,16 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
   const StandingsView = () => {
     let groupsToShow: string[] = ['A', 'B'];
     
-    // LPL için hangi grupların gösterileceğini belirle
     if (activeLeague.settings.format === 'LPL') {
         if (gameState.stage === 'LPL_SPLIT_2_GROUPS') {
             groupsToShow = ['Ascend', 'Nirvana'];
         } else if (gameState.stage === 'LPL_SPLIT_3_GROUPS') {
-             groupsToShow = ['Ascend', 'Nirvana']; // Split 3 de Ascend/Nirvana kullanır
+             groupsToShow = ['Ascend', 'Nirvana'];
         } else if (gameState.stage.includes('SPLIT_1') || gameState.currentSplit === 'SPLIT_1' || gameState.currentSplit === 'SPRING') {
             groupsToShow = ['A', 'B', 'C', 'D'];
         }
     } else if (activeLeague.settings.format === 'STANDARD') {
-        groupsToShow = ['A']; // Tek gruplu ligler
+        groupsToShow = ['A'];
     }
 
     return (
@@ -4793,6 +4759,153 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
             </div>
           ))}
         </div>
+      </div>
+    );
+  };
+
+  // --- AYARLAR EKRANI ---
+  const SettingsView = () => {
+    const [volume, setVolume] = useState(50);
+    const [sfx, setSfx] = useState(80);
+    const [autoSave, setAutoSave] = useState(true);
+    const [simSpeed, setSimSpeed] = useState<'Normal' | 'Fast' | 'Instant'>('Normal');
+    const [showConfirmReset, setShowConfirmReset] = useState(false);
+
+    const handleSaveSettings = () => {
+        showNotification('success', 'Settings saved successfully!');
+        // Gerçekte burada bir Context veya LocalStorage güncellemesi yapılabilir
+    };
+
+    const handleHardReset = () => {
+        localStorage.removeItem('lck_manager_save_v1');
+        window.location.reload(); // Sayfayı yenileyerek oyunu sıfırla
+    };
+
+    return (
+      <div className="max-w-4xl mx-auto space-y-8 animate-fade-in pb-10">
+        
+        {/* Başlık */}
+        <div>
+            <h2 className="text-3xl font-display font-bold text-white">System Settings</h2>
+            <p className="text-gray-400">Configure your game experience.</p>
+        </div>
+
+        {/* 1. SES AYARLARI */}
+        <div className="bg-dark-900 border border-dark-800 rounded-2xl p-6">
+            <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
+                <span className="w-1 h-6 bg-blue-500 rounded-full"></span> Audio
+            </h3>
+            <div className="space-y-6 max-w-xl">
+                <div>
+                    <div className="flex justify-between mb-2">
+                        <label className="text-sm font-bold text-gray-400">Music Volume</label>
+                        <span className="text-sm font-mono text-blue-400">{volume}%</span>
+                    </div>
+                    <input 
+                        type="range" min="0" max="100" value={volume} 
+                        onChange={(e) => setVolume(Number(e.target.value))}
+                        className="w-full h-2 bg-dark-950 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                    />
+                </div>
+                <div>
+                    <div className="flex justify-between mb-2">
+                        <label className="text-sm font-bold text-gray-400">SFX Volume</label>
+                        <span className="text-sm font-mono text-blue-400">{sfx}%</span>
+                    </div>
+                    <input 
+                        type="range" min="0" max="100" value={sfx} 
+                        onChange={(e) => setSfx(Number(e.target.value))}
+                        className="w-full h-2 bg-dark-950 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                    />
+                </div>
+            </div>
+        </div>
+
+        {/* 2. OYNANIŞ AYARLARI */}
+        <div className="bg-dark-900 border border-dark-800 rounded-2xl p-6">
+            <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
+                <span className="w-1 h-6 bg-purple-500 rounded-full"></span> Gameplay
+            </h3>
+            <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <div className="text-white font-bold">Auto-Save</div>
+                        <div className="text-xs text-gray-500">Automatically save game after each week.</div>
+                    </div>
+                    <button 
+                        onClick={() => setAutoSave(!autoSave)}
+                        className={`w-14 h-8 rounded-full p-1 transition-colors duration-300 ${autoSave ? 'bg-green-600' : 'bg-dark-950'}`}
+                    >
+                        <div className={`w-6 h-6 bg-white rounded-full shadow-md transform transition-transform duration-300 ${autoSave ? 'translate-x-6' : 'translate-x-0'}`} />
+                    </button>
+                </div>
+
+                <div className="border-t border-dark-800 pt-6">
+                    <label className="block text-sm font-bold text-gray-400 mb-3">Simulation Speed</label>
+                    <div className="flex gap-3">
+                        {['Normal', 'Fast', 'Instant'].map((mode) => (
+                            <button
+                                key={mode}
+                                onClick={() => setSimSpeed(mode as any)}
+                                className={`flex-1 py-3 rounded-xl font-bold text-sm border transition-all ${
+                                    simSpeed === mode 
+                                    ? 'bg-blue-600/20 border-blue-500 text-blue-400' 
+                                    : 'bg-dark-950 border-dark-700 text-gray-500 hover:bg-dark-800'
+                                }`}
+                            >
+                                {mode}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {/* 3. DANGER ZONE (KAYIT SİLME) */}
+        <div className="bg-red-900/10 border border-red-900/30 rounded-2xl p-6">
+            <h3 className="text-lg font-bold text-red-400 mb-2 flex items-center gap-2">
+                <AlertTriangle size={20} /> Danger Zone
+            </h3>
+            <p className="text-sm text-red-300/60 mb-6">
+                Resetting your career will delete all progress, match history, and roster changes. This action cannot be undone.
+            </p>
+            
+            {!showConfirmReset ? (
+                <button 
+                    onClick={() => setShowConfirmReset(true)}
+                    className="px-6 py-3 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl transition-colors"
+                >
+                    Reset Career
+                </button>
+            ) : (
+                <div className="flex items-center gap-4 animate-fade-in">
+                    <span className="text-white font-bold">Are you sure?</span>
+                    <button 
+                        onClick={handleHardReset}
+                        className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg"
+                    >
+                        Yes, Delete Everything
+                    </button>
+                    <button 
+                        onClick={() => setShowConfirmReset(false)}
+                        className="px-4 py-2 bg-dark-800 hover:bg-dark-700 text-gray-300 font-bold rounded-lg"
+                    >
+                        Cancel
+                    </button>
+                </div>
+            )}
+        </div>
+
+        {/* KAYDET BUTONU */}
+        <div className="flex justify-end pt-4">
+            <button 
+                onClick={handleSaveSettings}
+                className="px-8 py-4 bg-white text-black font-bold rounded-xl hover:bg-gray-200 transition-transform active:scale-95 shadow-xl"
+            >
+                Save Changes
+            </button>
+        </div>
+
       </div>
     );
   };
@@ -4963,40 +5076,86 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
 
   const unreadMessagesCount = gameState.playerMessages.filter(m => !m.isRead).length;
 
+  if (view === 'ONBOARDING') {
+    return <Onboarding onComplete={handleOnboardingComplete} />;
+  }
+
   return (
     <Layout 
-      currentTab={tab} 
-      onTabChange={setTab} 
-      coins={gameState.coins} 
-      week={gameState.week}
-      teamData={activeTeamData}
-      managerName={`${gameState.managerName} (${gameState.year} ${gameState.currentSplit})`}
-      unreadMessages={unreadMessagesCount}
+      currentView={tab}
+      onNavigate={setTab}
+      gameState={{
+          ...gameState,
+          team: activeTeamData || null,
+          fanbase: (gameState as any).fanbase || 1.5
+      }}
     >
-      {/* ONBOARDING MODU: Yeni oyun başlatıldığında */}
-      {view === 'ONBOARDING' && (
-        <Onboarding onComplete={handleOnboardingComplete} />
-      )}
+      
+      {/* İÇERİK BİLEŞENLERİ */}
+      {tab === 'dashboard' && <DashboardView />}
+      
+      {tab === 'roster' && <RosterView />}
+      
+      {tab === 'training' && <TrainingView roster={gameState.roster} inventory={gameState.inventory} coins={gameState.coins} trainingSlotsUsed={gameState.trainingSlotsUsed} onTrainPlayer={handleTraining} />}
+      
+      {tab === 'market' && <MarketView />}
+      
+      {tab === 'schedule' && <ScheduleView />}
+      
+      {tab === 'standings' && <StandingsView />}
+      
+      {tab === 'stats' && <TeamStatsView 
+        teams={activeLeague.teams} 
+        userTeamId={gameState.teamId} 
+        userRoster={gameState.roster} 
+        aiRosters={gameState.aiRosters}
+        getTeamPower={getTeamPower}
+        getActiveSynergies={getActiveSynergies} />}
+        
+      {tab === 'play' && <PlayView />}
+      
+      {tab === 'inbox' && <InboxView newsFeed={gameState.newsFeed} playerMessages={gameState.playerMessages} onReadMessage={handleReadMessage} teams={allTeams} onAcceptRequest={handleAcceptRenewalRequest} />}
 
-      {/* Facilities View */}
-          {tab === 'facilities' && (
-              <FacilitiesView 
-                  facilities={gameState.facilities} 
-                  activeHousingId={gameState.activeHousingId} // <--- BU SATIR VAR MI?
-                  coins={gameState.coins} 
-                  onUpgrade={handleUpgradeFacility} 
-                  onMoveHouse={handleMoveHouse} // <--- BU SATIR VAR MI?
-              />
-          )}
+      {tab === 'settings' && <SettingsView />}
 
+      {/* Sponsors (Economy) */}
       {tab === 'economy' && (
           <SponsorsView 
+              // @ts-ignore
               currentSponsor={currentSponsor}
+              // @ts-ignore
               onSignSponsor={handleSignSponsor}
-              userTeam={activeTeamData} 
+              // @ts-ignore
+              userTeam={activeTeamData!} 
+              coins={gameState.coins}
           />
       )}
 
+      {/* Facilities */}
+      {tab === 'facilities' && (
+          <FacilitiesView 
+              facilities={gameState.facilities} 
+              activeHousingId={gameState.activeHousingId || 'starter'}
+              coins={gameState.coins} 
+              onUpgrade={handleUpgradeFacility} 
+              onMoveHouse={handleMoveHouse}
+          />
+      )}
+
+      {/* --- MODALLAR (Layout içinde kalabilir) --- */}
+      {isSimulating && pendingSimResult && activeTeamData && (
+        <MatchSimulationView 
+           userTeam={activeTeamData}
+           enemyTeam={allTeams.find((t: TeamData) => t.id === pendingSimResult.opponentId)}
+           userRoster={gameState.roster}
+           enemyRoster={gameState.aiRosters[pendingSimResult.opponentId] || {}} 
+           result={pendingSimResult.userResult}
+           onComplete={() => finalizeDaySimulation(pendingSimResult.userResult)}
+           userPicks={draftPicks?.user || []}
+           enemyPicks={draftPicks?.enemy || []}
+        />
+      )}
+      
       {isDrafting && draftMatchInfo && activeTeamData && (
           <DraftPhase 
               userTeam={activeTeamData}
@@ -5004,85 +5163,48 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
               onDraftComplete={handleDraftComplete}
           />
       )}
-      
-      {/* OYUN MODU: Onboarding bittiğinde veya devam et dendiğinde */}
-      {view === 'GAME' && (
-        <>
-          {/* Simülasyon Ekranı */}
-          {isSimulating && pendingSimResult && activeTeamData && (
-            <MatchSimulationView 
-               userTeam={activeTeamData}
-               enemyTeam={allTeams.find((t: TeamData) => t.id === pendingSimResult.opponentId)}
-               userRoster={gameState.roster}
-               enemyRoster={gameState.aiRosters[pendingSimResult.opponentId] || {}} 
-               result={pendingSimResult.userResult}
-               onComplete={() => finalizeDaySimulation(pendingSimResult.userResult)}
-               userPicks={draftPicks?.user || []}
-               enemyPicks={draftPicks?.enemy || []}
-            />
-          )}
-          
-          {/* Modallar */}
-          {negotiationSession && (
-            <NegotiationModal
-              player={negotiationSession.player}
-              isOpen={!!negotiationSession}
-              onClose={() => setNegotiationSession(null)}
-              onOffer={handleNegotiationOffer}
-              currentCoins={gameState.coins}
-              serverFeedback={negotiationFeedback}
-              attemptsLeft={negotiationSession.patience}
-            />
-          )}
 
-          {activeEventModal && (
-            <EventModal
-              event={activeEventModal.event}
-              player={activeEventModal.player}
-              onClose={() => setActiveEventModal(null)}
-            />
-          )}
+      {negotiationSession && (
+        <NegotiationModal
+          player={negotiationSession.player}
+          isOpen={!!negotiationSession}
+          onClose={() => setNegotiationSession(null)}
+          onOffer={handleNegotiationOffer}
+          currentCoins={gameState.coins}
+          serverFeedback={negotiationFeedback}
+          attemptsLeft={negotiationSession.patience}
+        />
+      )}
 
-          {retiredPlayerModal && (
-            <RetiredPlayerModal
-              player={retiredPlayerModal}
-              isOpen={!!retiredPlayerModal}
-              onClose={() => setRetiredPlayerModal(null)}
-              onHireAsCoach={() => handleHireRetired(retiredPlayerModal, 'coach')}
-              onLureBack={() => handleHireRetired(retiredPlayerModal, 'player')}
-              currentCoins={gameState.coins} />
-          )}
+      {activeEventModal && (
+        <EventModal
+          event={activeEventModal.event}
+          player={activeEventModal.player}
+          onClose={() => setActiveEventModal(null)}
+        />
+      )}
 
-          {/* Bildirimler */}
-          {notification && (
-            <div className={`fixed top-4 right-4 z-[100] px-6 py-3 rounded-xl shadow-2xl font-bold animate-slide-in ${notification.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>
-               {notification.message}
-            </div>
-          )}
+      {retiredPlayerModal && (
+        <RetiredPlayerModal
+          player={retiredPlayerModal}
+          isOpen={!!retiredPlayerModal}
+          onClose={() => setRetiredPlayerModal(null)}
+          onHireAsCoach={() => handleHireRetired(retiredPlayerModal, 'coach')}
+          onLureBack={() => handleHireRetired(retiredPlayerModal, 'player')}
+          currentCoins={gameState.coins} />
+      )}
 
-          {error && (
-            <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] px-6 py-3 bg-red-600 text-white rounded-xl shadow-2xl font-bold animate-bounce-in">
-               {error}
-            </div>
-          )}
+      {/* Bildirimler */}
+      {notification && (
+        <div className={`fixed top-4 right-4 z-[100] px-6 py-3 rounded-xl shadow-2xl font-bold animate-slide-in ${notification.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>
+           {notification.message}
+        </div>
+      )}
 
-          {/* Sekmeler (Tabs) */}
-          {tab === 'dashboard' && <DashboardView />}
-          {tab === 'roster' && <RosterView />}
-          {tab === 'training' && <TrainingView roster={gameState.roster} inventory={gameState.inventory} coins={gameState.coins} trainingSlotsUsed={gameState.trainingSlotsUsed} onTrainPlayer={handleTraining} />}
-          {tab === 'market' && <MarketView />}
-          {tab === 'schedule' && <ScheduleView />}
-          {tab === 'standings' && <StandingsView />}
-          {tab === 'stats' && <TeamStatsView 
-            teams={activeLeague.teams} 
-            userTeamId={gameState.teamId} 
-            userRoster={gameState.roster} 
-            aiRosters={gameState.aiRosters}
-            getTeamPower={getTeamPower}
-            getActiveSynergies={getActiveSynergies} />}
-          {tab === 'play' && <PlayView />}
-          {tab === 'inbox' && <InboxView newsFeed={gameState.newsFeed} playerMessages={gameState.playerMessages} onReadMessage={handleReadMessage} teams={allTeams} />}
-        </>
+      {error && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] px-6 py-3 bg-red-600 text-white rounded-xl shadow-2xl font-bold animate-bounce-in">
+           {error}
+        </div>
       )}
     </Layout>
   );

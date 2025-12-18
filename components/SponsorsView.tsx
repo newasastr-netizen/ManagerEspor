@@ -1,128 +1,260 @@
-import React from 'react';
-import { Handshake, Lock } from 'lucide-react';
-import { getTeamTier } from './TeamLogo';
-import { TeamData } from '../src/types/types';
+﻿import React, { useState } from 'react';
+import { 
+  Briefcase, DollarSign, Trophy, TrendingUp, 
+  Target, Shield, Zap, Lock, CheckCircle2, Star 
+} from 'lucide-react';
 
-export interface Sponsor {
-  id: string;
-  name: string;
-  weeklyIncome: number;
-  signingBonus: number;
-  duration: number;
+// --- TİP TANIMLARI (Normalde types.ts içinde olmalı ama kolaylık olsun diye burada) ---
+interface SponsorTask {
   description: string;
-  minTier: 'S' | 'A' | 'B' | 'C';
+  current: number;
+  target: number;
+  reward: number;
 }
 
-const AVAILABLE_SPONSORS: Sponsor[] = [
-  // C Tier (Başlangıç)
-  { id: 'local_pc', name: 'Hyper X', weeklyIncome: 200, signingBonus: 500, duration: 5, minTier: 'C', description: 'HyperX is a brand committed to making sure every gamer feels they are included.' },
-  { id: 'snack', name: 'Kit Kat', weeklyIncome: 300, signingBonus: 800, duration: 8, minTier: 'C', description: 'Have a Break, Have a KitKat' },
+interface Sponsor {
+  id: string;
+  name: string;
+  tier: 'S' | 'A' | 'B' | 'C';
+  type: 'Main' | 'Kit' | 'Partner';
+  income: number;
+  logo: string;
+  description: string;
+  tasks?: SponsorTask[]; // Sponsorun verdiği yan görevler
   
-  // B Tier
-  { id: 'gear_store', name: 'Logitech', weeklyIncome: 500, signingBonus: 1500, duration: 10, minTier: 'B', description: 'Advanced Gaming Gear & Peripherals' },
-  { id: 'energy_drink', name: 'Red Bull', weeklyIncome: 600, signingBonus: 1000, duration: 12, minTier: 'B', description: 'Red Bull Gives You Wiiings' },
+  // Kilit açma şartları (Sadece kilitliler için)
+  requiredFanbase?: number; // Milyon cinsinden
+  currentFanbase?: number;
+}
 
-  // A Tier
-  { id: 'tech_giant', name: 'AGON BY AOC', weeklyIncome: 1000, signingBonus: 5000, duration: 15, minTier: 'A', description: 'Vision at Heart' },
-  { id: 'car_brand', name: 'Mercedes-Benz', weeklyIncome: 1200, signingBonus: 4000, duration: 18, minTier: 'A', description: 'The Best or Nothing' },
+// --- MOCK DATA (Veri Simülasyonu) ---
+const ACTIVE_SPONSORS: Sponsor[] = [
+  {
+    id: 'local_cafe',
+    name: 'Pixel Cafe',
+    tier: 'C',
+    type: 'Partner',
+    income: 250,
+    logo: '☕',
+    description: 'Free coffee for the players. Keeps morale high.',
+    tasks: [
+      { description: 'Get First Blood', current: 0, target: 1, reward: 500 }
+    ]
+  }
+];
 
-  // S Tier (Sadece Şampiyonlar)
-  { id: 'bmw', name: 'BMW', weeklyIncome: 2500, signingBonus: 15000, duration: 20, minTier: 'S', description: 'Ultimate Driving Machine' },
-  { id: 'bank', name: 'Master Card', weeklyIncome: 3000, signingBonus: 10000, duration: 24, minTier: 'S', description: 'Explore the world with Mastercard®' },
+const AVAILABLE_OFFERS: Sponsor[] = [
+  {
+    id: 'keyboard_co',
+    name: 'Clicky Keyboards',
+    tier: 'B',
+    type: 'Kit',
+    income: 800,
+    logo: '⌨️',
+    description: 'Mid-range gear sponsor. Reliable income.',
+    tasks: [
+      { description: 'Win 2 Matches', current: 0, target: 2, reward: 2000 }
+    ]
+  },
+  {
+    id: 'energy_drink',
+    name: 'Thunder Energy',
+    tier: 'B',
+    type: 'Partner',
+    income: 600,
+    logo: '⚡',
+    description: 'Hyper-caffeinated drinks. Boosts stamina recovery.',
+  }
+];
+
+const LOCKED_SPONSORS: Sponsor[] = [
+  {
+    id: 'tech_giant',
+    name: 'Nvidia',
+    tier: 'S',
+    type: 'Main',
+    income: 5000,
+    logo: '🟢',
+    description: 'Global tech giant. Only for the world champions.',
+    requiredFanbase: 5.0,
+    currentFanbase: 1.2
+  },
+  {
+    id: 'shoe_brand',
+    name: 'Nike',
+    tier: 'A',
+    type: 'Kit',
+    income: 3500,
+    logo: '👟',
+    description: 'Just Do It. Massive merchandise revenue.',
+    requiredFanbase: 3.0,
+    currentFanbase: 1.2
+  }
 ];
 
 interface SponsorsViewProps {
-  currentSponsor: Sponsor | null;
-  onSignSponsor: (sponsor: Sponsor) => void;
-  userTeam: TeamData | null;
+  coins: number;
 }
 
-export const SponsorsView: React.FC<SponsorsViewProps> = ({ currentSponsor, onSignSponsor, userTeam }) => {
-  const teamTier = userTeam ? getTeamTier(userTeam.id) : 'C';
-  
-  // Tier sıralaması (Kıyaslama yapmak için)
-  const tierOrder = { 'S': 4, 'A': 3, 'B': 2, 'C': 1 };
-  const currentTierValue = tierOrder[teamTier as keyof typeof tierOrder] || 1;
+export const SponsorsView: React.FC<SponsorsViewProps> = ({ coins }) => {
+  // Basit bir state ile "İmzalama" simülasyonu
+  const [activeList, setActiveList] = useState<Sponsor[]>(ACTIVE_SPONSORS);
+  const [offerList, setOfferList] = useState<Sponsor[]>(AVAILABLE_OFFERS);
+
+  const handleSign = (sponsor: Sponsor) => {
+    // Listeden çıkar, aktife ekle
+    setOfferList(prev => prev.filter(s => s.id !== sponsor.id));
+    setActiveList(prev => [...prev, sponsor]);
+  };
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-         <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-            <Handshake className="text-gold-400" /> Sponsors
-         </h2>
-         <div className="px-4 py-2 bg-dark-800 rounded-lg border border-dark-700">
-             <span className="text-gray-400 text-sm">Your Team Rating: </span>
-             <span className={`font-bold text-xl ${teamTier === 'S' ? 'text-gold-400' : 'text-white'}`}>{teamTier} Tier</span>
-         </div>
-      </div>
-
-      {currentSponsor ? (
-        <div className="bg-gradient-to-br from-dark-900 to-dark-800 border-2 border-gold-500 rounded-2xl p-8 text-center shadow-2xl relative overflow-hidden">
-          <div className="absolute top-0 right-0 p-4 opacity-10">
-              <Handshake size={120} />
-          </div>
-          <h3 className="text-xl font-bold text-white mb-2 uppercase tracking-widest">Active Contract</h3>
-          <div className="text-4xl font-display text-gold-400 mb-6">{currentSponsor.name}</div>
-          
-          <div className="grid grid-cols-2 gap-4 max-w-lg mx-auto">
-              <div className="bg-dark-950 p-4 rounded-xl">
-                  <div className="text-xs text-gray-500 uppercase">Weekly Income</div>
-                  <div className="text-2xl font-mono text-green-400">+{currentSponsor.weeklyIncome} G</div>
-              </div>
-              <div className="bg-dark-950 p-4 rounded-xl">
-                  <div className="text-xs text-gray-500 uppercase">Duration</div>
-                  <div className="text-2xl font-mono text-white">{currentSponsor.duration} <span className="text-sm">weeks</span></div>
-              </div>
+    <div className="space-y-10 animate-fade-in pb-10">
+      
+      {/* BAŞLIK VE ÖZET */}
+      <div className="flex justify-between items-end border-b border-white/10 pb-6">
+        <div>
+          <h2 className="text-4xl font-display font-bold text-white tracking-wide flex items-center gap-3">
+            <Briefcase className="text-gold-400" size={36} /> Sponsorships
+          </h2>
+          <p className="text-gray-400 mt-2 text-lg">Manage partners, complete quests, earn budget.</p>
+        </div>
+        <div className="text-right">
+          <div className="text-sm text-gray-500 font-bold uppercase tracking-wider mb-1">Weekly Income</div>
+          <div className="text-3xl font-mono font-bold text-green-400 flex items-center justify-end gap-2">
+            +{activeList.reduce((acc, s) => acc + s.income, 0).toLocaleString()} <span className="text-white text-base">G</span>
           </div>
         </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {AVAILABLE_SPONSORS.map(sponsor => {
-            const requiredValue = tierOrder[sponsor.minTier as keyof typeof tierOrder];
-            const isLocked = requiredValue > currentTierValue;
+      </div>
 
-            return (
-                <div key={sponsor.id} className={`relative bg-dark-900 border ${isLocked ? 'border-dark-800 opacity-60' : 'border-dark-700 hover:border-hextech-500'} rounded-xl p-6 transition-all flex flex-col justify-between group`}>
-                
-                {isLocked && (
-                    <div className="absolute inset-0 bg-dark-950/80 backdrop-blur-[2px] flex flex-col items-center justify-center z-10 rounded-xl">
-                        <Lock className="text-gray-500 mb-2" size={32} />
-                        <span className="text-gray-400 font-bold uppercase text-sm">Requires {sponsor.minTier} Tier</span>
+      {/* --- 1. AKTİF SPONSORLAR (KARTLAR) --- */}
+      <div>
+        <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+          <CheckCircle2 size={20} className="text-green-500" /> Active Contracts
+        </h3>
+        
+        {activeList.length === 0 ? (
+          <div className="p-8 border-2 border-dashed border-gray-700 rounded-2xl text-center text-gray-500">
+            No active sponsors. Sign a contract below!
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {activeList.map(sponsor => (
+              <div key={sponsor.id} className="relative group bg-gradient-to-br from-dark-800 to-dark-900 border border-green-500/30 rounded-2xl p-6 shadow-lg hover:shadow-green-900/20 transition-all">
+                {/* Slot Badge */}
+                <div className="absolute top-4 right-4 text-xs font-bold px-2 py-1 rounded bg-dark-950 border border-gray-700 text-gray-300">
+                  {sponsor.type.toUpperCase()} SLOT
+                </div>
+
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="w-16 h-16 rounded-full bg-dark-950 flex items-center justify-center text-3xl border border-gray-700 shadow-inner">
+                    {sponsor.logo}
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-white text-xl">{sponsor.name}</h4>
+                    <div className="text-green-400 font-mono font-bold">+{sponsor.income} G/wk</div>
+                  </div>
+                </div>
+
+                {/* Aktif Görevler */}
+                {sponsor.tasks && sponsor.tasks.length > 0 && (
+                  <div className="mt-4 bg-dark-950/50 rounded-xl p-3 border border-white/5">
+                    <div className="text-[10px] uppercase font-bold text-gray-500 mb-2 flex justify-between">
+                      <span>Active Objective</span>
+                      <span className="text-gold-400 flex items-center gap-1"><Star size={10} /> Bonus: {sponsor.tasks[0].reward} G</span>
                     </div>
+                    <div className="flex justify-between items-center text-sm font-medium text-gray-300 mb-1">
+                      <span>{sponsor.tasks[0].description}</span>
+                      <span>{sponsor.tasks[0].current}/{sponsor.tasks[0].target}</span>
+                    </div>
+                    {/* Progress Bar */}
+                    <div className="h-1.5 w-full bg-dark-700 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-gold-500" 
+                        style={{ width: `${(sponsor.tasks[0].current / sponsor.tasks[0].target) * 100}%` }} 
+                      />
+                    </div>
+                  </div>
                 )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
+      {/* --- 2. TEKLİFLER (AÇIK) --- */}
+      <div>
+        <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+          <Zap size={20} className="text-blue-400" /> Available Offers
+        </h3>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {offerList.map(offer => (
+            <div key={offer.id} className="bg-dark-800 border border-gray-700 rounded-xl p-5 flex items-center justify-between hover:border-blue-500/50 transition-colors group">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-lg bg-white/5 flex items-center justify-center text-2xl">
+                  {offer.logo}
+                </div>
                 <div>
-                    <div className="flex justify-between items-start mb-2">
-                        <h3 className="text-lg font-bold text-white">{sponsor.name}</h3>
-                        <span className={`text-xs font-bold px-2 py-1 rounded ${sponsor.minTier === 'S' ? 'bg-gold-500/20 text-gold-400' : 'bg-dark-800 text-gray-400'}`}>
-                            {sponsor.minTier} Tier
-                        </span>
-                    </div>
-                    <p className="text-xs text-gray-500 mb-4 h-8">{sponsor.description}</p>
-                    
-                    <div className="space-y-3 mb-6 bg-dark-950 p-3 rounded-lg">
-                    <div className="flex justify-between text-sm">
-                        <span className="text-gray-400">Bonus:</span>
-                        <span className="text-gold-400 font-bold">+{sponsor.signingBonus} G</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                        <span className="text-gray-400">Weekly:</span>
-                        <span className="text-green-400 font-bold">+{sponsor.weeklyIncome} G</span>
-                    </div>
-                    </div>
+                  <h4 className="font-bold text-white text-lg group-hover:text-blue-400 transition-colors">{offer.name}</h4>
+                  <p className="text-sm text-gray-400">{offer.description}</p>
+                  <div className="flex items-center gap-3 mt-1 text-xs">
+                    <span className="bg-blue-900/30 text-blue-300 px-2 py-0.5 rounded border border-blue-500/30">{offer.tier}-Tier</span>
+                    <span className="text-green-400 font-mono">+{offer.income} G/wk</span>
+                  </div>
                 </div>
-                <button 
-                    onClick={() => onSignSponsor(sponsor)}
-                    disabled={isLocked}
-                    className="w-full py-2 bg-hextech-600 hover:bg-hextech-500 disabled:bg-gray-700 text-white font-bold rounded-lg transition-colors"
-                >
-                    Sign Contract
-                </button>
+              </div>
+              <button 
+                onClick={() => handleSign(offer)}
+                className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2 rounded-lg font-bold text-sm shadow-lg transition-transform active:scale-95"
+              >
+                Sign
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* --- 3. GELECEK HEDEFLER (KİLİTLİ) --- */}
+      <div>
+        <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2 opacity-60">
+          <Lock size={20} /> Locked Opportunities
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 opacity-75">
+          {LOCKED_SPONSORS.map(locked => {
+            const progress = ((locked.currentFanbase || 0) / (locked.requiredFanbase || 1)) * 100;
+            
+            return (
+              <div key={locked.id} className="relative bg-dark-900 border border-dark-700 rounded-xl p-6 overflow-hidden grayscale hover:grayscale-0 transition-all duration-500 group">
+                <div className="flex justify-between items-start mb-4">
+                  <div className="w-12 h-12 rounded-lg bg-dark-800 flex items-center justify-center text-2xl border border-dark-600">
+                    {locked.logo}
+                  </div>
+                  <Lock size={18} className="text-gray-500" />
                 </div>
+                
+                <h4 className="font-bold text-white text-lg mb-1">{locked.name}</h4>
+                <p className="text-sm text-gray-500 mb-4">{locked.description}</p>
+                
+                {/* İlerleme Durumu */}
+                <div className="bg-black/40 rounded-lg p-3 border border-white/5">
+                  <div className="flex justify-between text-xs font-bold text-gray-400 mb-1">
+                    <span>Required Fanbase</span>
+                    <span className={progress >= 100 ? 'text-green-400' : 'text-gray-300'}>
+                      {locked.currentFanbase}M / {locked.requiredFanbase}M
+                    </span>
+                  </div>
+                  <div className="h-1.5 w-full bg-dark-700 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-blue-600 group-hover:bg-blue-400 transition-colors" 
+                      style={{ width: `${Math.min(progress, 100)}%` }} 
+                    />
+                  </div>
+                </div>
+              </div>
             );
           })}
         </div>
-      )}
+      </div>
+
     </div>
   );
 };

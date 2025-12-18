@@ -1,5 +1,5 @@
 import React from 'react';
-import { Facility, FacilityType } from '../src/types/types';
+import { Facility, FacilityType } from '../src/types/types'; // types.ts dosyasının yeri önemli, '../types' veya '../src/types/types' olabilir. Projene göre ayarla.
 import { HOUSING_OPTIONS } from '../data/realestate'; 
 import { Home, MonitorPlay, Dumbbell, HeartPulse, ArrowUp, Zap, MapPin, CheckCircle2, Lock } from 'lucide-react';
 
