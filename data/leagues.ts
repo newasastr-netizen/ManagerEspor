@@ -1,19 +1,19 @@
-import { TeamData, PlayerCard } from '../types';
-import { REAL_LCK_PLAYERS, REAL_LPL_PLAYERS, REAL_LEC_PLAYERS, REAL_TCL_PLAYERS, REAL_LTA_PLAYERS } from './players';
-import { LCK_TEAMS, LEC_TEAMS, LPL_TEAMS, TCL_TEAMS, LTA_TEAMS } from './teams';
-
-export type LeagueKey = 'LCK' | 'LPL' | 'LEC'| 'TCL';
+import { TeamData, PlayerCard, LeagueKey } from '../src/types/types';
+import { ALL_TEAMS } from './teams';
+import { REAL_LCK_PLAYERS, REAL_LPL_PLAYERS, REAL_LEC_PLAYERS } from './players';
 
 export interface LeagueSettings {
   teamCount: number;
   groupCount?: number;
   scheduleType: 'DOUBLE_ROBIN' | 'SINGLE_ROBIN';
-  format?: 'LCK' | 'SIMPLE_GROUPS' | 'LPL' | 'LEC'; 
-  isBo3?: boolean;
+  format: 'LCK' | 'LPL' | 'LEC' | 'SIMPLE_GROUPS'; 
+  matchesPerWeek: number;
+  playoffTeams: number;
+  isBo3: boolean;
 }
 
 export interface LeagueDefinition {
-  key: LeagueKey;
+  id: LeagueKey;
   name: string;
   region: string;
   teams: TeamData[];
@@ -23,74 +23,96 @@ export interface LeagueDefinition {
 
 export const LEAGUES: Record<LeagueKey, LeagueDefinition> = {
   LCK: {
-    key: 'LCK',
+    id: 'LCK',
     name: 'LCK',
-    region: 'KR',
-    teams: LCK_TEAMS,
-    players: REAL_LCK_PLAYERS,
+    region: 'Korea',
+    teams: ALL_TEAMS.filter(t => ['t1','gen','hle','dk','kt','drx','fox','ns','kdf','bro'].includes(t.id)),
+    players: REAL_LCK_PLAYERS || [],
     settings: { 
         teamCount: 10, 
-        groupCount: 2, 
         scheduleType: 'DOUBLE_ROBIN', 
         format: 'LCK',
+        matchesPerWeek: 2,
+        playoffTeams: 6,
         isBo3: true 
     }
   },
   LPL: {
-    key: 'LPL',
+    id: 'LPL',
     name: 'LPL',
-    region: 'CN',
-    teams: LPL_TEAMS,
-    players: REAL_LPL_PLAYERS,
+    region: 'China',
+    teams: ALL_TEAMS.filter(t => ['blg','tes','wbg','lng','jdg','nip','fpx','al','omg','tt','rng','ig','edg','we','lgd','up'].includes(t.id)),
+    players: REAL_LPL_PLAYERS || [],
     settings: { 
         teamCount: 16, 
-        groupCount: 4, // 4 Grup (A,B,C,D)
         scheduleType: 'SINGLE_ROBIN', 
         format: 'LPL', 
+        matchesPerWeek: 3,
+        playoffTeams: 10,
         isBo3: true 
     }
   },
   LEC: {
-    key: 'LEC',
+    id: 'LEC',
     name: 'LEC',
-    region: 'EU',
-    teams: LEC_TEAMS,
-    players: REAL_LEC_PLAYERS,
+    region: 'EMEA',
+    teams: ALL_TEAMS.filter(t => ['g2','fnc','bds','gx','kc','koi','rge','sk','th','vit'].includes(t.id)),
+    players: REAL_LEC_PLAYERS || [],
     settings: { 
-        format: 'STANDARD',
-        matchesPerWeek: 2,
+        teamCount: 10,
         scheduleType: 'SINGLE_ROBIN',
+        format: 'LEC',
+        matchesPerWeek: 2,
         playoffTeams: 8,
         isBo3: false,
     }
   },
-  LTA: {
-    id: 'lta',
+
+  LTA_NORTH: {
+    id: 'LTA_NORTH',
     name: 'LTA North',
     region: 'Americas',
-    logoUrl: '/logos/lta/LTA.png',
-    teams: LTA_TEAMS,
-    players: REAL_LTA_PLAYERS,
-    settings: {
-      format: 'STANDARD',
-      matchesPerWeek: 2,
-      scheduleType: 'DOUBLE_ROBIN',
-      playoffTeams: 6,
-      isBo3: true,
-    },
-  },
-  TCL: {
-    key: 'TCL',
-    name: 'TCL',
-    region: 'TR',
-    teams: TCL_TEAMS,
-    players: REAL_TCL_PLAYERS,
+    teams: ALL_TEAMS.filter(t => ['c9','tl','fly','100t','dig','sr','dsg','lyn'].includes(t.id)),
+    players: [],
     settings: { 
-        teamCount: 10, 
-        groupCount: 1, 
-        scheduleType: 'DOUBLE_ROBIN', 
+        teamCount: 8,
+        scheduleType: 'DOUBLE_ROBIN',
         format: 'SIMPLE_GROUPS',
-        isBo3: false 
+        matchesPerWeek: 2,
+        playoffTeams: 4,
+        isBo3: true
+    }
+  },
+
+  LTA_SOUTH: {
+    id: 'LTA_SOUTH',
+    name: 'LTA South',
+    region: 'Americas',
+    teams: ALL_TEAMS.filter(t => ['loud','pain','red','vks','fluxo','furia','lev','isg'].includes(t.id)),
+    players: [],
+    settings: { 
+        teamCount: 8,
+        scheduleType: 'DOUBLE_ROBIN',
+        format: 'SIMPLE_GROUPS',
+        matchesPerWeek: 2,
+        playoffTeams: 4,
+        isBo3: true
+    }
+  },
+
+  LCP: {
+    id: 'LCP',
+    name: 'LCP',
+    region: 'Pacific',
+    teams: ALL_TEAMS.filter(t => ['psg','gam','shg','dfm','cfo','vke','tsw','chiefs'].includes(t.id)),
+    players: [],
+    settings: { 
+        teamCount: 8,
+        scheduleType: 'SINGLE_ROBIN',
+        format: 'SIMPLE_GROUPS',
+        matchesPerWeek: 2,
+        playoffTeams: 6,
+        isBo3: true
     }
   }
 };

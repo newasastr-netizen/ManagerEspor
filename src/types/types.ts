@@ -14,17 +14,29 @@ export enum Rarity {
   LEGENDARY = 'Legendary',
 }
 
+export type LeagueKey = 'LCK' | 'LPL' | 'LEC' | 'LTA_NORTH' | 'LTA_SOUTH' | 'LCP';
+export type Difficulty = 'Easy' | 'Normal' | 'Hard';
 export interface PlayerStats {
   mechanics: number;
   macro: number;
   lane: number;
   teamfight: number;
+  consistency?: number;
 }
 
 export interface PlayerRelationship {
     targetPlayerId: string;
-    type: 'FRIENDSHIP' | 'CONFLICT';
+    type: 'FRIENDSHIP' | 'CONFLICT' | 'RIVALRY';
     strength: number;
+}
+
+export interface PlayerEvent {
+  id: string;
+  type: 'INJURY' | 'MORALE' | 'DRAMA' | 'CONTRACT';
+  title: string;
+  description: string;
+  duration: number;
+  penalty: Partial<PlayerStats>;
 }
 
 export interface PlayerCard {
@@ -33,16 +45,17 @@ export interface PlayerCard {
   role: Role;
   country?: string;
   team: string;
-  league?: LeagueKey;
+  league?: LeagueKey | string; 
   stats: PlayerStats;
   overall: number;
   previousOverall?: number;
   age: number;
   price: number;
   salary: number;
-  contractDuration: number;
-  rarity?: Rarity;
-  imageUrl?: string;
+  contractDuration: number; 
+  rarity: Rarity; 
+  imageUrl?: string; 
+  image?: string;    
   imageParams?: string;
   morale?: number;
   events?: PlayerEvent[];
@@ -51,32 +64,46 @@ export interface PlayerCard {
   originalRole?: Role;
   retirementReason?: string;
   unavailableUntil?: number;
+  contractYears?: number; 
+  marketValue?: number;   
 }
 
 export interface TeamData {
   id: string;
   name: string;
   shortName: string;
-  tier: 'S' | 'A' | 'B' | 'C';
-  region: string;
-  logoUrl: string;
-  colors: {
+  tier?: 'S' | 'A' | 'B' | 'C' | 'D';
+  region?: string;
+  logo?: string;
+  logoUrl?: string; 
+  primaryColor?: string; 
+  colors?: { 
     primary: string;
     secondary: string;
   };
+  color?: string; 
+  prestige?: number;
+  budget?: number;
+  fans?: number;
 }
 
 export interface ScheduledMatch {
   id: string;
   week: number;
-  round: number;
-  teamAId: string;
-  teamBId: string;
+  round?: number;
+  teamAId?: string;
+  teamBId?: string;
+  teamA?: string;
+  teamB?: string;
+  scoreA?: number;
+  scoreB?: number;
   played: boolean;
   winnerId?: string;
+  winner?: string;
   seriesScoreA?: number;
   seriesScoreB?: number;
   isBo5?: boolean;
+  isPlayoff?: boolean;
 }
 
 export interface PlayoffMatch {
@@ -95,72 +122,55 @@ export interface PlayoffMatch {
 }
 
 export interface MatchResult {
+  [key: string]: any;
   victory: boolean;
   scoreUser: number;
   scoreEnemy: number;
-  reward: number;
-  gameScores: { user: number, enemy: number }[];
-  enemyTeam: string;
-  playerStats: { playerId: string, kills: number, deaths: number, assists: number }[];
-  commentary: string;
-  isBo5: boolean;
 }
 
-export type LeagueKey = 'LCK' | 'LPL' | 'LEC' | 'TCL' | 'LTA';
+export type GameStage = string;
 
-export interface GameState {
-  managerName: string;
-  teamId: string;
-  leagueKey: LeagueKey;
-  coins: number;
-  year: number;
-  currentSeason?: number;
-  currentSplit: 'SPRING' | 'SUMMER' | 'WINTER' | 'MSI' | 'WORLDS' | 'SPLIT_1' | 'SPLIT_2' | 'SPLIT_3';
-  week: number;
-  difficulty: 'Easy' | 'Normal' | 'Hard';
-  currentDay: number;
-  stage: GameStage;
-  facilities: Record<FacilityType, Facility>;
-  roster: Record<Role, PlayerCard | null>;
-  inventory: PlayerCard[];
-  aiRosters: Record<string, Record<Role, PlayerCard>>;
-  freeAgents: PlayerCard[];
-  activeHousingId: string;
-  groups: { A: string[], B: string[], C?: string[], D?: string[] };
-  winnersGroup: 'A' | 'B' | null;
-  schedule: ScheduledMatch[];
-  standings: Standing[];
-  playoffMatches: PlayoffMatch[];
-  msiBracketContenders?: string[];
-  fanbase: number;
-  popularity: number;
-  matchHistory: HistoryEntry[];
-  newsFeed: NewsArticle[];
-  playerMessages: PlayerMessage[];
-  trainingSlotsUsed: number;
+export type FacilityType = 'GAMING_HOUSE' | 'STREAM_ROOM' | 'GYM' | 'MEDICAL_CENTER';
+
+export interface Facility {
+  id: FacilityType | string;
+  name: string;
+  level: number;
+  maxLevel: number;
+  upgradeCost: number[];
+  description: string;
+  benefit: string;
+  maintenanceCost?: number;
+  type?: 'TRAINING' | 'RECREATION' | 'BUSINESS' | 'HOUSING';
 }
 
-
-export enum LPLSplitPhase {
-  SPLIT_1_GROUPS = 'SPLIT_1_GROUPS',
-  SPLIT_2_ASCEND_NIRVANA = 'SPLIT_2_ASCEND_NIRVANA',
-  SPLIT_3_ROAD_TO_WORLDS = 'SPLIT_3_ROAD_TO_WORLDS',
-  SEASON_END = 'SEASON_END',
+export interface NewsArticle {
+  id: string;
+  type: string;
+  title: string;
+  content?: string;
+  message?: string;
+  date: any;
+  involved?: any[];
+  read?: boolean;
 }
 
-export type GameStage = 
-  | 'PRE_SEASON' 
-  | 'GROUP_STAGE' 
-  | 'PLAY_IN' 
-  | 'PLAYOFFS' 
-  | 'OFF_SEASON' 
-  | 'MSI_PLAY_IN' 
-  | 'MSI_BRACKET' 
-  | 'LEC_GROUP_STAGE'
-  | 'LPL_SPLIT_2_PLACEMENTS'
-  | 'LPL_SPLIT_2_GROUPS' 
-  | 'LPL_SPLIT_2_LCQ'
-  | 'LPL_SPLIT_3_GROUPS'; 
+export type NewsItem = NewsArticle;
+
+export interface PlayerMessage {
+  id: string;
+  senderId?: string;
+  senderName?: string;
+  playerId?: string;
+  playerName?: string;
+  type: string;
+  subject: string;
+  body?: string;
+  content?: string;
+  isRead: boolean;
+  date: any;
+  actions?: { label: string; actionId: string }[];
+}
 
 export interface Standing {
   teamId: string;
@@ -170,43 +180,68 @@ export interface Standing {
   gameWins: number;
   gameLosses: number;
   streak: number;
-  group: 'A' | 'B' | 'C' | 'D' | 'Ascend' | 'Nirvana' | null; 
+  group?: string | null;
   isEliminated?: boolean; 
 }
 
-export type HistoryViewType = 'LEAGUE' | 'BRACKET' | 'LIST';
-
 export interface HistoryEntry {
-    id: string;
-    title: string;
-    viewType: HistoryViewType;
-    year: number;
-    split: string;
+    id?: string;
+    title?: string;
+    viewType?: HistoryViewType;
+    year?: number;
+    split?: string;
     schedule?: ScheduledMatch[];
     standings?: Standing[];
     playoffs?: PlayoffMatch[];
     stage?: string;
+    [key: string]: any;
 }
 
-export type FacilityType = 'GAMING_HOUSE' | 'STREAM_ROOM' | 'GYM' | 'MEDICAL_CENTER';
+export type HistoryViewType = 'LEAGUE' | 'BRACKET' | 'LIST';
 
-export interface Facility {
-  id: FacilityType;
-  name: string;
-  level: number;
-  maxLevel: number;
-  upgradeCost: number[];
-  description: string;
-  benefit: string;
+export interface GameState {
+  managerName: string;
+  teamId: string;
+  team?: TeamData;
+  leagueKey: LeagueKey;
+  league?: LeagueKey;
+  coins: number;
+  year: number;
+  currentSeason?: number;
+  currentSplit: string;
+  week: number;
+  difficulty: Difficulty;
+  currentDay: number;
+  stage: GameStage;
+  facilities: Record<FacilityType | string, Facility>;
+  roster: Record<Role, PlayerCard | null>;
+  inventory: any[]; 
+  aiRosters: Record<string, Record<Role, PlayerCard | null>>; 
+  freeAgents: PlayerCard[];
+  activeHousingId: string;
+  groups: { A: string[], B: string[], C?: string[], D?: string[] };
+  winnersGroup: 'A' | 'B' | null;
+  schedule: ScheduledMatch[];
+  standings: Standing[];
+  playoffs?: PlayoffMatch[]; 
+  playoffMatches?: PlayoffMatch[];
+  msiBracketContenders?: string[];
+  fanbase: number;
+  popularity: number;
+  
+  matchHistory: any[];
+  newsFeed: NewsArticle[];
+  playerMessages: PlayerMessage[];
+  trainingSlotsUsed: number;
 }
 
-export interface PlayerEvent {
+export interface Champion {
   id: string;
-  type: 'INJURY' | 'MORALE' | 'DRAMA' | 'CONTRACT';
-  title: string;
-  description: string;
-  duration: number;
-  penalty: Partial<PlayerStats>;
+  name: string;
+  role: Role;
+  classes: string[];
+  style: 'AGGRESSIVE' | 'CONTROL' | 'SCALING';
+  tier: 'S' | 'A' | 'B' | 'C' | 'D';
 }
 
 export interface IncomingOffer {
@@ -217,22 +252,9 @@ export interface IncomingOffer {
   playerOpinion: string;
 }
 
-export interface NewsArticle {
-  id: string;
-  type: 'TRANSFER' | 'RUMOR' | 'DRAMA' | 'RETIREMENT' | 'MAJOR_EVENT';
-  title: string;
-  content: string;
-  date: { year: number, split: string, week: number };
-  involved: { type: 'player' | 'team', name: string }[];
-}
-
-export interface PlayerMessage {
-  id: string;
-  playerId: string;
-  playerName: string;
-  type: 'COMPLAINT' | 'THANKS' | 'REQUEST' | 'INFO';
-  subject: string;
-  body: string;
-  isRead: boolean;
-  date: { year: number, split: string, week: number };
+export enum LPLSplitPhase {
+  SPLIT_1_GROUPS = 'SPLIT_1_GROUPS',
+  SPLIT_2_ASCEND_NIRVANA = 'SPLIT_2_ASCEND_NIRVANA',
+  SPLIT_3_ROAD_TO_WORLDS = 'SPLIT_3_ROAD_TO_WORLDS',
+  SEASON_END = 'SEASON_END',
 }

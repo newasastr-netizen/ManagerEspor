@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { PlayerCard, Role, Rarity } from "../types";
+import { PlayerCard, Role, Rarity } from "../src/types/types";
 import { REAL_LCK_PLAYERS } from "../data/players";
 
 const apiKey = process.env.API_KEY || '';

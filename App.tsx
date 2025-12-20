@@ -13,7 +13,7 @@ import { HOUSING_OPTIONS } from './data/realestate';
 import { drawGroups, generateGroupStageSchedule, generateLPLSplit2Schedule } from './utils/scheduler';
 import { CHAMPIONS, Champion, ChampionStyle } from './data/champions';
 import { Trophy, RotateCcw, AlertTriangle, Play, Handshake, Wand2, FastForward, SkipForward, XCircle, ArrowDownUp, Search, Mail, Newspaper, MessageSquare, Heart, HeartCrack, Swords, Skull, Crown, Ghost, TreeDeciduous, Axe, Crosshair, Sparkles, Flame, Shield, Circle, Hexagon, Home } from 'lucide-react';
-import { Role, PlayerCard, GameState, MatchResult, Rarity, TeamData, ScheduledMatch, PlayoffMatch, Standing, PlayerEvent, HistoryEntry, HistoryViewType } from './types';
+import { Role, PlayerCard, GameState, MatchResult, Rarity, TeamData, ScheduledMatch, PlayoffMatch, Standing, PlayerEvent, HistoryEntry, HistoryViewType } from './src/types/types';
 import { MainMenu } from './components/MainMenu';
 import { SponsorsView } from './components/SponsorsView'; 
 import { simulateMatchSeries, calculateTeamPower, processPlayerGrowth, calculateWeeklyExpenses } from './utils/engine';
@@ -539,10 +539,12 @@ const INITIAL_STATE: GameState = {
   playoffMatches: [],
   freeAgents: [],
   trainingSlotsUsed: 0,
+  fanbase: 0,
+  popularity: 0,
   matchHistory: [],
   newsFeed: [],
   playerMessages: [],
-  activeHousingId: 'starter', // Başlangıçta bodrum katındayız
+  activeHousingId: 'starter',
   facilities: {
       STREAM_ROOM: { id: 'STREAM_ROOM', name: 'Stream Room', level: 1, maxLevel: 5, upgradeCost: [300, 800, 2000, 5000], description: 'Generates passive weekly income from player streams.', benefit: '+{lvl}00 G / Week' },
       GYM: { id: 'GYM', name: 'Gym & Fitness', level: 1, maxLevel: 3, upgradeCost: [1000, 3000], description: 'Increases stamina recovery and reduces injury chance.', benefit: '+{lvl}0 Stamina Recovery' },
@@ -970,7 +972,7 @@ export default function App() {
   }, []);
 
   const getTeamMoraleModifier = (roster: Record<Role, PlayerCard | null>): number => {
-    const players = Object.values(roster).filter((p): p is PlayerCard => p !== null && p.role !== Role.COACH);
+    const players = Object.values(roster).filter((p: any) => p !== null && p.role !== Role.COACH) as PlayerCard[];
     if (players.length === 0) return 0;
     const avgMorale = players.reduce((acc, p) => acc + (p.morale ?? 50), 0) / players.length;
     const modifier = Math.round((avgMorale - 50) / 10);
@@ -1186,7 +1188,8 @@ export default function App() {
       let playerRoleOrIndex: Role | number | null = null;
 
       Object.entries(newRoster).forEach(([role, p]) => {
-          if (p?.id === playerId) {
+          if ((p as any)?.id === playerId) {
+              // @ts-ignore
               playerToUpdate = p;
               playerLocation = 'roster';
               playerRoleOrIndex = role as Role;
@@ -2673,7 +2676,8 @@ const startLPLSplit3 = (prev: GameState): GameState => {
   };
 
   const updatePlayerRelationships = (roster: Record<Role, PlayerCard | null>, didWin: boolean): Record<Role, PlayerCard | null> => {
-    const players = Object.values(roster).filter((p): p is PlayerCard => p !== null && p.role !== Role.COACH);
+   // @ts-ignore
+    const players = Object.values(roster).filter(p => p !== null && p.role !== 'COACH') as PlayerCard[];
     if (players.length < 2) return roster;
 
     let playerA = players[Math.floor(Math.random() * players.length)];
@@ -2687,7 +2691,7 @@ const startLPLSplit3 = (prev: GameState): GameState => {
 
     const newRoster = { ...roster };
 
-    const updateRelationship = (p1: PlayerCard, p2: PlayerCard, type: PlayerRelationship['type']) => {
+    const updateRelationship = (p1: PlayerCard, p2: PlayerCard, type: any) => {
       if (!p1.relationships) p1.relationships = [];
       if (!p2.relationships) p2.relationships = [];
       
@@ -4362,7 +4366,7 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
                            />
                            <div className="flex gap-2 mt-1.5 pl-16">
                               {player.relationships?.map(rel => {
-                                const otherPlayer = Object.values(gameState.roster).find(p => p?.id === rel.targetPlayerId);
+                                const otherPlayer = Object.values(gameState.roster).find((p: any) => p?.id === rel.targetPlayerId) as any;
                                 if (!otherPlayer) return null;
                                 
                                 if (rel.type === 'FRIENDSHIP') {

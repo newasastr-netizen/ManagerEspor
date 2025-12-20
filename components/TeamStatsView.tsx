@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { GameState, TeamData, PlayerCard, Role, LeagueKey } from '../types';
+import { GameState, TeamData, PlayerCard, Role, LeagueKey } from '../src/types/types';
 import { Card, getRarityColor } from './Card';
 import { TeamLogo } from './TeamLogo';
 

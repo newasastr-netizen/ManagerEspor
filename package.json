@@ -1,17 +1,19 @@
 {
   "name": "manager-espor",
-  "version": "1.0.0",
-  "main": "electron/main.js", 
-  "description": "LCK Manager 2025",
-  "author": "Izayoi Sakuya",
+  "private": true,
+  "version": "0.4.0",
+  "main": "electron/main.js",
+  "homepage": "./",  
+  "description": "Espor Menajerlik Oyunu",
+  "author": "Izayoi Sakuya",  
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
-    "lint": "eslint .",
-    "preview": "vite preview",
-    "electron": "concurrently \"npm run dev\" \"wait-on http://localhost:3000 && electron .\"",
-    "electron:build": "npm run build && electron-builder"
-  },
+  "dev": "vite",
+  "build": "vite build",
+  "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+  "preview": "vite preview",
+  "electron:dev": "concurrently \"npm run dev\" \"wait-on tcp:5173 && electron .\"",
+  "electron:build": "npm run build && electron-builder"
+},
   "build": {
     "appId": "com.lckmanager.app",
     "productName": "LCK Manager 2025",

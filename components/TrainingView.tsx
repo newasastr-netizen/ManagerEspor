@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { PlayerCard, Role } from '../types';
+import { PlayerCard, Role } from '../src/types/types';
 import { Card } from './Card';
 import { Dumbbell, Brain, Target, Zap, Users, ArrowUp, Lock, Shield } from 'lucide-react';
 

@@ -1,4 +1,4 @@
-import { PlayerCard, Role, TeamData, MatchResult } from '../types';
+import { PlayerCard, Role, TeamData, MatchResult } from '../src/types/types';
 import { getTeamTier } from '../components/TeamLogo';
 
 export const calculateTeamPower = (

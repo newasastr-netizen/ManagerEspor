@@ -1,5 +1,5 @@
 
-import { TeamData, ScheduledMatch } from '../types';
+import { TeamData, ScheduledMatch } from '../src/types/types';
 
 export const drawGroups = (teams: TeamData[]) => {
   const shuffled = [...teams].sort(() => 0.5 - Math.random());

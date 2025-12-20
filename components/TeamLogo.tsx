@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { TeamData } from '../types';
+import { TeamData } from '../src/types/types';
 
 interface TeamLogoProps {
   team: TeamData | null | undefined;

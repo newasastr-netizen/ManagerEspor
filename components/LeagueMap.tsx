@@ -1,42 +1,49 @@
 import React, { useState } from 'react';
-import { LEAGUES, LeagueKey } from '../data/leagues';
-import { Trophy, Users, Globe, Check, ArrowRight, Swords, Star, Zap, Flame, ChevronRight } from 'lucide-react';
+import { LEAGUES } from '../data/leagues';
+import { LeagueKey } from '../src/types/types'; 
+import { Trophy, Swords, Star, Zap, Flame, Globe, Check, ChevronRight, Users } from 'lucide-react';
 
 interface LeagueMapProps {
   onSelectLeague: (leagueId: LeagueKey) => void;
   selectedLeague: LeagueKey | null;
 }
 
+// HARİTA KAYDIRMA AYARLARI (Shift)
 const MAP_CONFIG: Record<string, { top: string; left: string; shift: string }> = {
-  LTA: { top: '20%', left: '12%', shift: 'translate-x-[30%]' },
-  LEC: { top: '13%', left: '52%', shift: 'translate-x-[15%]' },
-  TCL: { top: '20%', left: '58%', shift: 'translate-x-[10%]' },
-  LPL: { top: '27%', left: '78%', shift: '-translate-x-[5%]' },
-  LCK: { top: '21%', left: '91%', shift: '-translate-x-[10%]' },
+    LTA_NORTH: { top: '30%', left: '18%', shift: 'translate-x-[20%]' },
+    LTA_SOUTH: { top: '65%', left: '28%', shift: 'translate-x-[15%]' },
+    LEC: { top: '32%', left: '52%', shift: 'translate-x-0' },
+    LPL: { top: '40%', left: '76%', shift: '-translate-x-[15%]' },
+    LCK: { top: '38%', left: '84%', shift: '-translate-x-[20%]' },
+    LCP: { top: '60%', left: '82%', shift: '-translate-x-[18%]' }
 };
 
 const LEAGUE_ICONS: Record<string, React.ElementType> = {
     LCK: Trophy,
     LPL: Swords,
     LEC: Zap,
-    LTA: Flame,
-    TCL: Star
+    LTA_NORTH: Flame,
+    LCP: Star,
+    LTA_SOUTH: Globe
 };
 
 const LEAGUE_COLORS: Record<string, string> = {
     LCK: 'text-blue-400',
     LPL: 'text-red-500',
     LEC: 'text-teal-400',
-    LTA: 'text-yellow-400',
-    TCL: 'text-red-400'
+    LTA_NORTH: 'text-yellow-400',
+    LCP: 'text-orange-400',
+    LTA_SOUTH: 'text-green-400'
 };
 
 export const LeagueMap: React.FC<LeagueMapProps> = ({ onSelectLeague, selectedLeague }) => {
   const [hoveredLeague, setHoveredLeague] = useState<LeagueKey | null>(null);
   const activeKey = hoveredLeague || selectedLeague;
+  // @ts-ignore
   const activeLeague = activeKey ? LEAGUES[activeKey] : null;
   const mapImage = "https://upload.wikimedia.org/wikipedia/commons/e/ec/World_map_blank_without_borders.svg";
-  const currentShift = selectedLeague ? MAP_CONFIG[selectedLeague]?.shift : 'translate-x-0';
+  
+  const currentShift = selectedLeague ? (MAP_CONFIG[selectedLeague]?.shift || 'translate-x-0') : 'translate-x-0';
 
   return (
     <div className="w-full h-full flex items-center justify-center relative overflow-hidden bg-[#050910] animate-fade-in">
@@ -59,9 +66,9 @@ export const LeagueMap: React.FC<LeagueMapProps> = ({ onSelectLeague, selectedLe
             transition-transform duration-700 ease-out
             ${currentShift}
         `}>
-            {Object.keys(LEAGUES).map((key) => {
+            {Object.keys(MAP_CONFIG).map((key) => {
                 const leagueKey = key as LeagueKey;
-                const pos = MAP_CONFIG[leagueKey] || { top: '50%', left: '50%', shift: '0' };
+                const pos = MAP_CONFIG[leagueKey];
                 const isSelected = selectedLeague === leagueKey;
                 const isHovered = hoveredLeague === leagueKey;
                 const isDimmed = (selectedLeague && !isSelected) || (!selectedLeague && hoveredLeague && !isHovered);
@@ -80,9 +87,9 @@ export const LeagueMap: React.FC<LeagueMapProps> = ({ onSelectLeague, selectedLe
                         <div className={`
                             relative flex items-center justify-center w-6 h-6 md:w-10 md:h-10 rounded-full border-2 transition-all duration-300 shadow-2xl
                             ${isSelected 
-                                ? 'bg-gold-500 border-white scale-125 shadow-[0_0_50px_rgba(234,179,8,0.8)]' 
+                                ? 'bg-yellow-500 border-white scale-125 shadow-[0_0_50px_rgba(234,179,8,0.8)]' 
                                 : isHovered 
-                                    ? 'bg-hextech-500 border-hextech-300 scale-150 shadow-[0_0_40px_rgba(6,182,212,0.8)]' 
+                                    ? 'bg-cyan-500 border-cyan-300 scale-150 shadow-[0_0_40px_rgba(6,182,212,0.8)]' 
                                     : 'bg-slate-800 border-slate-600 hover:scale-110'}
                         `}>
                             {React.createElement(LEAGUE_ICONS[key] || Trophy, { 
@@ -96,7 +103,7 @@ export const LeagueMap: React.FC<LeagueMapProps> = ({ onSelectLeague, selectedLe
                             transition-all duration-300
                             ${isSelected || isHovered ? 'opacity-0 translate-y-2' : 'text-gray-500 opacity-100 group-hover:text-white'}
                         `}>
-                            {key}
+                            {key.replace('_', ' ')}
                         </div>
                     </button>
                 );
