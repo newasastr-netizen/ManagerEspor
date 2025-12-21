@@ -29,9 +29,11 @@ const generateRoundRobin = (teams: TeamData[], rounds: number = 1): ScheduledMat
 
       if (home !== 'BYE' && away !== 'BYE') {
         schedule.push({
-          id: `match-${round}-${i}-${home}-${away}`,
-          // Başlangıçta her round bir hafta gibi hesaplanır, sonra lige göre sıkıştırılır
-          week: round + 1, 
+          id: `match-${round}-${i}-${home}-${away}-${Date.now()}`, // ID çakışmasını önlemek için Date.now() eklendi
+          // --- KRİTİK DÜZELTME: ROUND ÖZELLİĞİ EKLENDİ ---
+          round: round + 1, 
+          // ------------------------------------------------
+          week: Math.floor(round / 2) + 1, // Varsayılan hafta hesabı (Haftada 2 maç gibi)
           teamAId: isSecondHalf ? away : home,
           teamBId: isSecondHalf ? home : away,
           played: false,
@@ -40,7 +42,7 @@ const generateRoundRobin = (teams: TeamData[], rounds: number = 1): ScheduledMat
       }
     }
 
-    // Takımları döndür (1. sabit kalır, diğerleri döner)
+    // Takımları döndür (1. sabit kalır, diğerleri döner - Circle Method)
     const fixed = currentRoundIds[0];
     const rest = currentRoundIds.slice(1);
     const last = rest.pop();
@@ -56,6 +58,12 @@ const generateRoundRobin = (teams: TeamData[], rounds: number = 1): ScheduledMat
  */
 export const generateLeagueSchedule = (leagueKey: LeagueKey, teams: TeamData[]): ScheduledMatch[] => {
   let schedule: ScheduledMatch[] = [];
+
+  // LCP ve benzeri ligler için güvenlik: Yeterli takım yoksa boş dönme
+  if (!teams || teams.length < 2) {
+      console.warn("Yetersiz takım sayısı, fikstür oluşturulamadı.");
+      return [];
+  }
 
   switch (leagueKey) {
     case 'LCP':
@@ -81,12 +89,17 @@ export const generateLeagueSchedule = (leagueKey: LeagueKey, teams: TeamData[]):
   // LEC ve LPL gibi yoğun ligler için hafta düzenlemesi
   // Örn: LEC 3 haftada biter, LPL haftada 3 gün maç oynatır.
   if (leagueKey === 'LEC') {
-      // LEC'de 9 maç haftası yerine 3 "Süper Hafta" gibi düşünelim
       schedule.forEach(match => {
-          match.week = Math.ceil(match.week / 3);
+          // LEC Süper Hafta mantığı: Her hafta 3 maç günü
+          match.week = Math.ceil(match.round / 3);
+      });
+  } else if (leagueKey === 'LCP') {
+      schedule.forEach(match => {
+          // LCP haftada 2 maç günü
+          match.week = Math.ceil(match.round / 2);
       });
   }
 
-  // Maçları haftalara göre sırala
-  return schedule.sort((a, b) => a.week - b.week);
+  // Maçları haftalara ve turlara göre sırala
+  return schedule.sort((a, b) => a.round - b.round);
 };

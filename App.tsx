@@ -2128,115 +2128,179 @@ const startLPLSplit3 = (prev: GameState): GameState => {
       };
   };
 
-  // --- MSI BAŞLATMA (DÜZELTİLMİŞ & GÜÇLENDİRİLMİŞ) ---
+  // --- MSI BAŞLATMA (FİNALİSTLERİ KESİN ALAN VERSİYON) ---
   const initializeMSI = (isUserQualified: boolean) => {
-    if (isUserQualified) {
-        showNotification('success', `Congratulations! You have qualified for MSI.`);
-    } else {
-        showNotification('info', `You didn't qualify, but the show goes on! Spectating MSI...`);
-    }
-    
-    // YARDIMCI: Ligden en iyi takımları çek
-    // YARDIMCI: Ligden en iyi takımları çek
-    const getTopTeamsFromLeague = (leagueKey: string, count: number): string[] => {
-        // DÜZELTME: Veri yapısındaki id/key karışıklığını çözmek için güvenli erişim
-        // @ts-ignore
-        const currentLeagueId = (activeLeague.id || activeLeague.key || '').toUpperCase();
+    console.log("🚀 MSI Başlatılıyor... Finalistler taranıyor.");
 
-        // 1. Eğer kullanıcının ligi ise, güncel puan durumunu kullan
-        if (activeLeague.name === leagueKey || currentLeagueId === leagueKey) {
-            // Playoff sonuçlarına göre sırala
-            const winner = gameState.playoffMatches.find(m => m.roundName === 'Grand Final')?.winnerId;
-            // Finalist mantığı (Kazanan A ise B, B ise A finalisttir)
-            const grandFinal = gameState.playoffMatches.find(m => m.roundName === 'Grand Final');
-            let finalist = null;
-            if (grandFinal && grandFinal.winnerId) {
-                finalist = grandFinal.winnerId === grandFinal.teamAId ? grandFinal.teamBId : grandFinal.teamAId;
-            }
+    // YARDIMCI: Ligden takım getir (Playoff > Puan Durumu > Veritabanı)
+    const getTeamsFromRegion = (leagueKeys: string[], count: number): TeamData[] => {
+        const activeLeagueId = gameState.league?.id;
+        let selectedTeams: TeamData[] = [];
+
+        // ---------------------------------------------------------
+        // 1. AKTİF LİG KONTROLÜ (Senin Oynadığın Lig)
+        // ---------------------------------------------------------
+        if (activeLeagueId && leagueKeys.includes(activeLeagueId)) {
+            console.log(`[MSI] Aktif Lig (${activeLeagueId}) verisi işleniyor...`);
             
-            // Sıralı liste oluştur
-            let sortedIds: string[] = [];
-            if (winner) sortedIds.push(winner);
-            if (finalist) sortedIds.push(finalist);
-            
-            // Geri kalanı normal puan durumundan ekle
-            const others = gameState.standings
-                .filter(s => !sortedIds.includes(s.teamId))
-                .sort((a, b) => b.wins - a.wins || (b.gameWins - b.gameLosses) - (a.gameWins - a.gameLosses))
-                .map(s => s.teamId);
+            // A. PLAYOFF SONUÇLARINDAN FİNALİSTLERİ BUL
+            // Son oynanan ve kazananı belli olan maçı "Final" kabul ediyoruz.
+            if (gameState.playoffMatches && gameState.playoffMatches.length > 0) {
+                const finishedMatches = gameState.playoffMatches.filter(m => m.winnerId && m.played);
                 
-            sortedIds = [...sortedIds, ...others];
-            return sortedIds.slice(0, count);
-        }
-        
-        // 2. Diğer ligler için statik listeden 'Tier'a göre en iyileri al
-        const league = LEAGUES[leagueKey as LeagueKey];
-        
-        // Eğer lig verisi bulunamazsa (örn: LTA North vs LTA isim farkı varsa) boş dönme, mock dön
-        if (!league) {
-            // Fallback: Eğer LEAGUES içinde yoksa (isim uyuşmazlığı), boş dizi dön
-            return [];
+                if (finishedMatches.length > 0) {
+                    // En son oynanan maç (Dizinin sonu) finaldir
+                    const finalMatch = finishedMatches[finishedMatches.length - 1];
+                    console.log(`🏆 Final Maçı Tespit Edildi: ${finalMatch.teamAId} vs ${finalMatch.teamBId} -> Kazanan: ${finalMatch.winnerId}`);
+
+                    const winnerId = finalMatch.winnerId!;
+                    const loserId = finalMatch.winnerId === finalMatch.teamAId ? finalMatch.teamBId : finalMatch.teamAId;
+
+                    // ID'leri Takım Objesine Çevir
+                    const getTeamObj = (id: string | null) => {
+                        if (!id) return null;
+                        // Kullanıcı takımıysa güncel halini, değilse lig listesinden al
+                        if (id === gameState.teamId) return { ...gameState.team, roster: gameState.roster }; 
+                        return gameState.league.teams.find(t => t.id === id);
+                    };
+
+                    const winnerTeam = getTeamObj(winnerId);
+                    const loserTeam = getTeamObj(loserId);
+
+                    if (winnerTeam) selectedTeams.push(winnerTeam as TeamData);
+                    if (loserTeam) selectedTeams.push(loserTeam as TeamData);
+                }
+            }
+
+            // B. EĞER PLAYOFF YOKSA PUAN DURUMUNDAN TAMAMLA
+            if (selectedTeams.length < count) {
+                const sortedStandings = [...gameState.standings].sort((a, b) => {
+                    if (b.wins !== a.wins) return b.wins - a.wins;
+                    return (b.gameWins - b.gameLosses) - (a.gameWins - a.gameLosses);
+                });
+
+                for (const rank of sortedStandings) {
+                    if (selectedTeams.length >= count) break;
+                    // Zaten seçilmişse atla
+                    if (selectedTeams.find(t => t.id === rank.teamId)) continue;
+
+                    const t = gameState.league.teams.find(team => team.id === rank.teamId);
+                    if (t) {
+                        if (t.id === gameState.teamId) selectedTeams.push({ ...t, roster: gameState.roster } as TeamData);
+                        else selectedTeams.push(t);
+                    }
+                }
+            }
         }
 
-        const sortedTeams = [...league.teams].sort((a, b) => {
-             const tierOrder: Record<string, number> = { 'S': 4, 'A': 3, 'B': 2, 'C': 1, 'D': 0 };
-             // @ts-ignore
-             return (tierOrder[b.tier] || 0) - (tierOrder[a.tier] || 0);
-        });
+        // ---------------------------------------------------------
+        // 2. DİĞER LİGLER (Simüle Edilen Bölgeler)
+        // ---------------------------------------------------------
+        if (selectedTeams.length < count) {
+            let pool: TeamData[] = [];
+            
+            // İlgili liglerin verilerini havuzda topla
+            leagueKeys.forEach(key => {
+                // @ts-ignore
+                const leagueData = LEAGUES[key];
+                if (leagueData && leagueData.teams) {
+                    pool.push(...leagueData.teams);
+                }
+            });
 
-        return sortedTeams.slice(0, count).map(t => t.id);
+            // Takımları ID'ye göre tekilleştir (Duplicate önlemi)
+            pool = Array.from(new Map(pool.map(t => [t.id, t])).values());
+
+            // Güce göre sırala
+            pool.sort((a, b) => {
+                // Stats yoksa varsayılan ata (Hata önleyici)
+                const sA = a.stats || { attack: 50, defense: 50, macro: 50 };
+                const sB = b.stats || { attack: 50, defense: 50, macro: 50 };
+                const pA = sA.attack + sA.defense + sA.macro;
+                const pB = sB.attack + sB.defense + sB.macro;
+                return pB - pA;
+            });
+
+            // Eksik kalan yerleri bu havuzdan doldur
+            for (const t of pool) {
+                if (selectedTeams.length >= count) break;
+                // Çakışma kontrolü
+                if (!selectedTeams.find(sel => sel.id === t.id)) {
+                    // Takım verisi bozuksa onararak ekle
+                    const safeTeam = t.stats ? t : { ...t, stats: { attack: 50, defense: 50, macro: 50 } };
+                    selectedTeams.push(safeTeam);
+                }
+            }
+        }
+
+        // 3. SON ÇARE: DUMMY (Sadece veritabanı tamamen boşsa çalışır)
+        while (selectedTeams.length < count) {
+            selectedTeams.push({
+                id: `dummy-${leagueKeys[0]}-${selectedTeams.length}`,
+                name: `${leagueKeys[0]} Team`, shortName: `DUM`, logo: '', color: '#555', region: 'WILD', tier: 2,
+                stats: { attack: 50, defense: 50, macro: 50 }, roster: [], budget: 0, fans: 0, prestige: 0, strategies: []
+            });
+        }
+
+        return selectedTeams.slice(0, count);
     };
 
-    // --- TAKIMLARI SEÇ ---
-    // Her bölgeden en iyi takımları alıyoruz
-    const lckTeams = getTopTeamsFromLeague('LCK', 4); // [GenG, T1, HLE, DK] gibi
-    const lplTeams = getTopTeamsFromLeague('LPL', 3); // [BLG, TES, JDG] gibi
-    const lecTeams = getTopTeamsFromLeague('LEC', 2); // [G2, FNC] gibi
-    const tclTeams = getTopTeamsFromLeague('TCL', 1); // [SUP] veya LTA
-    // LTA için kontrol (Eğer LTA oynuyorsak TCL yerine LTA alabiliriz veya ikisi birden)
-    const ltaTeams = getTopTeamsFromLeague('LTA', 1); 
+    // --- TAKIMLARI TOPLA ---
+    // Not: Region kodlarını geniş tutuyoruz ki takım bulamazsa yedeğe baksın
+    const lckTeams = getTeamsFromRegion(['LCK'], 2);
+    const lplTeams = getTeamsFromRegion(['LPL'], 2);
+    const lecTeams = getTeamsFromRegion(['LEC'], 2); // Aktif ligin buradaysa Playoff sonucuna bakacak
+    const lcpTeams = getTeamsFromRegion(['LCP', 'PCS', 'VCS', 'LJL'], 2);
+    const ltaTeams = getTeamsFromRegion(['LTA', 'LTA_NORTH', 'LTA_SOUTH', 'LCS', 'CBLOL', 'LLA'], 2);
 
-    // TCL yoksa LTA kullan, o da yoksa dummy (ama LEAGUES'de TCL varsa gelir)
-    const wildcardTeam = tclTeams.length > 0 ? tclTeams[0] : (ltaTeams.length > 0 ? ltaTeams[0] : 'mock-wildcard');
+    console.log("🏆 MSI Takımları:", { 
+        LCK: lckTeams.map(t => t.shortName), 
+        LPL: lplTeams.map(t => t.shortName), 
+        LEC: lecTeams.map(t => t.shortName),
+        LCP: lcpTeams.map(t => t.shortName),
+        LTA: ltaTeams.map(t => t.shortName)
+    });
 
-    // --- AŞAMALARA YERLEŞTİR ---
+    // --- HAVUZLARA YERLEŞTİR ---
     
-    // Bracket (Ana Tablo) Takımları (8 Takım)
-    // Kural: LCK #1-3, LPL #1-2, LEC #1 (Toplam 6) + Play-In'den gelecek 2 takım
+    // BRACKET (6 Takım): Her bölgenin 1.si + LCK 2.si
     const bracketContenders = [
-        ...lckTeams.slice(0, 3), 
-        ...lplTeams.slice(0, 2), 
-        ...lecTeams.slice(0, 1)
-    ];
+        lckTeams[0], lckTeams[1], 
+        lplTeams[0], lecTeams[0], lcpTeams[0], ltaTeams[0]
+    ].filter(Boolean);
 
-    // Play-In Takımları (4 Takım)
-    // Kural: LCK #4, LPL #3, LEC #2, Wildcard #1
+    // PLAY-IN (4 Takım): Diğer bölgelerin 2.leri
     const playInContenders = [
-        lckTeams[3], // LCK #4
-        lplTeams[2], // LPL #3
-        lecTeams[1], // LEC #2
-        wildcardTeam // TCL #1
-    ].filter(t => t); // Undefined varsa temizle
+        lplTeams[1], lecTeams[1], lcpTeams[1], ltaTeams[1]
+    ].filter(Boolean);
 
-    // Play-In Eşleşmeleri
+    // --- EŞLEŞMELERİ OLUŞTUR ---
+    const pid = (i: number) => playInContenders[i] ? playInContenders[i].id : 'TBD';
+
     const playInMatches: PlayoffMatch[] = [
-      { id: 'msi-pi-ub1', roundName: 'MSI Play-In UB Semis', teamAId: playInContenders[0], teamBId: playInContenders[3], nextMatchId: 'msi-pi-ub-final', nextMatchSlot: 'A', loserMatchId: 'msi-pi-lb1', loserMatchSlot: 'A', isBo5: false },
-      { id: 'msi-pi-ub2', roundName: 'MSI Play-In UB Semis', teamAId: playInContenders[1], teamBId: playInContenders[2], nextMatchId: 'msi-pi-ub-final', nextMatchSlot: 'B', loserMatchId: 'msi-pi-lb1', loserMatchSlot: 'B', isBo5: false },
-      { id: 'msi-pi-ub-final', roundName: 'MSI Play-In UB Final', teamAId: null, teamBId: null, loserMatchId: 'msi-pi-lb-final', loserMatchSlot: 'B', isBo5: true },
-      { id: 'msi-pi-lb1', roundName: 'MSI Play-In LB Semis', teamAId: null, teamBId: null, nextMatchId: 'msi-pi-lb-final', nextMatchSlot: 'A', isBo5: false },
-      { id: 'msi-pi-lb-final', roundName: 'MSI Play-In LB Final', teamAId: null, teamBId: null, isBo5: true },
+      { id: 'msi-pi-ub1', roundName: 'Play-In UB Semis', teamAId: pid(0), teamBId: pid(3), nextMatchId: 'msi-pi-ub-final', nextMatchSlot: 'A', loserMatchId: 'msi-pi-lb1', loserMatchSlot: 'A', isBo5: false, played: false, winnerId: null, seriesScoreA: 0, seriesScoreB: 0 },
+      { id: 'msi-pi-ub2', roundName: 'Play-In UB Semis', teamAId: pid(1), teamBId: pid(2), nextMatchId: 'msi-pi-ub-final', nextMatchSlot: 'B', loserMatchId: 'msi-pi-lb1', loserMatchSlot: 'B', isBo5: false, played: false, winnerId: null, seriesScoreA: 0, seriesScoreB: 0 },
+      { id: 'msi-pi-ub-final', roundName: 'Qualification Match', teamAId: null, teamBId: null, loserMatchId: 'msi-pi-lb-final', loserMatchSlot: 'B', isBo5: true, played: false, winnerId: null, seriesScoreA: 0, seriesScoreB: 0 },
+      { id: 'msi-pi-lb1', roundName: 'Elimination Match', teamAId: null, teamBId: null, nextMatchId: 'msi-pi-lb-final', nextMatchSlot: 'A', isBo5: false, played: false, winnerId: null, seriesScoreA: 0, seriesScoreB: 0 },
+      { id: 'msi-pi-lb-final', roundName: 'Decider Match', teamAId: null, teamBId: null, isBo5: true, played: false, winnerId: null, seriesScoreA: 0, seriesScoreB: 0 }
     ];
 
+    // --- STATE GÜNCELLE ---
     setGameState(prev => ({
       ...prev,
       stage: 'MSI_PLAY_IN',
       currentSplit: 'MSI',
       playoffMatches: playInMatches,
+      // Hem eski hem yeni yapıya uyumlu kayıt
+      // @ts-ignore
       msiBracketContenders: bracketContenders, 
+      // @ts-ignore
+      msiData: { champions: bracketContenders, playInTeams: playInContenders },
       schedule: [], 
-      week: 1,
-      currentDay: 1
+      week: 1,      
+      currentDay: 1 
     }));
+    
     setTab('play');
   };
 
@@ -3168,9 +3232,79 @@ const startLPLSplit3 = (prev: GameState): GameState => {
      }
   };
 
-  // --- GÜNÜN SİMÜLASYONUNU BİTİRME (KATI MOD - SADECE MEVCUT TUR) ---
+  // --- LEC PLAYOFF GEÇİŞİ (BU FONKSİYONU EKLE) ---
+  const startLECPlayoffs = (state: GameState): GameState => {
+      // 1. Puan Durumuna Göre Sırala
+      const sortedStandings = [...state.standings].sort((a, b) => {
+          if (b.wins !== a.wins) return b.wins - a.wins;
+          return (b.gameWins - b.gameLosses) - (a.gameWins - a.gameLosses);
+      });
+
+      // 2. İlk 8 Takımı Al (LEC Formatı: Top 8 Playoff)
+      const top8Ids = sortedStandings.slice(0, 8).map(s => s.teamId);
+      
+      // Eğer yeterli takım yoksa (Hata koruması)
+      if (top8Ids.length < 8) {
+          console.warn("Playoff için yeterli takım yok!");
+          return state;
+      }
+
+      // 3. Eşleşmeleri Oluştur (1vs8, 2vs7, 3vs6, 4vs5)
+      const playoffMatches: PlayoffMatch[] = [];
+
+      // Çeyrek Finaller (Round 1)
+      const matchups = [
+          { a: 0, b: 7 }, // 1. vs 8.
+          { a: 1, b: 6 }, // 2. vs 7.
+          { a: 2, b: 5 }, // 3. vs 6.
+          { a: 3, b: 4 }  // 4. vs 5.
+      ];
+
+      matchups.forEach((pair, index) => {
+          playoffMatches.push({
+              id: `lec-qf-${index + 1}`,
+              roundName: 'Quarter Finals',
+              teamAId: top8Ids[pair.a],
+              teamBId: top8Ids[pair.b],
+              // 1. ve 2. maçın galibi Yarı Final 1'e, 3. ve 4. maçın galibi Yarı Final 2'ye
+              nextMatchId: index < 2 ? `lec-sf-1` : `lec-sf-2`, 
+              nextMatchSlot: index % 2 === 0 ? 'A' : 'B',
+              isBo5: true, 
+              winnerId: null,
+              seriesScoreA: 0,
+              seriesScoreB: 0
+          });
+      });
+
+      // Yarı Finaller (Round 2)
+      playoffMatches.push({
+          id: `lec-sf-1`, roundName: 'Semi Finals', teamAId: null, teamBId: null, 
+          nextMatchId: `lec-final`, nextMatchSlot: 'A', isBo5: true
+      });
+      playoffMatches.push({
+          id: `lec-sf-2`, roundName: 'Semi Finals', teamAId: null, teamBId: null, 
+          nextMatchId: `lec-final`, nextMatchSlot: 'B', isBo5: true
+      });
+
+      // Final (Round 3)
+      playoffMatches.push({
+          id: `lec-final`, roundName: 'LEC WINTER FINALS', teamAId: null, teamBId: null, isBo5: true
+      });
+
+      // 4. State'i Güncelle (KRİTİK KISIM)
+      return {
+          ...state,
+          stage: 'PLAYOFFS', // Oyunu Playoff moduna alıyoruz
+          schedule: [],      // Normal sezon takvimini temizle
+          playoffMatches: playoffMatches, // Yeni maçları yükle
+          currentDay: 1,     // Sayacı sıfırla
+          week: 1
+      };
+  };
+
+  // --- GÜNÜN SİMÜLASYONUNU BİTİRME (HAFTA SENKRONİZASYONLU FİNAL) ---
   const finalizeDaySimulation = (userResult: MatchResult | null) => {
-    // 1. FİNANSAL GÜNCELLEMELER (Aynı)
+    // 1. FİNANSAL İŞLEMLER
     let income = 0;
     let expenses = 0;
     const financialLogs: string[] = [];
@@ -3212,11 +3346,12 @@ const startLPLSplit3 = (prev: GameState): GameState => {
         return { ...prev, coins: isNaN(newCoins) ? currentCoins : newCoins };
     });
 
-    // 2. SİMÜLASYON MODUNU KAPAT
+    // 2. MODU KAPAT
     setIsSimulating(false);
     const playedMatchId = userResult && pendingSimResult ? pendingSimResult.matchId : null;
     setPendingSimResult(null);
 
+    // Gelişim ve Eventler
     if (userResult && userResult.playerStats.length > 0) {
       const { newRoster, newInventory } = processMatchPlayerStats(
         gameState.roster,
@@ -3245,7 +3380,7 @@ const startLPLSplit3 = (prev: GameState): GameState => {
         });
     }
 
-    // 3. MAÇ SONUÇLARINI İŞLEME
+    // 3. MAÇ SONUÇLARI VE GÜN İLERLETME
     setGameState(prev => {
       const eventResult = processEvents(prev);
       let updatedStandings = [...prev.standings];
@@ -3253,32 +3388,23 @@ const startLPLSplit3 = (prev: GameState): GameState => {
       let nextState = { ...prev, roster: updatedRoster };
       let newRosterForMorale = { ...updatedRoster };
 
-      // --- A. LİG USULÜ (GROUP STAGE) ---
+      // --- A. LİG AŞAMASI ---
       if (nextState.stage.includes('GROUP') || nextState.stage.includes('SPLIT') || nextState.stage.includes('PLACEMENTS')) {
           const newSchedule = [...nextState.schedule];
           
-          // 3.1 REFERANS TURU BUL (Kullanıcının Oynadığı Maçın Turu)
+          // 3.1 REFERANS TURU BUL
           let currentPlayedRound = -1;
-          
           if (playedMatchId) {
               const pm = newSchedule.find(m => m.id === playedMatchId);
-              if (pm && typeof pm.round === 'number') {
-                  currentPlayedRound = pm.round;
-              }
+              if (pm && typeof pm.round === 'number') currentPlayedRound = pm.round;
           }
-
-          // Eğer bir maç oynamadıysak (nadiren olur), sistemin o anki gününü al
-          if (currentPlayedRound === -1) {
-              currentPlayedRound = nextState.currentDay;
-          }
+          if (currentPlayedRound === -1) currentPlayedRound = nextState.currentDay;
 
           // 3.2 KULLANICI MAÇINI GÜNCELLE
           if (userResult && playedMatchId) {
               const userMatchIdx = newSchedule.findIndex(m => m.id === playedMatchId);
-              
               if (userMatchIdx !== -1) {
                   const m = newSchedule[userMatchIdx];
-                  // Maç daha önce oynanmamışsa işle
                   if (!m.played) {
                       const winnerId = userResult.victory ? nextState.teamId : (m.teamAId === nextState.teamId ? m.teamBId : m.teamAId);
                       const scoreA = m.teamAId === nextState.teamId ? userResult.scoreUser : userResult.scoreEnemy;
@@ -3306,15 +3432,14 @@ const startLPLSplit3 = (prev: GameState): GameState => {
               }
           }
 
-          // 3.3 SADECE BU TURUN AI MAÇLARINI OYNAT (KATI KURAL)
-          // `m.round === currentPlayedRound` sayesinde asla geleceğe gitmez.
-          const aiMatchesToday = newSchedule.filter(m => 
-              m.round === currentPlayedRound &&  // Sadece BU tur
-              !m.played &&                       // Oynanmamış
-              m.id !== playedMatchId             // Bizim maçımız değil
+          // 3.3 AI MAÇLARINI SİMÜLE ET (Sadece Referans Turu)
+          const matchesToSimulate = newSchedule.filter(m => 
+              m.round <= currentPlayedRound && 
+              !m.played && 
+              m.id !== playedMatchId
           );
 
-          aiMatchesToday.forEach(m => {
+          matchesToSimulate.forEach(m => {
               if (m.teamAId === nextState.teamId || m.teamBId === nextState.teamId) return;
               if (!m.teamAId || !m.teamBId) return;
 
@@ -3342,31 +3467,38 @@ const startLPLSplit3 = (prev: GameState): GameState => {
               }
           });
 
-          // 3.4 YENİ GÜNÜ BELİRLE (GÜVENLİ)
-          // Tüm fikstürü tara, oynanmamış EN KÜÇÜK turlu maçı bul.
-          // Bu, "Week NaN" sorununu ve atlamaları engeller.
-          
-          let nextDay: number;
-          const allUnplayed = newSchedule.filter(m => !m.played).sort((a, b) => a.round - b.round);
-          
-          if (allUnplayed.length > 0) {
-              // Hala oynanmamış maç varsa, oyunun yeni günü o maçın olduğu turdur.
-              nextDay = allUnplayed[0].round;
+          // 3.4 YENİ GÜN VE HAFTA BELİRLE (FİKSTÜRDEN OKUMA)
+          let nextDay = nextState.currentDay;
+          let isSeasonFinished = false;
+
+          const sortedSchedule = [...newSchedule].sort((a, b) => a.round - b.round);
+          // Oynanmamış ilk maçı bul
+          const firstUnplayed = sortedSchedule.find(m => !m.played);
+
+          if (firstUnplayed) {
+              nextDay = firstUnplayed.round;
           } else {
-              // Hepsi oynandıysa sezon bitti demektir.
+              isSeasonFinished = true;
               const maxRound = Math.max(...newSchedule.map(m => m.round), 0);
-              nextDay = maxRound + 1;
+              nextDay = maxRound + 1; 
           }
 
-          // Güvenlik: nextDay geçerli bir sayı mı? Değilse eski günde kal.
-          if (isNaN(nextDay)) nextDay = nextState.currentDay;
-
-          // Sezon Bitti mi?
-          const isSeasonFinished = allUnplayed.length === 0;
+          // --- DÜZELTME: HAFTA HESABI ---
+          // Artık formül yok. Oynanacak ilk maçın haftası neyse odur.
+          let newWeek = nextState.week;
+          if (firstUnplayed && firstUnplayed.week) {
+              newWeek = firstUnplayed.week;
+          } else if (isSeasonFinished) {
+              // Sezon bittiyse son haftayı koru veya artır
+              const lastMatch = sortedSchedule[sortedSchedule.length - 1];
+              if (lastMatch && lastMatch.week) newWeek = lastMatch.week;
+          }
+          // Güvenlik: Eğer bir şekilde week yoksa en az 1 olsun
+          if (!newWeek || isNaN(newWeek)) newWeek = 1;
+          // -----------------------------
 
           if (isSeasonFinished) {
                let finalState = { ...nextState, schedule: newSchedule, standings: updatedStandings, roster: newRosterForMorale };
-                // ... (Playoff geçiş kodları mevcut kodunla aynı) ...
                 if (activeLeague.settings.format === 'LPL') {
                     if (finalState.currentSplit === 'SPLIT_1' || finalState.currentSplit === 'SPRING') {
                         return startLPLSplit1Playoffs(finalState);
@@ -3379,8 +3511,8 @@ const startLPLSplit3 = (prev: GameState): GameState => {
                     }
                 }
                 else if (activeLeague.settings.format === 'LEC') {
-                  finalState = startLECGroupStage(finalState);
-                } 
+                    finalState = startLECPlayoffs(finalState);
+                }
                 else if (activeLeague.settings.format === 'LCK') {
                   finalState = endGroupStage(finalState);
                 } 
@@ -3389,11 +3521,6 @@ const startLPLSplit3 = (prev: GameState): GameState => {
                 }
                 return finalState;
           }
-
-          // Hafta Hesaplama (NaN Korumalı)
-          const matchesPerWeek = activeLeague?.settings?.matchesPerWeek === 2 ? 5 : 2; 
-          let newWeek = Math.ceil(nextDay / matchesPerWeek);
-          if (isNaN(newWeek) || newWeek < 1) newWeek = 1;
 
           return { 
               ...nextState,
@@ -3406,7 +3533,7 @@ const startLPLSplit3 = (prev: GameState): GameState => {
           };
       }
       
-      // --- B. PLAYOFF / TURNUVA USULÜ (DEĞİŞMEDİ) ---
+      // --- B. PLAYOFF / BRACKET ---
       else if (['PLAY_IN', 'PLAYOFFS', 'MSI_PLAY_IN', 'MSI_BRACKET', 'LPL_SPLIT_2_LCQ', 'LPL_SPLIT_3_PLAYIN'].includes(nextState.stage)) {
           const newMatches = [...nextState.playoffMatches];
           const matchIdToProcess = userResult && playedMatchId ? playedMatchId : newMatches.find(m => !m.winnerId && m.teamAId && m.teamBId)?.id;
