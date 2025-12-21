@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { PlayerCard, MatchResult, TeamData, Role, PlayerStats } from '../src/types/types';
 import { TeamLogo } from './TeamLogo';
 import { Champion } from '../data/champions';
-import { FastForward, Hexagon, Shield, Circle, Swords, Skull, Trophy, Crown, Ghost, TreeDeciduous, Axe, Crosshair, HeartHandshake, Sparkles, Flame, AlertTriangle, Sword } from 'lucide-react';
+import { FastForward, Hexagon, Shield, Circle, Swords, Skull, Trophy, Crown, Ghost, TreeDeciduous, Axe, Crosshair, HeartHandshake, Sparkles, Flame } from 'lucide-react';
 
 interface MatchSimulationViewProps {
   userTeam: TeamData;
@@ -48,7 +48,7 @@ interface MapEntity {
   currentStamina: number;
   isClutching: boolean;
   contributionScore: number;
-  champion?: Champion; // Şampiyon bilgisi eklendi
+  champion?: Champion;
 }
 
 interface MinionEntity {
@@ -167,10 +167,6 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
   const [nextMinionSpawn, setNextMinionSpawn] = useState(1.08);
   const [teamPowerDiff, setTeamPowerDiff] = useState(0);
   
-  // Karar Mekanizması State'leri
-  const [isPaused, setIsPaused] = useState(false);
-  const [pendingDecision, setPendingDecision] = useState<'BARON' | 'DRAGON' | null>(null);
-
   const logContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -200,7 +196,6 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
         const playerStats = card?.stats || { mechanics: 70, macro: 70, lane: 70, teamfight: 70 };
         const startStamina = 80 + Math.floor(Math.random() * 21);
         
-        // Şampiyonu Eşleştir
         const pickedChamp = picks?.find(p => p.role === role);
 
         return {
@@ -239,13 +234,13 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
   }, []);
 
   useEffect(() => {
-    if (gameOver || isPaused) return; // Pause kontrolü
+    if (gameOver) return; 
     const interval = setInterval(() => {
       setGameMinutes(prev => prev + 0.15); 
       updateGameLogic();
     }, 80); 
     return () => clearInterval(interval);
-  }, [gameMinutes, dragon, baron, structures, entities, minions, gameOver, nextMinionSpawn, jungleCamps, isPaused]);
+  }, [gameMinutes, dragon, baron, structures, entities, minions, gameOver, nextMinionSpawn, jungleCamps]);
 
   const getCurrentGameTimeStr = () => {
     const mins = Math.floor(gameMinutes);
@@ -255,56 +250,6 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
 
   const addLog = (msg: string, type: 'kill'|'obj'|'normal'|'turret'|'critical' = 'normal') => {
     setLogs(prev => [...prev, { time: getCurrentGameTimeStr(), msg, type }]);
-  };
-
-  // Karar Verme Fonksiyonu
-  const handleDecision = (decision: 'FIGHT' | 'SAFE') => {
-      setIsPaused(false);
-      setPendingDecision(null);
-
-      if (decision === 'FIGHT') {
-          // Riskli Hamle: %50 Şans
-          const success = Math.random() > 0.5;
-          if (success) {
-              addLog("TEAM CALL: FORCE THE FIGHT! AND IT PAYS OFF!", 'critical');
-              // Ödül: Baron/Ejder al ve skor kazan
-              if (pendingDecision === 'BARON') {
-                  setBaron({ alive: false, nextSpawnTime: gameMinutes + 7 });
-                  setBaronBuff({ team: 'blue', expiresAt: gameMinutes + 3.0 });
-                  addLog("Blue Team stole the Baron!", 'obj');
-              } else {
-                  setDragon({ alive: false, nextSpawnTime: gameMinutes + 5 });
-                  setDragonStacks(prev => ({ ...prev, blue: prev.blue + 1 }));
-                  addLog("Blue Team secured the Dragon!", 'obj');
-              }
-              // Rakip takıma hasar ver
-              setEntities(prev => prev.map(e => {
-                  if (e.team === 'red' && !e.isDead) return { ...e, hp: 0, isDead: true, respawnTimer: 5 };
-                  return e;
-              }));
-              setCurrentScore(prev => ({ ...prev, blue: prev.blue + 3 }));
-          } else {
-              addLog("DISASTER! The call was a mistake. Team wiped.", 'critical');
-              // Ceza: Takım ölür
-              setEntities(prev => prev.map(e => {
-                  if (e.team === 'blue' && !e.isDead) return { ...e, hp: 0, isDead: true, respawnTimer: 5 };
-                  return e;
-              }));
-              setCurrentScore(prev => ({ ...prev, red: prev.red + 4 }));
-          }
-      } else {
-          addLog("Team decides to play safe and give the objective.", 'normal');
-          // Rakip alır
-          if (pendingDecision === 'BARON') {
-               setBaron({ alive: false, nextSpawnTime: gameMinutes + 7 });
-               setBaronBuff({ team: 'red', expiresAt: gameMinutes + 3.0 });
-               addLog("Red Team secured Baron for free.", 'obj');
-          } else {
-               setDragon({ alive: false, nextSpawnTime: gameMinutes + 5 });
-               setDragonStacks(prev => ({ ...prev, red: prev.red + 1 }));
-               addLog("Red Team secured Dragon.", 'obj');
-          }
-      }
   };
 
   const isStructureVulnerable = (s: StructureEntity, currentStructures: StructureEntity[]): boolean => {
@@ -384,26 +329,13 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
        });
     }
 
-    // --- KARAR MEKANİZMASI TETİKLEYİCİLERİ ---
     if (!dragon.alive && gameMinutes >= dragon.nextSpawnTime) {
-       if (!pendingDecision && Math.random() < 0.4) { // %40 ihtimalle karar sor
-           setIsPaused(true);
-           setPendingDecision('DRAGON');
-           addLog("Dragon is spawning soon! What's the call?", 'critical');
-       } else {
-           setDragon(prev => ({ ...prev, alive: true }));
-           addLog("Elemental Drake has spawned", 'obj');
-       }
+       setDragon(prev => ({ ...prev, alive: true }));
+       addLog("Elemental Drake has spawned", 'obj');
     }
     if (!baron.alive && gameMinutes >= baron.nextSpawnTime) {
-       if (!pendingDecision && gameMinutes > 25 && Math.random() < 0.5) { // 25. dk sonrası Baron kritik
-           setIsPaused(true);
-           setPendingDecision('BARON');
-           addLog("Baron Nashor has spawned! Critical decision needed.", 'critical');
-       } else {
-           setBaron(prev => ({ ...prev, alive: true }));
-           addLog("Baron Nashor has spawned", 'obj');
-       }
+       setBaron(prev => ({ ...prev, alive: true }));
+       addLog("Baron Nashor has spawned", 'obj');
     }
 
     newMinions = newMinions.map(minion => {
@@ -764,154 +696,138 @@ export const MatchSimulationView: React.FC<MatchSimulationViewProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[100] bg-[#050910] pl-72 flex flex-col overflow-hidden bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-dark-900/80 via-dark-950 to-black">
-      <style>
-         {`
-           @keyframes shake { 0%, 100% { transform: translate(-50%, -50%) scale(1); } 50% { transform: translate(-50%, -50%) scale(1.1); } }
-           .animate-shake { animation: shake 0.3s cubic-bezier(.36,.07,.19,.97) both; }
-         `}
-      </style>
+    // DIŞ KAPSAYICI (SİYAH FON)
+    <div className="fixed inset-0 z-[100] bg-[#050910] flex items-center justify-center overflow-hidden">
+      
+      {/* SİMÜLASYON İÇERİĞİ (ÖLÇEKLENDİRİLMİŞ) */}
+      {/* scale-[0.85] diyerek tüm içeriği %85 boyutuna indiriyoruz. */}
+      {/* Bu sayede ekrana sığması garanti altına alınıyor. */}
+      <div className="relative w-screen h-screen flex flex-col transition-transform duration-300 scale-[0.85] origin-center bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-dark-900/80 via-dark-950 to-black rounded-3xl border border-white/5 shadow-2xl overflow-hidden">
+      
+        <style>
+           {`
+             @keyframes shake { 0%, 100% { transform: translate(-50%, -50%) scale(1); } 50% { transform: translate(-50%, -50%) scale(1.1); } }
+             .animate-shake { animation: shake 0.3s cubic-bezier(.36,.07,.19,.97) both; }
+           `}
+        </style>
 
-      {/* KARAR MODALI */}
-      {isPaused && pendingDecision && (
-         <div className="absolute inset-0 z-[150] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-fade-in pl-72">
-             <div className="bg-dark-900 border-2 border-hextech-500 rounded-2xl p-8 max-w-lg text-center shadow-2xl relative overflow-hidden">
-                 <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-transparent via-hextech-500 to-transparent"></div>
-                 <AlertTriangle size={48} className="mx-auto text-yellow-400 mb-4 animate-bounce" />
-                 <h2 className="text-3xl font-bold font-display text-white mb-2 uppercase">Critical Decision!</h2>
-                 <p className="text-gray-300 mb-8 text-lg">
-                    {pendingDecision === 'BARON' 
-                        ? "Baron Nashor is alive and the game is close. Do you want to force a fight?" 
-                        : "The Elemental Drake is spawning. Should we contest it?"}
-                 </p>
-                 <div className="flex gap-4 justify-center">
-                     <button 
-                        onClick={() => handleDecision('FIGHT')}
-                        className="px-8 py-4 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl shadow-lg hover:scale-105 transition-all flex items-center gap-2 group"
-                     >
-                        <Swords size={20} className="group-hover:rotate-45 transition-transform" /> FORCE FIGHT (Risky)
-                     </button>
-                     <button 
-                        onClick={() => handleDecision('SAFE')}
-                        className="px-8 py-4 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl shadow-lg hover:scale-105 transition-all flex items-center gap-2"
-                     >
-                        <Shield size={20} /> PLAY SAFE (Give)
-                     </button>
-                 </div>
-             </div>
-         </div>
-      )}
-
-      {/* ÜST BİLGİ PANOSU */}
-      <div className="w-full max-w-[90rem] flex justify-between items-center mb-4 text-white shrink-0 pt-4 px-4 mx-auto">
-        <div className="flex items-center gap-4 bg-gradient-to-r from-blue-900/30 to-transparent p-2 pr-8 min-w-[350px] [clip-path:polygon(0_0,100%_0,90%_100%,0%_100%)]">
-           <TeamLogo team={userTeam} size="w-12 h-12" />
-           <div className="text-left flex-1">
-             <div className="flex items-center justify-between gap-4">
-                 <div className="font-bold text-2xl leading-none tracking-wider">{userTeam.shortName}</div>
-                 <div className="text-blue-300 font-mono text-3xl font-bold drop-shadow-[0_0_8px_rgba(59,130,246,0.8)]">{currentScore.blue}</div>
-             </div>
-             <div className="mt-2">
-                 <DragonHUD stacks={dragonStacks.blue} />
-             </div>
-           </div>
-        </div>
-
-        <div className="flex flex-col items-center">
-           <div className="bg-dark-900/50 px-6 py-2 rounded-lg text-gray-200 font-mono text-3xl font-bold shadow-lg border-2 border-dark-700 min-w-[120px] text-center">
-             {getCurrentGameTimeStr()}
-           </div>
-           {gameMinutes < 14 && <div className="text-xs text-gold-400 uppercase font-bold mt-2 tracking-widest">Turret Plating Active</div>}
-           {gameMinutes > 30 && <div className="text-xs text-red-500 uppercase font-bold mt-2 animate-pulse tracking-widest">SUDDEN DEATH</div>}
-        </div>
-
-        <div className="flex items-center gap-4 bg-gradient-to-l from-red-900/30 to-transparent p-2 pl-8 min-w-[350px] flex-row-reverse [clip-path:polygon(10%_0,100%_0,100%_100%,0%_100%)]">
-           <TeamLogo team={enemyTeam} size="w-12 h-12" />
-           <div className="text-right flex-1">
-             <div className="flex items-center justify-between gap-4 flex-row-reverse">
-                 <div className="font-bold text-2xl leading-none tracking-wider">{enemyTeam?.shortName || 'ENEMY'}</div>
-                 <div className="text-red-300 font-mono text-3xl font-bold drop-shadow-[0_0_8px_rgba(239,68,68,0.8)]">{currentScore.red}</div>
-             </div>
-             <div className="mt-2 flex justify-end">
-                 <DragonHUD stacks={dragonStacks.red} />
-             </div>
-           </div>
-        </div>
-      </div>
-
-      {/* ORTA ALAN */}
-      <div className="flex gap-4 w-full max-w-[90rem] h-[75vh] items-stretch mx-auto px-4">
-          
-          <div className="w-64 flex flex-col gap-4 overflow-y-auto shrink-0 pr-2">
-             <PlayerHUD entities={entities.filter(e => e.team === 'blue')} team="blue" teamName={userTeam.shortName} />
-             <div className="flex-1"></div>
-             <PlayerHUD entities={entities.filter(e => e.team === 'red')} team="red" teamName={enemyTeam?.shortName || 'ENEMY'} />
-          </div>
-
-          <div className="flex-1 relative aspect-square bg-[#0f1923] border-4 border-dark-700 rounded-xl overflow-hidden shadow-2xl mx-auto max-h-full">
-             <div className="absolute inset-0 bg-[url('https://c4.wallpaperflare.com/wallpaper/508/83/576/league-of-legends-summoner-s-rift-map-video-games-wallpaper-preview.jpg')] bg-cover bg-center opacity-40"></div>
-             <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-20">
-                <path d="M 5 95 L 5 5 L 95 5" fill="none" stroke="#64748b" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="10 15"/>
-                <line x1="5" y1="95" x2="95" y2="5" stroke="#64748b" strokeWidth="6" strokeLinecap="round" />
-                <path d="M 5 95 L 95 95 L 95 5" fill="none" stroke="#64748b" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
-             </svg>
-             {jungleCamps.map(camp => { if (!camp.alive) return null; return ( <div key={camp.id} className="absolute w-4 h-4 -translate-x-1/2 -translate-y-1/2 z-10 flex items-center justify-center text-gray-400 opacity-60" style={{ left: `${camp.x}%`, top: `${camp.y}%` }}> {camp.type === 'scuttle' ? <Ghost size={14} /> : <TreeDeciduous size={16} />} </div> ) })}
-             {structures.map(s => ( <div key={s.id} className="absolute -translate-x-1/2 -translate-y-1/2 z-10 transition-all duration-300" style={{ left: `${s.x}%`, top: `${s.y}%` }}> {getStructureIcon(s)} </div> ))}
-             <div className={`absolute -translate-x-1/2 -translate-y-1/2 z-20 transition-all duration-500 ${baron.alive ? 'opacity-100 scale-100 animate-bounce' : 'opacity-20 scale-90 grayscale'}`} style={{ left: `${POSITIONS.BARON.x}%`, top: `${POSITIONS.BARON.y}%` }}> <div className="w-8 h-8 rounded-full bg-purple-900 border-2 border-purple-500 flex items-center justify-center shadow-[0_0_15px_rgba(192,132,252,0.7)]"><span className="font-bold text-purple-300 text-xs">B</span></div></div>
-             <div className={`absolute -translate-x-1/2 -translate-y-1/2 z-20 transition-all duration-500 ${dragon.alive ? 'opacity-100 scale-100 animate-bounce' : 'opacity-20 scale-90 grayscale'}`} style={{ left: `${POSITIONS.DRAGON.x}%`, top: `${POSITIONS.DRAGON.y}%` }}> <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center shadow-[0_0_15px_rgba(251,146,60,0.7)] bg-orange-900 border-orange-500`}><span className={`font-bold text-xs text-orange-300`}>D</span></div></div>
-             {minions.map(m => { if (gameMinutes < m.spawnTime) return null; return ( <div key={m.id} className={`absolute w-1.5 h-1.5 rounded-full z-20 shadow-[0_0_4px] ${m.team === 'blue' ? 'bg-blue-400 shadow-blue-400' : 'bg-red-400 shadow-red-400'}`} style={{ left: `${m.x}%`, top: `${m.y}%` }}></div> ) })}
-             {entities.map(e => { 
-                if (e.isDead) return null; 
-                const hpPercent = (e.hp / e.maxHp) * 100; 
-                const isLow = hpPercent < 30; 
-                let barColor = e.team === 'blue' ? 'bg-blue-400' : 'bg-red-400'; 
-                if (hpPercent < 50) barColor = 'bg-yellow-400'; 
-                if (hpPercent < 25) barColor = 'bg-red-500 animate-pulse'; 
-                
-                return ( 
-                   <div key={e.id} className="absolute w-8 h-8 -translate-x-1/2 -translate-y-1/2 z-30 flex flex-col items-center justify-center transition-all duration-100 linear group" style={{ left: `${e.x}%`, top: `${e.y}%` }}> 
-                       {e.isClutching && ( <div className="absolute -top-6 text-yellow-400 drop-shadow-md animate-bounce"> <Crown size={12} fill="currentColor" /> </div> )} 
-                       <div className="absolute -top-3 w-8 h-1 bg-black rounded-full overflow-hidden border border-white/20"> <div className={`h-full transition-all duration-300 ${barColor}`} style={{ width: `${hpPercent}%` }}></div> </div> 
-                       <div className={`w-full h-full rounded-full border-2 border-black/50 shadow-sm overflow-hidden ${e.team === 'blue' ? 'ring-2 ring-blue-500' : 'ring-2 ring-red-500'} ${isLow ? 'animate-pulse ring-red-600' : ''} ${e.isClutching ? 'ring-yellow-400' : ''}`}> 
-                           {e.champion ? <img src={e.champion.imageUrl} className="w-full h-full object-cover" /> : <div className={`w-full h-full flex items-center justify-center ${e.team === 'blue' ? 'bg-blue-600' : 'bg-red-600'}`}><span className="text-[8px] font-bold text-white leading-none">{e.role[0]}</span></div>}
-                       </div> 
-                   </div> 
-                ) 
-             })}
-          </div>
-
-          <div className="w-80 bg-dark-900/80 border border-dark-700 rounded-xl overflow-hidden flex flex-col shadow-xl shrink-0 backdrop-blur-sm">
-             <div className="p-3 bg-dark-800 border-b border-dark-700 font-bold text-gray-300 flex items-center gap-2">
-                <Swords size={16} /> Match Events
-             </div>
-             <div ref={logContainerRef} className="flex-1 overflow-y-auto p-2 space-y-1 text-xs font-mono scroll-smooth">
-                {logs.length === 0 && <div className="text-gray-600 text-center mt-10">Match Starting...</div>}
-                {logs.map((log, i) => (
-                    <div key={i} className="flex gap-2 p-1.5 rounded hover:bg-white/5 transition-colors">
-                        <span className="text-gray-500 shrink-0">{log.time}</span>
-                        <span className={`break-words ${ log.type === 'kill' ? 'text-red-400 font-bold' : log.type === 'obj' ? 'text-yellow-400' : log.type === 'turret' ? 'text-blue-300' : log.type === 'critical' ? 'text-orange-400 font-bold' : 'text-gray-300' }`}>
-                           {log.type === 'kill' && <Skull size={10} className="inline mr-1" />}
-                           {log.type === 'obj' && <Trophy size={14} className="inline mr-1" />}
-                           {log.msg}
-                        </span>
-                    </div>
-                ))}
+        {/* ÜST BİLGİ PANOSU */}
+        <div className="w-full max-w-[95rem] flex justify-between items-center mb-1 text-white shrink-0 h-16 px-8 mx-auto pt-4">
+          <div className="flex items-center gap-2 bg-gradient-to-r from-blue-900/30 to-transparent p-2 pr-8 min-w-[280px] [clip-path:polygon(0_0,100%_0,90%_100%,0%_100%)]">
+             <TeamLogo team={userTeam} size="w-10 h-10" />
+             <div className="text-left flex-1">
+               <div className="flex items-center justify-between gap-2">
+                   <div className="font-bold text-xl leading-none tracking-wider">{userTeam.shortName}</div>
+                   <div className="text-blue-300 font-mono text-2xl font-bold drop-shadow-[0_0_8px_rgba(59,130,246,0.8)]">{currentScore.blue}</div>
+               </div>
+               <div className="mt-1">
+                   <DragonHUD stacks={dragonStacks.blue} />
+               </div>
              </div>
           </div>
+
+          <div className="flex flex-col items-center">
+             <div className="bg-dark-900/50 px-6 py-1 rounded-lg text-gray-200 font-mono text-2xl font-bold shadow-lg border-2 border-dark-700 min-w-[100px] text-center">
+               {getCurrentGameTimeStr()}
+             </div>
+             {gameMinutes < 14 && <div className="text-[10px] text-gold-400 uppercase font-bold mt-1 tracking-widest">Turret Plating Active</div>}
+             {gameMinutes > 30 && <div className="text-[10px] text-red-500 uppercase font-bold mt-1 animate-pulse tracking-widest">SUDDEN DEATH</div>}
+          </div>
+
+          <div className="flex items-center gap-2 bg-gradient-to-l from-red-900/30 to-transparent p-2 pl-8 min-w-[280px] flex-row-reverse [clip-path:polygon(10%_0,100%_0,100%_100%,0%_100%)]">
+             <TeamLogo team={enemyTeam} size="w-10 h-10" />
+             <div className="text-right flex-1">
+               <div className="flex items-center justify-between gap-2 flex-row-reverse">
+                   <div className="font-bold text-xl leading-none tracking-wider">{enemyTeam?.shortName || 'ENEMY'}</div>
+                   <div className="text-red-300 font-mono text-2xl font-bold drop-shadow-[0_0_8px_rgba(239,68,68,0.8)]">{currentScore.red}</div>
+               </div>
+               <div className="mt-1 flex justify-end">
+                   <DragonHUD stacks={dragonStacks.red} />
+               </div>
+             </div>
+          </div>
+        </div>
+
+        {/* ORTA ALAN (HARİTA ve PANELLER) */}
+        <div className="flex-1 min-h-0 flex gap-4 w-full max-w-[95rem] items-stretch mx-auto px-8 py-2">
+            
+            {/* SOL PANEL */}
+            <div className="w-64 flex flex-col gap-2 overflow-y-auto shrink-0 pr-1 custom-scrollbar">
+               <PlayerHUD entities={entities.filter(e => e.team === 'blue')} team="blue" teamName={userTeam.shortName} />
+               <div className="flex-1"></div>
+               <PlayerHUD entities={entities.filter(e => e.team === 'red')} team="red" teamName={enemyTeam?.shortName || 'ENEMY'} />
+            </div>
+
+            {/* ORTA PANEL (Harita) */}
+            <div className="relative aspect-square h-full bg-[#0f1923] border-4 border-dark-700 rounded-xl overflow-hidden shadow-2xl mx-auto">
+               <div className="absolute inset-0 bg-[url('https://c4.wallpaperflare.com/wallpaper/508/83/576/league-of-legends-summoner-s-rift-map-video-games-wallpaper-preview.jpg')] bg-cover bg-center opacity-40"></div>
+               <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-20">
+                  <path d="M 5 95 L 5 5 L 95 5" fill="none" stroke="#64748b" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="10 15"/>
+                  <line x1="5" y1="95" x2="95" y2="5" stroke="#64748b" strokeWidth="6" strokeLinecap="round" />
+                  <path d="M 5 95 L 95 95 L 95 5" fill="none" stroke="#64748b" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
+               </svg>
+               {jungleCamps.map(camp => { if (!camp.alive) return null; return ( <div key={camp.id} className="absolute w-4 h-4 -translate-x-1/2 -translate-y-1/2 z-10 flex items-center justify-center text-gray-400 opacity-60" style={{ left: `${camp.x}%`, top: `${camp.y}%` }}> {camp.type === 'scuttle' ? <Ghost size={14} /> : <TreeDeciduous size={16} />} </div> ) })}
+               {structures.map(s => ( <div key={s.id} className="absolute -translate-x-1/2 -translate-y-1/2 z-10 transition-all duration-300" style={{ left: `${s.x}%`, top: `${s.y}%` }}> {getStructureIcon(s)} </div> ))}
+               <div className={`absolute -translate-x-1/2 -translate-y-1/2 z-20 transition-all duration-500 ${baron.alive ? 'opacity-100 scale-100 animate-bounce' : 'opacity-20 scale-90 grayscale'}`} style={{ left: `${POSITIONS.BARON.x}%`, top: `${POSITIONS.BARON.y}%` }}> <div className="w-8 h-8 rounded-full bg-purple-900 border-2 border-purple-500 flex items-center justify-center shadow-[0_0_15px_rgba(192,132,252,0.7)]"><span className="font-bold text-purple-300 text-xs">B</span></div></div>
+               <div className={`absolute -translate-x-1/2 -translate-y-1/2 z-20 transition-all duration-500 ${dragon.alive ? 'opacity-100 scale-100 animate-bounce' : 'opacity-20 scale-90 grayscale'}`} style={{ left: `${POSITIONS.DRAGON.x}%`, top: `${POSITIONS.DRAGON.y}%` }}> <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center shadow-[0_0_15px_rgba(251,146,60,0.7)] bg-orange-900 border-orange-500`}><span className={`font-bold text-xs text-orange-300`}>D</span></div></div>
+               {minions.map(m => { if (gameMinutes < m.spawnTime) return null; return ( <div key={m.id} className={`absolute w-1.5 h-1.5 rounded-full z-20 shadow-[0_0_4px] ${m.team === 'blue' ? 'bg-blue-400 shadow-blue-400' : 'bg-red-400 shadow-red-400'}`} style={{ left: `${m.x}%`, top: `${m.y}%` }}></div> ) })}
+               {entities.map(e => { 
+                  if (e.isDead) return null; 
+                  const hpPercent = (e.hp / e.maxHp) * 100; 
+                  const isLow = hpPercent < 30; 
+                  let barColor = e.team === 'blue' ? 'bg-blue-400' : 'bg-red-400'; 
+                  if (hpPercent < 50) barColor = 'bg-yellow-400'; 
+                  if (hpPercent < 25) barColor = 'bg-red-500 animate-pulse'; 
+                  
+                  return ( 
+                     <div key={e.id} className="absolute w-8 h-8 -translate-x-1/2 -translate-y-1/2 z-30 flex flex-col items-center justify-center transition-all duration-100 linear group" style={{ left: `${e.x}%`, top: `${e.y}%` }}> 
+                         {e.isClutching && ( <div className="absolute -top-6 text-yellow-400 drop-shadow-md animate-bounce"> <Crown size={12} fill="currentColor" /> </div> )} 
+                         <div className="absolute -top-3 w-8 h-1 bg-black rounded-full overflow-hidden border border-white/20"> <div className={`h-full transition-all duration-300 ${barColor}`} style={{ width: `${hpPercent}%` }}></div> </div> 
+                         <div className={`w-full h-full rounded-full border-2 border-black/50 shadow-sm overflow-hidden ${e.team === 'blue' ? 'ring-2 ring-blue-500' : 'ring-2 ring-red-500'} ${isLow ? 'animate-pulse ring-red-600' : ''} ${e.isClutching ? 'ring-yellow-400' : ''}`}> 
+                             {e.champion ? <img src={e.champion.imageUrl} className="w-full h-full object-cover" /> : <div className={`w-full h-full flex items-center justify-center ${e.team === 'blue' ? 'bg-blue-600' : 'bg-red-600'}`}><span className="text-[8px] font-bold text-white leading-none">{e.role[0]}</span></div>}
+                         </div> 
+                     </div> 
+                  ) 
+               })}
+            </div>
+
+            {/* SAĞ PANEL (Loglar) */}
+            <div className="w-80 bg-dark-900/80 border border-dark-700 rounded-xl overflow-hidden flex flex-col shadow-xl shrink-0 backdrop-blur-sm h-full">
+               <div className="p-2 bg-dark-800 border-b border-dark-700 font-bold text-gray-300 flex items-center gap-2 shrink-0 text-sm">
+                  <Swords size={16} /> Match Events
+               </div>
+               <div ref={logContainerRef} className="flex-1 overflow-y-auto p-2 space-y-1 text-xs font-mono scroll-smooth custom-scrollbar">
+                  {logs.length === 0 && <div className="text-gray-600 text-center mt-10">Match Starting...</div>}
+                  {logs.map((log, i) => (
+                      <div key={i} className="flex gap-2 p-1 rounded hover:bg-white/5 transition-colors">
+                          <span className="text-gray-500 shrink-0">{log.time}</span>
+                          <span className={`break-words ${ log.type === 'kill' ? 'text-red-400 font-bold' : log.type === 'obj' ? 'text-yellow-400' : log.type === 'turret' ? 'text-blue-300' : log.type === 'critical' ? 'text-orange-400 font-bold' : 'text-gray-300' }`}>
+                             {log.type === 'kill' && <Skull size={10} className="inline mr-1" />}
+                             {log.type === 'obj' && <Trophy size={14} className="inline mr-1" />}
+                             {log.msg}
+                          </span>
+                      </div>
+                  ))}
+               </div>
+            </div>
+        </div>
+
+        {/* ALT BUTON ALANI */}
+        <div className="w-full flex justify-center items-center shrink-0 relative z-50 h-20 bg-gradient-to-t from-black to-transparent">
+           <button 
+              onClick={onComplete} 
+              className="flex items-center gap-3 px-8 py-3 bg-hextech-600 hover:bg-hextech-500 text-white font-bold rounded-full shadow-[0_0_20px_rgba(8,145,178,0.4)] hover:shadow-[0_0_30px_rgba(8,145,178,0.6)] transform hover:-translate-y-1 transition-all border border-white/10"
+           >
+              <FastForward size={24} className="animate-pulse" /> 
+              <span className="tracking-wider">END SIMULATION</span>
+           </button>
+        </div>
+
       </div>
 
-      <div className="w-full flex justify-center mt-4 shrink-0 relative z-50 pb-8">
-         <button 
-            onClick={onComplete} 
-            className="flex items-center gap-3 px-8 py-3 bg-hextech-600 hover:bg-hextech-500 text-white font-bold rounded-full shadow-[0_0_20px_rgba(8,145,178,0.4)] hover:shadow-[0_0_30px_rgba(8,145,178,0.6)] transform hover:-translate-y-1 transition-all border border-white/10"
-         >
-            <FastForward size={24} className="animate-pulse" /> 
-            <span className="tracking-wider">END SIMULATION</span>
-         </button>
-      </div>
-
+      {/* GAME OVER EKRANI */}
       {gameOver && (
-        <div className="absolute inset-0 z-[100] flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm animate-fade-in pl-72">
+        <div className="absolute inset-0 z-[150] flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm animate-fade-in">
           <div className="text-center">
             {result.victory ? (
               <div className="transform scale-100 animate-in zoom-in-50 duration-1000">

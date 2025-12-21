@@ -1,6 +1,6 @@
 import { TeamData, PlayerCard, LeagueKey } from '../src/types/types';
 import { ALL_TEAMS } from './teams';
-import { REAL_LCK_PLAYERS, REAL_LPL_PLAYERS, REAL_LEC_PLAYERS } from './players';
+import { REAL_LCK_PLAYERS, REAL_LPL_PLAYERS, REAL_LEC_PLAYERS, REAL_LCP_PLAYERS, REAL_LTA_NORTH_PLAYERS, REAL_LTA_SOUTH_PLAYERS } from './players';
 
 export interface LeagueSettings {
   teamCount: number;
@@ -73,7 +73,7 @@ export const LEAGUES: Record<LeagueKey, LeagueDefinition> = {
     name: 'LTA North',
     region: 'Americas',
     teams: ALL_TEAMS.filter(t => ['c9','tl','fly','100t','dig','sr','dsg','lyn'].includes(t.id)),
-    players: [],
+    players: REAL_LTA_NORTH_PLAYERS,
     settings: { 
         teamCount: 8,
         scheduleType: 'DOUBLE_ROBIN',
@@ -89,7 +89,7 @@ export const LEAGUES: Record<LeagueKey, LeagueDefinition> = {
     name: 'LTA South',
     region: 'Americas',
     teams: ALL_TEAMS.filter(t => ['loud','pain','red','vks','fluxo','furia','lev','isg'].includes(t.id)),
-    players: [],
+    players: REAL_LTA_SOUTH_PLAYERS,
     settings: { 
         teamCount: 8,
         scheduleType: 'DOUBLE_ROBIN',
@@ -105,7 +105,7 @@ export const LEAGUES: Record<LeagueKey, LeagueDefinition> = {
     name: 'LCP',
     region: 'Pacific',
     teams: ALL_TEAMS.filter(t => ['psg','gam','shg','dfm','cfo','vke','tsw','chiefs'].includes(t.id)),
-    players: [],
+    players: REAL_LCP_PLAYERS,
     settings: { 
         teamCount: 8,
         scheduleType: 'SINGLE_ROBIN',

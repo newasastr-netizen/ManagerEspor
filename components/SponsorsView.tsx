@@ -1,10 +1,10 @@
-﻿import React, { useState } from 'react';
+﻿import React from 'react';
 import { 
-  Briefcase, DollarSign, Trophy, TrendingUp, 
-  Target, Shield, Zap, Lock, CheckCircle2, Star 
+  Briefcase, CheckCircle2, Star, Zap, Lock, AlertTriangle, XCircle 
 } from 'lucide-react';
+import { TeamData } from '../src/types/types';
 
-// --- TİP TANIMLARI (Normalde types.ts içinde olmalı ama kolaylık olsun diye burada) ---
+// --- TİP TANIMLARI ---
 interface SponsorTask {
   description: string;
   current: number;
@@ -12,37 +12,22 @@ interface SponsorTask {
   reward: number;
 }
 
-interface Sponsor {
+export interface Sponsor {
   id: string;
   name: string;
   tier: 'S' | 'A' | 'B' | 'C';
   type: 'Main' | 'Kit' | 'Partner';
-  income: number;
+  income: number;        
+  weeklyIncome: number;  
+  signingBonus: number;  
   logo: string;
   description: string;
-  tasks?: SponsorTask[]; // Sponsorun verdiği yan görevler
-  
-  // Kilit açma şartları (Sadece kilitliler için)
-  requiredFanbase?: number; // Milyon cinsinden
+  tasks?: SponsorTask[];
+  requiredFanbase?: number;
   currentFanbase?: number;
 }
 
-// --- MOCK DATA (Veri Simülasyonu) ---
-const ACTIVE_SPONSORS: Sponsor[] = [
-  {
-    id: 'local_cafe',
-    name: 'Pixel Cafe',
-    tier: 'C',
-    type: 'Partner',
-    income: 250,
-    logo: '☕',
-    description: 'Free coffee for the players. Keeps morale high.',
-    tasks: [
-      { description: 'Get First Blood', current: 0, target: 1, reward: 500 }
-    ]
-  }
-];
-
+// --- SABİT VERİLER ---
 const AVAILABLE_OFFERS: Sponsor[] = [
   {
     id: 'keyboard_co',
@@ -50,6 +35,8 @@ const AVAILABLE_OFFERS: Sponsor[] = [
     tier: 'B',
     type: 'Kit',
     income: 800,
+    weeklyIncome: 800,
+    signingBonus: 2000,
     logo: '⌨️',
     description: 'Mid-range gear sponsor. Reliable income.',
     tasks: [
@@ -62,8 +49,24 @@ const AVAILABLE_OFFERS: Sponsor[] = [
     tier: 'B',
     type: 'Partner',
     income: 600,
+    weeklyIncome: 600,
+    signingBonus: 1500,
     logo: '⚡',
     description: 'Hyper-caffeinated drinks. Boosts stamina recovery.',
+  },
+  {
+    id: 'local_cafe',
+    name: 'Pixel Cafe',
+    tier: 'C',
+    type: 'Partner',
+    income: 250,
+    weeklyIncome: 250,
+    signingBonus: 500,
+    logo: '☕',
+    description: 'Free coffee for the players. Keeps morale high.',
+    tasks: [
+      { description: 'Get First Blood', current: 0, target: 1, reward: 500 }
+    ]
   }
 ];
 
@@ -74,6 +77,8 @@ const LOCKED_SPONSORS: Sponsor[] = [
     tier: 'S',
     type: 'Main',
     income: 5000,
+    weeklyIncome: 5000,
+    signingBonus: 10000,
     logo: '🟢',
     description: 'Global tech giant. Only for the world champions.',
     requiredFanbase: 5.0,
@@ -85,6 +90,8 @@ const LOCKED_SPONSORS: Sponsor[] = [
     tier: 'A',
     type: 'Kit',
     income: 3500,
+    weeklyIncome: 3500,
+    signingBonus: 7500,
     logo: '👟',
     description: 'Just Do It. Massive merchandise revenue.',
     requiredFanbase: 3.0,
@@ -92,25 +99,30 @@ const LOCKED_SPONSORS: Sponsor[] = [
   }
 ];
 
+// --- PROPS ---
 interface SponsorsViewProps {
+  userTeam: TeamData;
   coins: number;
+  currentSponsor: Sponsor | null;
+  onSignSponsor: (sponsor: Sponsor) => void;
+  onTerminateSponsor: () => void;
 }
 
-export const SponsorsView: React.FC<SponsorsViewProps> = ({ coins }) => {
-  // Basit bir state ile "İmzalama" simülasyonu
-  const [activeList, setActiveList] = useState<Sponsor[]>(ACTIVE_SPONSORS);
-  const [offerList, setOfferList] = useState<Sponsor[]>(AVAILABLE_OFFERS);
-
-  const handleSign = (sponsor: Sponsor) => {
-    // Listeden çıkar, aktife ekle
-    setOfferList(prev => prev.filter(s => s.id !== sponsor.id));
-    setActiveList(prev => [...prev, sponsor]);
-  };
+export const SponsorsView: React.FC<SponsorsViewProps> = ({ 
+  coins, 
+  currentSponsor, 
+  onSignSponsor,
+  onTerminateSponsor
+}) => {
+  
+  const activeList = currentSponsor ? [currentSponsor] : [];
+  const offerList = AVAILABLE_OFFERS.filter(offer => offer.id !== currentSponsor?.id);
+  const penalty = currentSponsor ? currentSponsor.weeklyIncome * 3 : 0;
 
   return (
     <div className="space-y-10 animate-fade-in pb-10">
       
-      {/* BAŞLIK VE ÖZET */}
+      {/* BAŞLIK */}
       <div className="flex justify-between items-end border-b border-white/10 pb-6">
         <div>
           <h2 className="text-4xl font-display font-bold text-white tracking-wide flex items-center gap-3">
@@ -126,7 +138,7 @@ export const SponsorsView: React.FC<SponsorsViewProps> = ({ coins }) => {
         </div>
       </div>
 
-      {/* --- 1. AKTİF SPONSORLAR (KARTLAR) --- */}
+      {/* 1. AKTİF SPONSORLAR */}
       <div>
         <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
           <CheckCircle2 size={20} className="text-green-500" /> Active Contracts
@@ -140,7 +152,6 @@ export const SponsorsView: React.FC<SponsorsViewProps> = ({ coins }) => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {activeList.map(sponsor => (
               <div key={sponsor.id} className="relative group bg-gradient-to-br from-dark-800 to-dark-900 border border-green-500/30 rounded-2xl p-6 shadow-lg hover:shadow-green-900/20 transition-all">
-                {/* Slot Badge */}
                 <div className="absolute top-4 right-4 text-xs font-bold px-2 py-1 rounded bg-dark-950 border border-gray-700 text-gray-300">
                   {sponsor.type.toUpperCase()} SLOT
                 </div>
@@ -155,7 +166,6 @@ export const SponsorsView: React.FC<SponsorsViewProps> = ({ coins }) => {
                   </div>
                 </div>
 
-                {/* Aktif Görevler */}
                 {sponsor.tasks && sponsor.tasks.length > 0 && (
                   <div className="mt-4 bg-dark-950/50 rounded-xl p-3 border border-white/5">
                     <div className="text-[10px] uppercase font-bold text-gray-500 mb-2 flex justify-between">
@@ -166,22 +176,27 @@ export const SponsorsView: React.FC<SponsorsViewProps> = ({ coins }) => {
                       <span>{sponsor.tasks[0].description}</span>
                       <span>{sponsor.tasks[0].current}/{sponsor.tasks[0].target}</span>
                     </div>
-                    {/* Progress Bar */}
                     <div className="h-1.5 w-full bg-dark-700 rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-gold-500" 
-                        style={{ width: `${(sponsor.tasks[0].current / sponsor.tasks[0].target) * 100}%` }} 
-                      />
+                      <div className="h-full bg-gold-500" style={{ width: `${(sponsor.tasks[0].current / sponsor.tasks[0].target) * 100}%` }} />
                     </div>
                   </div>
                 )}
+
+                <div className="mt-6 pt-4 border-t border-white/5">
+                    <button 
+                        onClick={onTerminateSponsor}
+                        className="w-full py-2 bg-red-900/20 border border-red-500/30 text-red-400 font-bold rounded-lg text-xs hover:bg-red-900/40 hover:text-red-300 transition-all flex items-center justify-center gap-2"
+                    >
+                        <XCircle size={14} /> Terminate Contract (Penalty: {penalty} G)
+                    </button>
+                </div>
               </div>
             ))}
           </div>
         )}
       </div>
 
-      {/* --- 2. TEKLİFLER (AÇIK) --- */}
+      {/* 2. TEKLİFLER */}
       <div>
         <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
           <Zap size={20} className="text-blue-400" /> Available Offers
@@ -199,21 +214,27 @@ export const SponsorsView: React.FC<SponsorsViewProps> = ({ coins }) => {
                   <div className="flex items-center gap-3 mt-1 text-xs">
                     <span className="bg-blue-900/30 text-blue-300 px-2 py-0.5 rounded border border-blue-500/30">{offer.tier}-Tier</span>
                     <span className="text-green-400 font-mono">+{offer.income} G/wk</span>
+                    <span className="text-gold-400 font-mono">+{offer.signingBonus} G Sign Bonus</span>
                   </div>
                 </div>
               </div>
               <button 
-                onClick={() => handleSign(offer)}
-                className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2 rounded-lg font-bold text-sm shadow-lg transition-transform active:scale-95"
+                onClick={() => onSignSponsor(offer)}
+                disabled={!!currentSponsor} 
+                className={`px-5 py-2 rounded-lg font-bold text-sm shadow-lg transition-transform active:scale-95 ${
+                    currentSponsor 
+                    ? 'bg-gray-700 text-gray-400 cursor-not-allowed' 
+                    : 'bg-blue-600 hover:bg-blue-500 text-white'
+                }`}
               >
-                Sign
+                {currentSponsor ? 'Slot Full' : 'Sign'}
               </button>
             </div>
           ))}
         </div>
       </div>
 
-      {/* --- 3. GELECEK HEDEFLER (KİLİTLİ) --- */}
+      {/* 3. KİLİTLİ OLANLAR */}
       <div>
         <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2 opacity-60">
           <Lock size={20} /> Locked Opportunities
@@ -221,7 +242,6 @@ export const SponsorsView: React.FC<SponsorsViewProps> = ({ coins }) => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 opacity-75">
           {LOCKED_SPONSORS.map(locked => {
             const progress = ((locked.currentFanbase || 0) / (locked.requiredFanbase || 1)) * 100;
-            
             return (
               <div key={locked.id} className="relative bg-dark-900 border border-dark-700 rounded-xl p-6 overflow-hidden grayscale hover:grayscale-0 transition-all duration-500 group">
                 <div className="flex justify-between items-start mb-4">
@@ -230,11 +250,8 @@ export const SponsorsView: React.FC<SponsorsViewProps> = ({ coins }) => {
                   </div>
                   <Lock size={18} className="text-gray-500" />
                 </div>
-                
                 <h4 className="font-bold text-white text-lg mb-1">{locked.name}</h4>
                 <p className="text-sm text-gray-500 mb-4">{locked.description}</p>
-                
-                {/* İlerleme Durumu */}
                 <div className="bg-black/40 rounded-lg p-3 border border-white/5">
                   <div className="flex justify-between text-xs font-bold text-gray-400 mb-1">
                     <span>Required Fanbase</span>
@@ -243,10 +260,7 @@ export const SponsorsView: React.FC<SponsorsViewProps> = ({ coins }) => {
                     </span>
                   </div>
                   <div className="h-1.5 w-full bg-dark-700 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-blue-600 group-hover:bg-blue-400 transition-colors" 
-                      style={{ width: `${Math.min(progress, 100)}%` }} 
-                    />
+                    <div className="h-full bg-blue-600 group-hover:bg-blue-400 transition-colors" style={{ width: `${Math.min(progress, 100)}%` }} />
                   </div>
                 </div>
               </div>
@@ -254,7 +268,6 @@ export const SponsorsView: React.FC<SponsorsViewProps> = ({ coins }) => {
           })}
         </div>
       </div>
-
     </div>
   );
 };

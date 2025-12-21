@@ -11,8 +11,9 @@ import { Onboarding } from './components/Onboarding';
 import { LEAGUES, LeagueKey, LeagueDefinition } from './data/leagues';
 import { HOUSING_OPTIONS } from './data/realestate';
 import { drawGroups, generateGroupStageSchedule, generateLPLSplit2Schedule } from './utils/scheduler';
+import { generateLeagueSchedule } from './utils/scheduleGenerator';
 import { CHAMPIONS, Champion, ChampionStyle } from './data/champions';
-import { Trophy, RotateCcw, AlertTriangle, Play, Handshake, Wand2, FastForward, SkipForward, XCircle, ArrowDownUp, Search, Mail, Newspaper, MessageSquare, Heart, HeartCrack, Swords, Skull, Crown, Ghost, TreeDeciduous, Axe, Crosshair, Sparkles, Flame, Shield, Circle, Hexagon, Home } from 'lucide-react';
+import { Trophy, RotateCcw, AlertTriangle, Play, Handshake, Wand2, FastForward, SkipForward, XCircle, ArrowDownUp, Search, Mail, Newspaper, MessageSquare, Heart, HeartCrack, Swords, Skull, Crown, Ghost, TreeDeciduous, Axe, User, Crosshair, Sparkles, Flame, Shield, Circle, Hexagon, Home } from 'lucide-react';
 import { Role, PlayerCard, GameState, MatchResult, Rarity, TeamData, ScheduledMatch, PlayoffMatch, Standing, PlayerEvent, HistoryEntry, HistoryViewType } from './src/types/types';
 import { MainMenu } from './components/MainMenu';
 import { SponsorsView } from './components/SponsorsView'; 
@@ -545,6 +546,7 @@ const INITIAL_STATE: GameState = {
   newsFeed: [],
   playerMessages: [],
   activeHousingId: 'starter',
+  currentSponsor: null,
   facilities: {
       STREAM_ROOM: { id: 'STREAM_ROOM', name: 'Stream Room', level: 1, maxLevel: 5, upgradeCost: [300, 800, 2000, 5000], description: 'Generates passive weekly income from player streams.', benefit: '+{lvl}00 G / Week' },
       GYM: { id: 'GYM', name: 'Gym & Fitness', level: 1, maxLevel: 3, upgradeCost: [1000, 3000], description: 'Increases stamina recovery and reduces injury chance.', benefit: '+{lvl}0 Stamina Recovery' },
@@ -565,6 +567,7 @@ export default function App() {
     managerName: '',
     teamId: '',
     coins: DIFFICULTY_SETTINGS.Normal.initialCoins,
+    currentSponsor: null,
     year: 2025,
     currentSplit: 'SPRING',
     week: 0, 
@@ -593,7 +596,6 @@ export default function App() {
     playerMessages: [],
   });
 
-  const [currentSponsor, setCurrentSponsor] = useState<any>(null);
   const [market, setMarket] = useState<PlayerCard[]>([]);
   const [isScouting, setIsScouting] = useState(false);
   const [lastMatch, setLastMatch] = useState<MatchResult | null>(null);
@@ -652,39 +654,6 @@ export default function App() {
     setMarketPage(1);
   }, [filterRole, filterStatus, sortOrder, priceRange, filterLeague]);
 
-  useEffect(() => {
-    if (onboardingComplete && gameState.standings.length === 0) {
-      let initialStandings: Standing[] = [];
-      if (activeLeague.settings.format === 'LPL') {
-         initialStandings = activeLeague.teams.map((t, index) => {
-             const groupCode = ['A', 'B', 'C', 'D'][index % 4] as 'A' | 'B' | 'C' | 'D';
-             return {
-                teamId: t.id,
-                name: t.shortName,
-                wins: 0,
-                losses: 0,
-                gameWins: 0,
-                gameLosses: 0,
-                streak: 0,
-                group: groupCode
-             };
-         });
-      } else {
-         initialStandings = activeLeague.teams.map(t => ({
-            teamId: t.id,
-            name: t.shortName,
-            wins: 0,
-            losses: 0,
-            gameWins: 0,
-            gameLosses: 0,
-            streak: 0,
-            group: 'A' as any 
-         }));
-      }
-      setGameState(prev => ({ ...prev, standings: initialStandings }));
-    }
-  }, [onboardingComplete, activeLeague]);
-
   const handleNewGame = () => {
   localStorage.removeItem('lck_manager_save_v1');
   setGameState(INITIAL_STATE);
@@ -706,128 +675,162 @@ export default function App() {
     }
   };
 
-  useEffect(() => {
-    if (gameState && !gameState.activeHousingId) {
-       console.log("Fixing missing housing data...");
-       
-       // DÜZELTME: "prev => (" EKLENDİ
-       setGameState(prev => ({
-           ...prev,
-           activeHousingId: 'starter',
-           facilities: prev.facilities || {
-              GAMING_HOUSE: { id: 'GAMING_HOUSE', name: 'Gaming House', level: 1, maxLevel: 5, upgradeCost: [500, 1500, 4000, 10000], description: 'Improves player XP gain.', benefit: '+{lvl}0% XP' },
-              STREAM_ROOM: { id: 'STREAM_ROOM', name: 'Stream Room', level: 1, maxLevel: 5, upgradeCost: [300, 800, 2000, 5000], description: 'Passive income.', benefit: '+{lvl}00 G/Wk' },
-              GYM: { id: 'GYM', name: 'Gym', level: 1, maxLevel: 3, upgradeCost: [1000, 3000], description: 'Stamina recovery.', benefit: '+{lvl}0 Stamina' },
-              MEDICAL_CENTER: { id: 'MEDICAL_CENTER', name: 'Medical Center', level: 1, maxLevel: 3, upgradeCost: [2000, 5000], description: 'Less injury time.', benefit: '-{lvl}0% Time' }
-           }
-       })); // KAPATMA PARANTEZİNE DİKKAT
+  // @ts-ignore
+  const handleOnboardingComplete = (arg1: any, arg2?: any, arg3?: any, arg4?: any) => {
+    
+    // 1. Veri Adaptasyonu
+    let data: any = {};
+    if (typeof arg1 === 'object' && arg1 !== null && ('leagueKey' in arg1 || 'league' in arg1)) {
+        data = arg1;
+        if (!data.leagueKey) data.leagueKey = data.league;
+        if (!data.teamId && data.team) data.teamId = data.team.id;
+    } else {
+        data = {
+            managerName: arg1,
+            teamId: (arg2 && typeof arg2 === 'object') ? arg2.id : arg2,
+            leagueKey: arg3,
+            difficulty: arg4
+        };
     }
-  }, [gameState]);
 
-  const handleOnboardingComplete = (name: string, team: TeamData, leagueKey: LeagueKey, difficulty?: Difficulty) => {
-    const selectedLeague = LEAGUES[leagueKey];
-    setActiveLeague(selectedLeague);
-
-    let startSplit: any = 'SPRING'; 
-    if (leagueKey === 'LPL') startSplit = 'SPLIT_1';
-    else if (leagueKey === 'LCK') startSplit = 'LCK_CUP';
-    else if (leagueKey === 'LEC' || leagueKey === 'TCL' || leagueKey === 'LTA') startSplit = 'WINTER';
-
-    const finalDifficulty = difficulty || 'Normal';
-    const difficultySettings = DIFFICULTY_SETTINGS[finalDifficulty];
+    // 2. Lig ve Takım Bulma
+    // @ts-ignore
+    const selectedLeagueKey = (data.leagueKey || 'LCK') as LeagueKey;
+    // @ts-ignore
+    const selectedLeagueData = LEAGUES[selectedLeagueKey] || LEAGUES['LCK'];
+    // @ts-ignore
+    const activeTeam = selectedLeagueData.teams.find(t => t.id === data.teamId) || selectedLeagueData.teams[0];
+    
+    // 3. Ayarlar
+    const finalDifficulty = data.difficulty || 'Normal';
+    const difficultySettings = DIFFICULTY_SETTINGS[finalDifficulty as Difficulty];
     let startingCoins = difficultySettings.initialCoins;
 
-    const teamTier = getTeamTier(team.id); // Takımın gücünü al (S, A, B, C, D)
-    let tierBonus = 0;
-    
-    // --- YENİ: TIER'A GÖRE BAŞLANGIÇ EVİ VE TESİS SEVİYESİ ---
+    // Tier ve Ev Ayarları
+    const teamTier = getTeamTier(activeTeam.id);
     let startingHouseId = 'starter';
     let startingFacilityLevel = 1;
 
-    if (teamTier === 'S') {
-        tierBonus = 10000;         // S Tier zengindir
-        startingHouseId = 'campus'; // En iyi ev
-        startingFacilityLevel = 4;  // Neredeyse max tesisler
-    } else if (teamTier === 'A') {
-        tierBonus = 5000;
-        startingHouseId = 'villa';
-        startingFacilityLevel = 3;
-    } else if (teamTier === 'B') {
-        tierBonus = 2000;
-        startingHouseId = 'apartment';
-        startingFacilityLevel = 2;
-    } else if (teamTier === 'C') {
-        tierBonus = 500;
-        startingHouseId = 'starter';
-        startingFacilityLevel = 1;
-    } else {
-        tierBonus = 0; // D Tier ve altı
-        startingHouseId = 'starter';
-        startingFacilityLevel = 1;
-    }
+    if (teamTier === 'S') { startingCoins += 10000; startingHouseId = 'campus'; startingFacilityLevel = 4; }
+    else if (teamTier === 'A') { startingCoins += 5000; startingHouseId = 'villa'; startingFacilityLevel = 3; }
+    else if (teamTier === 'B') { startingCoins += 2000; startingHouseId = 'apartment'; startingFacilityLevel = 2; }
+    else { startingCoins += 500; }
 
-    startingCoins += tierBonus;
-
-    const allPlayers = Object.entries(LEAGUES).flatMap(([key, leagueData]) => 
-      leagueData.players.map(p => ({ ...p, league: key as LeagueKey }))
-    );
-
-    const userTeamPlayers = allPlayers
-      .filter(p => p.team === team.shortName)
-      .map(p => ({ ...p, contractDuration: 2, price: 0 }));
-
-    const marketPlayers = allPlayers
-      .filter(p => p.team !== team.shortName)
-      .sort(() => 0.5 - Math.random());
-    
-    // Tesisleri Seviyeye Göre Ayarla
     const initialFacilities = { ...INITIAL_STATE.facilities };
+    // @ts-ignore
     (Object.keys(initialFacilities) as FacilityType[]).forEach(key => {
-        // Tesisin max seviyesini aşmamaya dikkat et
+        // @ts-ignore
         const maxLvl = initialFacilities[key].maxLevel;
-        initialFacilities[key] = { 
-            ...initialFacilities[key], 
-            level: Math.min(startingFacilityLevel, maxLvl) 
-        };
+        // @ts-ignore
+        initialFacilities[key] = { ...initialFacilities[key], level: Math.min(startingFacilityLevel, maxLvl) };
     });
 
+    // 4. Oyuncu ve Market
+    const allPlayers = Object.entries(LEAGUES).flatMap(([key, leagueData]) => 
+        // @ts-ignore
+        (leagueData.players || []).map(p => ({ ...p, league: key as LeagueKey }))
+    );
+
+    let finalMarketPlayers: PlayerCard[] = [];
+    let initialRoster = INITIAL_STATE.roster;
+    let initialAiRosters = INITIAL_STATE.aiRosters;
+
+    if (allPlayers.length > 0) {
+        // @ts-ignore
+        const userTeamPlayers = allPlayers.filter(p => p.team === activeTeam.shortName || p.team === activeTeam.name);
+        const newRoster = { ...INITIAL_STATE.roster };
+        userTeamPlayers.forEach((p: any) => {
+            if (p.role) {
+                // @ts-ignore
+                newRoster[p.role] = { ...p, contractDuration: 2, price: 0 };
+            }
+        });
+        initialRoster = newRoster;
+        // @ts-ignore
+        finalMarketPlayers = allPlayers.filter(p => p.team !== activeTeam.shortName).sort(() => 0.5 - Math.random());
+    } else {
+        const generatedData = generateRandomPlayersForLeague(selectedLeagueData.teams);
+        // @ts-ignore
+        initialRoster = generatedData[activeTeam.id] || INITIAL_STATE.roster;
+        initialAiRosters = generatedData;
+    }
+
+    // 5. Fikstür
+    const newSchedule = generateLeagueSchedule(selectedLeagueKey, selectedLeagueData.teams);
+
+    setActiveLeague(selectedLeagueData);
+
+    // 6. State Güncelleme (Tek seferde her şeyi set ediyoruz)
     setGameState(prev => ({
       ...prev,
-      managerName: name,
-      teamId: team.id,
-      difficulty: finalDifficulty,
+      managerName: data.managerName || 'Manager',
+      league: selectedLeagueKey,
+      leagueKey: selectedLeagueKey,
+      team: activeTeam,
+      teamId: activeTeam.id,
+      difficulty: finalDifficulty as Difficulty,
       coins: startingCoins,
-      currentSplit: startSplit,
-      inventory: userTeamPlayers,
-      standings: [],
-      // --- YENİ DEĞERLER ---
-      activeHousingId: startingHouseId, // Otomatik ev
-      facilities: initialFacilities,    // Otomatik tesisler
-      // ---------------------
-      roster: {
-        [Role.TOP]: null,
-        [Role.JUNGLE]: null,
-        [Role.MID]: null,
-        [Role.ADC]: null,
-        [Role.SUPPORT]: null,
-        [Role.COACH]: null
-      }
+      activeHousingId: startingHouseId,
+      facilities: initialFacilities,
+      roster: initialRoster,
+      aiRosters: initialAiRosters,
+      freeAgents: finalMarketPlayers,
+      schedule: [],
+      week: 0,
+      currentDay: 1,
+      stage: 'PRE_SEASON',
+      standings: selectedLeagueData.teams.map((t: any) => ({
+        teamId: t.id,
+        name: t.name,
+        wins: 0,
+        losses: 0,
+        gameWins: 0,
+        gameLosses: 0,
+        streak: 0
+      }))
     }));
-    
-    setMarket(marketPlayers);
+
+    setMarket(finalMarketPlayers);
     setOnboardingComplete(true);
-    setView('GAME');
-    setTab('market'); 
+    setView('dashboard');
   };
 
   const handleSignSponsor = (sponsor: any) => {
-        if (currentSponsor) {
-            showNotification('error', "You already have an active sponsor.");
-            return;
-        }
-        setCurrentSponsor(sponsor);
-        setGameState(prev => ({ ...prev, coins: prev.coins + sponsor.signingBonus }));
-        showNotification('success', `Signed with ${sponsor.name}! +${sponsor.signingBonus}G`);
+    // gameState içinden kontrol et
+    if (gameState.currentSponsor) {
+        showNotification('error', "You already have an active sponsor.");
+        return;
+    }
+    
+    // State'i güncelle
+    setGameState(prev => ({ 
+        ...prev, 
+        coins: prev.coins + sponsor.signingBonus,
+        currentSponsor: sponsor // <-- Sponsoru gameState içine kaydet
+    }));
+    
+    showNotification('success', `Signed with ${sponsor.name}! +${sponsor.signingBonus}G`);
+  };
+
+  const handleTerminateSponsor = () => {
+    if (!gameState.currentSponsor) return;
+
+    // Ceza Hesaplama: Haftalık gelirin 3 katı
+    const penalty = gameState.currentSponsor.weeklyIncome * 3;
+
+    if (gameState.coins < penalty) {
+        showNotification('error', `Insufficient funds to pay the contract termination penalty (${penalty} G).`);
+        return;
+    }
+
+    if (window.confirm(`Are you sure you want to terminate the contract with ${gameState.currentSponsor.name}? You will pay a penalty of ${penalty} G.`)) {
+        setGameState(prev => ({
+            ...prev,
+            coins: prev.coins - penalty,
+            currentSponsor: null // Sponsoru sil
+        }));
+        showNotification('success', `Contract terminated. Penalty paid: ${penalty} G.`);
+    }
   };
 
   const handleUpgradeFacility = (type: FacilityType) => {
@@ -1687,9 +1690,9 @@ export default function App() {
                  }));
             }
         }
-        // === SENARYO B: LCK (2 GRUP - A/B) ===
+
         else if (format === 'LCK' || currentSplit === 'LCK_CUP') {
-            groups = drawGroups(activeLeague.teams); // A ve B Grubu
+            groups = drawGroups(activeLeague.teams);
             schedule = generateGroupStageSchedule(groups, activeLeague.settings);
             
             newStandings = activeLeague.teams.map(t => ({
@@ -1699,40 +1702,35 @@ export default function App() {
                 group: groups.A.includes(t.id) ? 'A' : 'B'
             } as Standing));
         }
-        // === SENARYO C: STANDART TEK GRUP (LEC, TCL, LTA) ===
         else {
-            // Tüm takımları 'A' grubuna koyuyoruz (Tek Puan Tablosu için)
             groups = { 
                 A: activeLeague.teams.map(t => t.id), 
-                B: [] // B grubu boş kalır
+                B: []
             };
-            
-            // Fikstür oluşturucu (A grubu içindeki herkesi eşleştirir)
-            schedule = generateGroupStageSchedule(groups, activeLeague.settings);
-            
+            schedule = generateLeagueSchedule(prev.leagueKey as LeagueKey, activeLeague.teams);
             newStandings = activeLeague.teams.map(t => ({
                 teamId: t.id,
                 name: t.shortName,
                 wins: 0, losses: 0, gameWins: 0, gameLosses: 0, streak: 0,
-                group: 'A' // Herkes A grubunda
+                group: 'A'
             } as Standing));
         }
 
         return { 
             ...prev, 
             ...transferUpdates,
-            stage: 'GROUP_STAGE', // Her zaman Grup aşamasıyla başlar
+            stage: 'GROUP_STAGE',
             week: 1, 
             currentDay: 1,
             schedule,
             groups,
             standings: newStandings,
             aiRosters: newAiRosters,
-            playoffMatches: [], // Önceki playoffları temizle
+            playoffMatches: [], 
             winnersGroup: null
         };
     });
-    setTab('schedule'); // Takvime yönlendir
+    setTab('schedule');
   };
 
   const startLPLSplit1Playoffs = (prev: GameState): GameState => {
@@ -3126,13 +3124,17 @@ const startLPLSplit3 = (prev: GameState): GameState => {
   const initiateMatch = () => {
      let validMatch: any;
      
-     if (gameState.stage.includes('GROUP') || gameState.stage.includes('SPLIT')) {
+     if (gameState.stage.includes('GROUP') || gameState.stage.includes('SPLIT') || gameState.stage.includes('PLACEMENTS')) {
         validMatch = gameState.schedule.find(m => 
             !m.played && 
-            m.round === gameState.currentDay && 
             (m.teamAId === gameState.teamId || m.teamBId === gameState.teamId)
         );
-     } else {
+
+        if (validMatch && validMatch.round > gameState.currentDay) {
+            validMatch = null;
+        }
+     } 
+     else {
         validMatch = gameState.playoffMatches.find(m => 
             !m.winnerId && 
             m.teamAId && m.teamBId &&
@@ -3156,23 +3158,28 @@ const startLPLSplit3 = (prev: GameState): GameState => {
         
         setIsDrafting(true); 
      } else {
-        showNotification('error', "No playable match found for today. Check schedule or simulate.");
+        // Hata durumunda konsola detay basalım ki sebebi görelim
+        console.log("Debug Match:", { 
+            stage: gameState.stage, 
+            day: gameState.currentDay, 
+            teamId: gameState.teamId 
+        });
+        showNotification('error', "No playable match found. Try clicking 'Simulate Day' first.");
      }
   };
 
-  // --- GÜNÜN SİMÜLASYONUNU BİTİRME ---
+  // --- GÜNÜN SİMÜLASYONUNU BİTİRME (KATI MOD - SADECE MEVCUT TUR) ---
   const finalizeDaySimulation = (userResult: MatchResult | null) => {
-    // 1. FİNANSAL HESAPLAMALAR
+    // 1. FİNANSAL GÜNCELLEMELER (Aynı)
     let income = 0;
     let expenses = 0;
     const financialLogs: string[] = [];
-    const currentHouse = HOUSING_OPTIONS.find(h => h.id === gameState.activeHousingId) || HOUSING_OPTIONS[0];
-    const dailyRent = Math.ceil(currentHouse.weeklyRent / 2); // Haftada 2 maç varsayımıyla günlük kira
     
+    const currentHouse = HOUSING_OPTIONS.find(h => h.id === gameState.activeHousingId) || HOUSING_OPTIONS[0];
+    const dailyRent = currentHouse ? Math.ceil(currentHouse.weeklyRent / 2) : 0;
     expenses += dailyRent;
-    financialLogs.push(`HQ Upkeep (${currentHouse.name}): -${dailyRent}G`);
+    financialLogs.push(`HQ Upkeep: -${dailyRent}G`);
 
-    // Maç Geliri
     if (userResult) {
         const matchIncome = userResult.victory ? 300 : 100;
         income += matchIncome;
@@ -3180,32 +3187,34 @@ const startLPLSplit3 = (prev: GameState): GameState => {
     }
 
     if (gameState.facilities?.STREAM_ROOM) {
-        const streamLvl = gameState.facilities.STREAM_ROOM.level;
-        const streamIncome = streamLvl * 150; // Seviye başına 150G günlük/maçlık gelir
+        const streamLvl = gameState.facilities.STREAM_ROOM.level || 1;
+        const streamIncome = streamLvl * 150; 
         income += streamIncome;
         financialLogs.push(`Stream Revenue: +${streamIncome}G`);
     }
 
-    // Sponsor Geliri
-    if (currentSponsor) {
-        income += currentSponsor.weeklyIncome;
-        financialLogs.push(`Sponsor (${currentSponsor.name}): +${currentSponsor.weeklyIncome}G`);
+    if (gameState.currentSponsor) {
+        const sponsorAmount = gameState.currentSponsor.weeklyIncome || gameState.currentSponsor.income || 0;
+        income += sponsorAmount;
+        financialLogs.push(`Sponsor: +${sponsorAmount}G`);
     }
 
-    // Giderler (Haftalık giderin maç başına düşen payı)
     const weeklyCosts = calculateWeeklyExpenses(gameState.roster, gameState.teamId);
-    const dailyUpkeep = Math.round(weeklyCosts.total / 2); // Haftada 2 maç varsayımı
+    const dailyUpkeep = Math.round((weeklyCosts?.total || 0) / 2); 
     expenses += dailyUpkeep;
     financialLogs.push(`Daily Operations: -${dailyUpkeep}G`);
 
-    // Bildirim ve Kasa Güncelleme
-    const netChange = income - expenses;
-    const netColor = netChange >= 0 ? 'success' : 'error';
-    const netSign = netChange >= 0 ? '+' : '';
-    setGameState(prev => ({ ...prev, coins: prev.coins + netChange }));
+    const netChange = (income || 0) - (expenses || 0);
+    
+    setGameState(prev => {
+        const currentCoins = prev.coins || 0;
+        const newCoins = currentCoins + netChange;
+        return { ...prev, coins: isNaN(newCoins) ? currentCoins : newCoins };
+    });
 
-    // 2. OYUNCU İSTATİSTİKLERİ VE EVENTLER
+    // 2. SİMÜLASYON MODUNU KAPAT
     setIsSimulating(false);
+    const playedMatchId = userResult && pendingSimResult ? pendingSimResult.matchId : null;
     setPendingSimResult(null);
 
     if (userResult && userResult.playerStats.length > 0) {
@@ -3226,12 +3235,8 @@ const startLPLSplit3 = (prev: GameState): GameState => {
             if (player && player.id === randomEvt.player.id) {
                 const currentEvents = player.events || [];
                 const newStats = { ...player.stats };
-                // Event cezalarını uygula
                 if (randomEvt.event.penalty.mechanics) newStats.mechanics -= randomEvt.event.penalty.mechanics;
                 if (randomEvt.event.penalty.macro) newStats.macro -= randomEvt.event.penalty.macro;
-                if (randomEvt.event.penalty.lane) newStats.lane -= randomEvt.event.penalty.lane;
-                if (randomEvt.event.penalty.teamfight) newStats.teamfight -= randomEvt.event.penalty.teamfight;
-                
                 const newOverall = Math.round((newStats.mechanics + newStats.macro + newStats.lane + newStats.teamfight) / 4);
                 roster[randomEvt.player.role] = { ...player, stats: newStats, overall: newOverall, events: [...currentEvents, randomEvt.event] };
                 return { ...prev, roster };
@@ -3240,7 +3245,7 @@ const startLPLSplit3 = (prev: GameState): GameState => {
         });
     }
 
-    // 3. MAÇ SONUÇLARINI İŞLEME VE DİĞER MAÇLARI SİMÜLE ETME
+    // 3. MAÇ SONUÇLARINI İŞLEME
     setGameState(prev => {
       const eventResult = processEvents(prev);
       let updatedStandings = [...prev.standings];
@@ -3250,139 +3255,174 @@ const startLPLSplit3 = (prev: GameState): GameState => {
 
       // --- A. LİG USULÜ (GROUP STAGE) ---
       if (nextState.stage.includes('GROUP') || nextState.stage.includes('SPLIT') || nextState.stage.includes('PLACEMENTS')) {
-          const matchesToday = nextState.schedule.filter(m => m.round === nextState.currentDay);
           const newSchedule = [...nextState.schedule];
-
-          matchesToday.forEach(m => {
-              let winnerId, scoreA, scoreB;
-              const isUserMatch = m.teamAId === nextState.teamId || m.teamBId === nextState.teamId;
-
-              if (isUserMatch && userResult) {
-                  winnerId = userResult.victory ? nextState.teamId : (m.teamAId === nextState.teamId ? m.teamBId : m.teamAId);
-                  scoreA = m.teamAId === nextState.teamId ? userResult.scoreUser : userResult.scoreEnemy;
-                  scoreB = m.teamAId === nextState.teamId ? userResult.scoreEnemy : userResult.scoreUser;
-              } else {
-                  if (m.played || isUserMatch) return; // Zaten oynanmışsa veya kullanıcı maçıysa (ama resultsız) atla
-                  const league = Object.values(LEAGUES).find(l => l.teams.some(t => t.id === m.teamAId));
-                  const isBo3 = league ? league.settings.isBo3 : false;
-                  // LPL'de Split 1 (Placement hariç) genelde Bo5 olabilir veya Rumble Bo3 olabilir
-                  const isMatchBo5 = !!m.isBo5;
-
-                  const sim = simulateSeries(m.teamAId, m.teamBId, isMatchBo5 || isBo3);
-                  winnerId = sim.winnerId;
-                  scoreA = sim.scoreA;
-                  scoreB = sim.scoreB;
+          
+          // 3.1 REFERANS TURU BUL (Kullanıcının Oynadığı Maçın Turu)
+          let currentPlayedRound = -1;
+          
+          if (playedMatchId) {
+              const pm = newSchedule.find(m => m.id === playedMatchId);
+              if (pm && typeof pm.round === 'number') {
+                  currentPlayedRound = pm.round;
               }
+          }
 
-              // Moral Güncellemesi (Sadece Kullanıcı İçin)
-              if (isUserMatch) {
-                  const didWin = winnerId === nextState.teamId;
-                  const userStanding = updatedStandings.find(s => s.teamId === nextState.teamId);
-                  const oldStreak = userStanding?.streak || 0;
-                  const newStreak = didWin ? Math.max(1, oldStreak + 1) : Math.min(-1, oldStreak - 1);
-                  if (userStanding) userStanding.streak = newStreak;
-                  newRosterForMorale = updateTeamMorale(newRosterForMorale, didWin, oldStreak);
+          // Eğer bir maç oynamadıysak (nadiren olur), sistemin o anki gününü al
+          if (currentPlayedRound === -1) {
+              currentPlayedRound = nextState.currentDay;
+          }
+
+          // 3.2 KULLANICI MAÇINI GÜNCELLE
+          if (userResult && playedMatchId) {
+              const userMatchIdx = newSchedule.findIndex(m => m.id === playedMatchId);
+              
+              if (userMatchIdx !== -1) {
+                  const m = newSchedule[userMatchIdx];
+                  // Maç daha önce oynanmamışsa işle
+                  if (!m.played) {
+                      const winnerId = userResult.victory ? nextState.teamId : (m.teamAId === nextState.teamId ? m.teamBId : m.teamAId);
+                      const scoreA = m.teamAId === nextState.teamId ? userResult.scoreUser : userResult.scoreEnemy;
+                      const scoreB = m.teamAId === nextState.teamId ? userResult.scoreEnemy : userResult.scoreUser;
+
+                      newSchedule[userMatchIdx] = { ...m, played: true, winnerId, seriesScoreA: scoreA, seriesScoreB: scoreB };
+
+                      const winnerStat = updatedStandings.find(s => s.teamId === winnerId);
+                      const loserStat = updatedStandings.find(s => s.teamId === (winnerId === m.teamAId ? m.teamBId : m.teamAId));
+
+                      if (winnerStat) {
+                          winnerStat.wins += 1; 
+                          winnerStat.gameWins += Math.max(scoreA, scoreB);
+                          winnerStat.gameLosses += Math.min(scoreA, scoreB);
+                          if (winnerId === nextState.teamId) winnerStat.streak = Math.max(1, (winnerStat.streak || 0) + 1);
+                      }
+                      if (loserStat) {
+                          loserStat.losses += 1;
+                          loserStat.gameWins += Math.min(scoreA, scoreB);
+                          loserStat.gameLosses += Math.max(scoreA, scoreB);
+                          if (loserStat.teamId === nextState.teamId) loserStat.streak = Math.min(-1, (loserStat.streak || 0) - 1);
+                      }
+                      newRosterForMorale = updateTeamMorale(newRosterForMorale, userResult.victory, updatedStandings.find(s => s.teamId === nextState.teamId)?.streak || 0);
+                  }
               }
+          }
 
-              // Fikstürü Güncelle
+          // 3.3 SADECE BU TURUN AI MAÇLARINI OYNAT (KATI KURAL)
+          // `m.round === currentPlayedRound` sayesinde asla geleceğe gitmez.
+          const aiMatchesToday = newSchedule.filter(m => 
+              m.round === currentPlayedRound &&  // Sadece BU tur
+              !m.played &&                       // Oynanmamış
+              m.id !== playedMatchId             // Bizim maçımız değil
+          );
+
+          aiMatchesToday.forEach(m => {
+              if (m.teamAId === nextState.teamId || m.teamBId === nextState.teamId) return;
+              if (!m.teamAId || !m.teamBId) return;
+
+              const league = Object.values(LEAGUES).find(l => l.teams.some(t => t.id === m.teamAId));
+              const isBo3 = league ? league.settings.isBo3 : false;
+              const isMatchBo5 = !!m.isBo5;
+
+              const sim = simulateSeries(m.teamAId, m.teamBId, isMatchBo5 || isBo3);
+              
               const idx = newSchedule.findIndex(s => s.id === m.id);
-              newSchedule[idx] = { ...m, played: true, winnerId, seriesScoreA: scoreA, seriesScoreB: scoreB };
+              newSchedule[idx] = { ...m, played: true, winnerId: sim.winnerId, seriesScoreA: sim.scoreA, seriesScoreB: sim.scoreB };
 
-              // Puan Durumunu Güncelle
-              // KAZANILAN SERİ SAYISINI (+1) EKLE
-              const winnerStat = updatedStandings.find(s => s.teamId === winnerId);
-              const loserStat = updatedStandings.find(s => s.teamId === (winnerId === m.teamAId ? m.teamBId : m.teamAId));
+              const winnerStat = updatedStandings.find(s => s.teamId === sim.winnerId);
+              const loserStat = updatedStandings.find(s => s.teamId === (sim.winnerId === m.teamAId ? m.teamBId : m.teamAId));
 
               if (winnerStat) {
-                  winnerStat.wins += 1; // Seri galibiyeti
-                  winnerStat.gameWins += Math.max(scoreA, scoreB);
-                  winnerStat.gameLosses += Math.min(scoreA, scoreB);
+                  winnerStat.wins += 1; 
+                  winnerStat.gameWins += Math.max(sim.scoreA, sim.scoreB);
+                  winnerStat.gameLosses += Math.min(sim.scoreA, sim.scoreB);
               }
               if (loserStat) {
-                  loserStat.losses += 1; // Seri mağlubiyeti
-                  loserStat.gameWins += Math.min(scoreA, scoreB);
-                  loserStat.gameLosses += Math.max(scoreA, scoreB);
+                  loserStat.losses += 1;
+                  loserStat.gameWins += Math.min(sim.scoreA, sim.scoreB);
+                  loserStat.gameLosses += Math.max(sim.scoreA, sim.scoreB);
               }
           });
 
-          // Gün/Hafta İlerlemesi
-          const allSeasonPlayed = newSchedule.every(m => m.played);
-          const allTodayPlayed = matchesToday.every(m => newSchedule.find(s => s.id === m.id)?.played);
+          // 3.4 YENİ GÜNÜ BELİRLE (GÜVENLİ)
+          // Tüm fikstürü tara, oynanmamış EN KÜÇÜK turlu maçı bul.
+          // Bu, "Week NaN" sorununu ve atlamaları engeller.
+          
+          let nextDay: number;
+          const allUnplayed = newSchedule.filter(m => !m.played).sort((a, b) => a.round - b.round);
+          
+          if (allUnplayed.length > 0) {
+              // Hala oynanmamış maç varsa, oyunun yeni günü o maçın olduğu turdur.
+              nextDay = allUnplayed[0].round;
+          } else {
+              // Hepsi oynandıysa sezon bitti demektir.
+              const maxRound = Math.max(...newSchedule.map(m => m.round), 0);
+              nextDay = maxRound + 1;
+          }
 
-          if (allSeasonPlayed) {
-                let finalState = { ...nextState, schedule: newSchedule, standings: updatedStandings, roster: newRosterForMorale };
-                
-                // --- LPL KONTROLÜ ---
+          // Güvenlik: nextDay geçerli bir sayı mı? Değilse eski günde kal.
+          if (isNaN(nextDay)) nextDay = nextState.currentDay;
+
+          // Sezon Bitti mi?
+          const isSeasonFinished = allUnplayed.length === 0;
+
+          if (isSeasonFinished) {
+               let finalState = { ...nextState, schedule: newSchedule, standings: updatedStandings, roster: newRosterForMorale };
+                // ... (Playoff geçiş kodları mevcut kodunla aynı) ...
                 if (activeLeague.settings.format === 'LPL') {
-                    // Split 1 Bitti -> Playoff Başlat
                     if (finalState.currentSplit === 'SPLIT_1' || finalState.currentSplit === 'SPRING') {
                         return startLPLSplit1Playoffs(finalState);
                     }
-                    
-                    // Split 2 Placement Bitti -> Rumble Stage (Gruplar) Başlat
                     if (finalState.stage === 'LPL_SPLIT_2_PLACEMENTS') {
                          return endLPLPlacementStage(finalState);
                     }
-
-                    // Split 2 Grupları veya Split 3 Bitti -> Olduğu gibi dön (advanceToNextStage yönetecek)
                     if (finalState.stage === 'LPL_SPLIT_2_GROUPS' || finalState.stage === 'LPL_SPLIT_3_GROUPS') {
                         return finalState;
                     }
                 }
-                // 2. LEC KONTROLÜ
                 else if (activeLeague.settings.format === 'LEC') {
                   finalState = startLECGroupStage(finalState);
                 } 
-                // 3. LCK KONTROLÜ
                 else if (activeLeague.settings.format === 'LCK') {
                   finalState = endGroupStage(finalState);
                 } 
-                // 4. STANDART KONTROL (LTA, TCL vb.)
                 else {
                   finalState = initializeSimplePlayoffs(finalState);
                 }
-                
                 return finalState;
-           }
+          }
 
-          const newDay = allTodayPlayed ? nextState.currentDay + 1 : nextState.currentDay;
-          const newWeek = Math.ceil(newDay / (activeLeague.settings.matchesPerWeek === 2 ? 5 : 2)); // Basit hafta hesabı
-
-          const finalRoster = userResult ? updatePlayerRelationships(newRosterForMorale, userResult.victory) : newRosterForMorale;
+          // Hafta Hesaplama (NaN Korumalı)
+          const matchesPerWeek = activeLeague?.settings?.matchesPerWeek === 2 ? 5 : 2; 
+          let newWeek = Math.ceil(nextDay / matchesPerWeek);
+          if (isNaN(newWeek) || newWeek < 1) newWeek = 1;
 
           return { 
               ...nextState,
-              roster: finalRoster,
+              roster: newRosterForMorale,
               schedule: newSchedule, 
               standings: updatedStandings, 
-              currentDay: newDay, 
+              currentDay: nextDay, 
               week: newWeek,
               trainingSlotsUsed: newWeek > nextState.week ? 0 : nextState.trainingSlotsUsed
           };
       }
       
-      // --- B. PLAYOFF / TURNUVA USULÜ (BRACKET STAGE) ---
+      // --- B. PLAYOFF / TURNUVA USULÜ (DEĞİŞMEDİ) ---
       else if (['PLAY_IN', 'PLAYOFFS', 'MSI_PLAY_IN', 'MSI_BRACKET', 'LPL_SPLIT_2_LCQ', 'LPL_SPLIT_3_PLAYIN'].includes(nextState.stage)) {
           const newMatches = [...nextState.playoffMatches];
-          // İşlenecek maçı bul (Kullanıcı maçıysa pendingSimResult, değilse sıradaki oynanmamış maç)
-          const matchIdToProcess = userResult ? pendingSimResult?.matchId : newMatches.find(m => !m.winnerId && m.teamAId && m.teamBId)?.id;
+          const matchIdToProcess = userResult && playedMatchId ? playedMatchId : newMatches.find(m => !m.winnerId && m.teamAId && m.teamBId)?.id;
           let activeMatch = matchIdToProcess ? newMatches.find(m => m.id === matchIdToProcess) : undefined;
 
-          // Eğer kullanıcı maçı değilse ve sıradaki maç bulunamadıysa (ama turnuva bitmediyse)
           if (!activeMatch && userResult === null) {
               activeMatch = newMatches.find(m => !m.winnerId && m.teamAId && m.teamBId);
           }
           
           if (activeMatch) {
               let winnerId;
-              // Kullanıcı maçı mı?
               if (activeMatch.teamAId === nextState.teamId || activeMatch.teamBId === nextState.teamId) {
                   winnerId = userResult?.victory ? nextState.teamId : (activeMatch.teamAId === nextState.teamId ? activeMatch.teamBId : activeMatch.teamAId);
               } else if (userResult === null) {
-                  // AI vs AI Simülasyonu
                   const sim = simulateSeries(activeMatch.teamAId!, activeMatch.teamBId!, !!activeMatch.isBo5);
                   winnerId = sim.winnerId;
-                  // Son maçı güncelle (Log için)
                   setLastMatch({
                       victory: false,
                       scoreUser: sim.scoreA,
@@ -3393,14 +3433,12 @@ const startLPLSplit3 = (prev: GameState): GameState => {
                       isBo5: !!activeMatch.isBo5
                   });
               } else {
-                  return nextState; // Beklenmedik durum
+                  return nextState; 
               }
               
-              // Maç sonucunu kaydet
               const idx = newMatches.findIndex(m => m.id === activeMatch!.id);
               newMatches[idx].winnerId = winnerId!;
               
-              // Skorları işle
               const isUserA = activeMatch.teamAId === nextState.teamId;
               const isUserB = activeMatch.teamBId === nextState.teamId;
               
@@ -3408,17 +3446,15 @@ const startLPLSplit3 = (prev: GameState): GameState => {
                  newMatches[idx].seriesScoreA = isUserA ? userResult.scoreUser : userResult.scoreEnemy;
                  newMatches[idx].seriesScoreB = isUserB ? userResult.scoreUser : userResult.scoreEnemy;
               } else {
-                 // AI skoru (rastgele ama mantıklı)
                  const loserScore = Math.floor(Math.random() * (activeMatch.isBo5 ? 3 : 2));
                  newMatches[idx].seriesScoreA = winnerId === activeMatch.teamAId ? (activeMatch.isBo5 ? 3 : 2) : loserScore;
                  newMatches[idx].seriesScoreB = winnerId === activeMatch.teamBId ? (activeMatch.isBo5 ? 3 : 2) : loserScore;
               }
 
-              // Kazananı/Kaybedeni bir sonraki tura taşı
               if (newMatches[idx].nextMatchId) {
                   const nextIdx = newMatches.findIndex(m => m.id === newMatches[idx].nextMatchId);
                   if (nextIdx >= 0) {
-                      if (activeMatch.nextMatchSlot === 'A') newMatches[nextIdx].teamAId = winnerId!;
+                      if (newMatches[idx].nextMatchSlot === 'A') newMatches[nextIdx].teamAId = winnerId!;
                       else newMatches[nextIdx].teamBId = winnerId!;
                   }
               }
@@ -3427,7 +3463,7 @@ const startLPLSplit3 = (prev: GameState): GameState => {
                   const loserId = winnerId === activeMatch.teamAId ? activeMatch.teamBId : activeMatch.teamAId;
                   const loserIdx = newMatches.findIndex(m => m.id === newMatches[idx].loserMatchId);
                   if (loserIdx >= 0) {
-                      if (activeMatch.loserMatchSlot === 'A') newMatches[loserIdx].teamAId = loserId;
+                      if (newMatches[idx].loserMatchSlot === 'A') newMatches[loserIdx].teamAId = loserId;
                       else newMatches[loserIdx].teamBId = loserId;
                   }
               }
@@ -3618,6 +3654,8 @@ const handleMoveHouse = (houseId: string) => {
       showNotification('success', `Moved HQ to ${targetHouse.name}!`);
   };
 
+// ... (Önceki kodlar aynı) ...
+
 // DRAFT AKIŞI (Sıralama)
 type DraftActionType = 'BAN' | 'PICK';
 type DraftSide = 'BLUE' | 'RED';
@@ -3628,35 +3666,18 @@ interface DraftStep {
     role?: Role; // Sadece PICK ise zorunlu
 }
 
-// DRAFT AKIŞI
+// DRAFT ADIMLARI
 const DRAFT_SEQUENCE: DraftStep[] = [
-    // FAZ 1: BANLAR (3'er tane)
-    { side: 'BLUE', type: 'BAN' },
-    { side: 'RED', type: 'BAN' },
-    { side: 'BLUE', type: 'BAN' },
-    { side: 'RED', type: 'BAN' },
-    { side: 'BLUE', type: 'BAN' },
-    { side: 'RED', type: 'BAN' },
-    
-    // FAZ 1: SEÇİMLER (Sıra kimde? - Rol serbest)
-    { side: 'BLUE', type: 'PICK' },          // Blue 1
-    { side: 'RED', type: 'PICK' },           // Red 1
-    { side: 'RED', type: 'PICK' },           // Red 2
-    { side: 'BLUE', type: 'PICK' },          // Blue 2
-    { side: 'BLUE', type: 'PICK' },          // Blue 3
-    { side: 'RED', type: 'PICK' },           // Red 3
-
-    // FAZ 2: BANLAR (2'şer tane - Kırmızı Başlar)
-    { side: 'RED', type: 'BAN' },            // Red Ban 4
-    { side: 'BLUE', type: 'BAN' },           // Blue Ban 4
-    { side: 'RED', type: 'BAN' },            // Red Ban 5
-    { side: 'BLUE', type: 'BAN' },           // Blue Ban 5
-
-    // FAZ 2: SEÇİMLER
-    { side: 'RED', type: 'PICK' },           // Red 4
-    { side: 'BLUE', type: 'PICK' },          // Blue 4
-    { side: 'BLUE', type: 'PICK' },          // Blue 5
-    { side: 'RED', type: 'PICK' },           // Red 5
+    { side: 'BLUE', type: 'BAN' }, { side: 'RED', type: 'BAN' },
+    { side: 'BLUE', type: 'BAN' }, { side: 'RED', type: 'BAN' },
+    { side: 'BLUE', type: 'BAN' }, { side: 'RED', type: 'BAN' },
+    { side: 'BLUE', type: 'PICK' }, { side: 'RED', type: 'PICK' },
+    { side: 'RED', type: 'PICK' }, { side: 'BLUE', type: 'PICK' },
+    { side: 'BLUE', type: 'PICK' }, { side: 'RED', type: 'PICK' },
+    { side: 'RED', type: 'BAN' }, { side: 'BLUE', type: 'BAN' },
+    { side: 'RED', type: 'BAN' }, { side: 'BLUE', type: 'BAN' },
+    { side: 'RED', type: 'PICK' }, { side: 'BLUE', type: 'PICK' },
+    { side: 'BLUE', type: 'PICK' }, { side: 'RED', type: 'PICK' },
 ];
 
 const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftComplete }) => {
@@ -3668,7 +3689,8 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
   const [bluePicks, setBluePicks] = useState<Partial<Record<Role, Champion>>>({});
   const [redPicks, setRedPicks] = useState<Partial<Record<Role, Champion>>>({});
 
-  const [draftState, setDraftState] = useState<'DRAFTING' | 'ANALYZING' | 'RESULT'>('DRAFTING');
+  // YENİ STATE: Başlangıçta SELECTION modunda açılır
+  const [draftState, setDraftState] = useState<'SELECTION' | 'DRAFTING' | 'ANALYZING' | 'RESULT'>('SELECTION');
   const [resultData, setResultData] = useState<{ bonus: number, msg: string, userStyle: string, enemyStyle: string } | null>(null);
 
   const [roleFilter, setRoleFilter] = useState<Role | 'ALL'>('ALL');
@@ -3705,31 +3727,70 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
       setRoleFilter('ALL');
   }, [currentStepIndex]);
 
+  // --- YENİ: OTOMATİK DRAFT FONKSİYONU ---
+  const handleAutoDraft = () => {
+      const roles = [Role.TOP, Role.JUNGLE, Role.MID, Role.ADC, Role.SUPPORT];
+      const uPicks: Partial<Record<Role, Champion>> = {};
+      const ePicks: Partial<Record<Role, Champion>> = {};
+      
+      // Seçilenleri takip etmek için Set (Aynı şampiyon iki kere seçilmesin)
+      const usedChampionIds = new Set<string>();
+
+      // Mevcut yasaklamaları da seçilmiş say
+      blueBans.forEach(c => usedChampionIds.add(c.id));
+      redBans.forEach(c => usedChampionIds.add(c.id));
+
+      roles.forEach(role => {
+          // 1. Bu role uygun ve henüz seçilmemiş/yasaklanmamış şampiyonları bul
+          const rolePool = CHAMPIONS.filter(c => c.role === role && !usedChampionIds.has(c.id));
+          
+          // 2. Havuzu karıştır
+          const shuffled = rolePool.sort(() => 0.5 - Math.random());
+
+          // 3. En az 2 şampiyon varsa (biri sana biri rakibe)
+          if (shuffled.length >= 2) {
+              const userPick = shuffled[0];
+              const enemyPick = shuffled[1];
+
+              uPicks[role] = userPick;
+              ePicks[role] = enemyPick;
+
+              // Seçilenleri havuza işaretle
+              usedChampionIds.add(userPick.id);
+              usedChampionIds.add(enemyPick.id);
+          } else {
+              // Eğer o rolde şampiyon kalmadıysa (Çok nadir ama önlem)
+              // Rastgele birini ata
+              console.warn(`Not enough champions for role: ${role}`);
+          }
+      });
+
+      setBluePicks(uPicks);
+      setRedPicks(ePicks);
+      
+      // Analize gönder
+      finishDraft(uPicks, ePicks);
+  };
+
   const handleAiAction = () => {
-      // AI: Sadece yasaklama mı yoksa seçim mi?
       if (currentStep.type === 'BAN') {
            const randomBan = availableChampions[Math.floor(Math.random() * availableChampions.length)];
            processAction(randomBan);
       } else {
-           // AI PICK: Kendi takımındaki boş rolleri bul
            const currentRoster = currentStep.side === 'BLUE' ? bluePicks : redPicks;
            const allRoles = [Role.TOP, Role.JUNGLE, Role.MID, Role.ADC, Role.SUPPORT];
            // @ts-ignore
            const openRoles = allRoles.filter(r => !currentRoster[r]);
            
-           if (openRoles.length === 0) return; // Hata koruması
+           if (openRoles.length === 0) return; 
 
-           // Boş rollerden rastgele birini hedefle
            const targetRole = openRoles[Math.floor(Math.random() * openRoles.length)];
-           
-           // O role uygun şampiyonları filtrele
            const candidates = availableChampions.filter(c => c.role === targetRole);
            
            if (candidates.length > 0) {
                const selection = candidates[Math.floor(Math.random() * candidates.length)];
                processAction(selection);
            } else {
-               // Fallback
                const randomPick = availableChampions[Math.floor(Math.random() * availableChampions.length)];
                processAction(randomPick);
            }
@@ -3790,7 +3851,6 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
       const currentRedPicks = finalRedPicks || redPicks;
 
       setTimeout(() => {
-          // Hesaplamaları GÜNCEL verilerle yap
           const blueStyle = calculateTeamStyle(currentBluePicks);
           const redStyle = calculateTeamStyle(currentRedPicks);
           
@@ -3820,28 +3880,22 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
           const userChampions = [Role.TOP, Role.JUNGLE, Role.MID, Role.ADC, Role.SUPPORT].map(r => currentBluePicks[r]!).filter(Boolean);
           const enemyChampions = [Role.TOP, Role.JUNGLE, Role.MID, Role.ADC, Role.SUPPORT].map(r => currentRedPicks[r]!).filter(Boolean);
           
-          setTimeout(() => onDraftComplete(bonus, userChampions, enemyChampions), 3000);
+          setTimeout(() => onDraftComplete(bonus, userChampions, enemyChampions), 2000);
       }, 1000);
   };
 
-  // --- GELİŞMİŞ FİLTRELEME MANTIĞI ---
   const championsToDisplay = availableChampions.filter(c => {
-      // 1. Dolu Rol Kontrolü (Sadece PICK aşamasında ve sıra bizdeyse)
       if (currentStep.type === 'PICK' && isUserTurn) {
           if (bluePicks[c.role]) return false;
       }
-
-      // 2. Kullanıcı Rol Filtresi
       if (roleFilter !== 'ALL' && c.role !== roleFilter) return false;
-
-      // 3. Arama Filtresi
       if (searchQuery && !c.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
-
       return true;
   }).sort((a, b) => a.name.localeCompare(b.name));
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-xl overflow-hidden pl-72">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-xl overflow-hidden">
+      
       <div className="absolute inset-0 bg-gradient-to-br from-blue-900/20 to-red-900/20 pointer-events-none" />
 
       <div className="relative w-full max-w-7xl h-full p-6 flex flex-col">
@@ -3853,7 +3907,7 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
                 <div className="flex items-center gap-3 mb-1">
                     <TeamLogo team={userTeam} size="w-10 h-10" />
                     <span className="text-xl font-bold text-blue-400 uppercase font-display">Blue Side</span>
-                    {isUserTurn && <span className="text-xs bg-blue-500 text-white px-2 py-0.5 rounded animate-pulse">YOUR TURN</span>}
+                    {isUserTurn && draftState === 'DRAFTING' && <span className="text-xs bg-blue-500 text-white px-2 py-0.5 rounded animate-pulse">YOUR TURN</span>}
                 </div>
                 {/* Bans */}
                 <div className="flex gap-1">
@@ -3867,6 +3921,9 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
 
             {/* INFO */}
             <div className="flex-1 text-center pt-2">
+                {draftState === 'SELECTION' && (
+                    <div className="text-3xl font-black font-display text-white mb-2">DRAFT PHASE</div>
+                )}
                 {draftState === 'DRAFTING' && (
                     <div className="flex flex-col items-center">
                         <div className={`text-2xl font-black font-display ${currentStep.side === 'BLUE' ? 'text-blue-400' : 'text-red-500'}`}>
@@ -3876,6 +3933,9 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
                             {currentStep.type === 'PICK' ? 'SELECT CHAMPION' : 'BAN CHAMPION'}
                         </div>
                     </div>
+                )}
+                {draftState === 'ANALYZING' && (
+                    <div className="text-xl font-bold text-hextech-400 animate-pulse">Analyzing Composition...</div>
                 )}
                 {draftState === 'RESULT' && resultData && (
                      <div className="animate-in zoom-in">
@@ -3932,86 +3992,86 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
                  })}
              </div>
              
-             {/* ORTA: ŞAMPİYON SEÇİM EKRANI */}
-             <div className="flex-1 h-[520px] mx-8 bg-dark-900/90 border border-dark-700 rounded-xl overflow-hidden flex flex-col shadow-2xl">
-                 {draftState === 'DRAFTING' ? (
+             {/* ORTA: ŞAMPİYON SEÇİM veya KARAR EKRANI */}
+             <div className="flex-1 h-[520px] mx-8 bg-dark-900/90 border border-dark-700 rounded-xl overflow-hidden flex flex-col shadow-2xl relative">
+                 
+                 {/* 1. SEÇİM EKRANI (MANUEL / AUTO) */}
+                 {draftState === 'SELECTION' && (
+                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-8 bg-black/80 z-20">
+                         <h2 className="text-3xl font-display font-bold text-white">Choose Drafting Method</h2>
+                         <div className="flex gap-6">
+                             <button 
+                                onClick={() => setDraftState('DRAFTING')}
+                                className="group w-64 h-40 bg-dark-800 border-2 border-blue-500/50 hover:border-blue-400 hover:bg-blue-900/20 rounded-2xl flex flex-col items-center justify-center gap-3 transition-all"
+                             >
+                                 <div className="w-12 h-12 rounded-full bg-blue-500 flex items-center justify-center text-white">
+                                     <User size={24} />
+                                 </div>
+                                 <div>
+                                     <div className="text-xl font-bold text-white">Manual Draft</div>
+                                     <div className="text-xs text-gray-400">Control bans & picks</div>
+                                 </div>
+                             </button>
+
+                             <button 
+                                onClick={handleAutoDraft}
+                                className="group w-64 h-40 bg-dark-800 border-2 border-purple-500/50 hover:border-purple-400 hover:bg-purple-900/20 rounded-2xl flex flex-col items-center justify-center gap-3 transition-all"
+                             >
+                                 <div className="w-12 h-12 rounded-full bg-purple-500 flex items-center justify-center text-white">
+                                     <Wand2 size={24} />
+                                 </div>
+                                 <div>
+                                     <div className="text-xl font-bold text-white">Auto Draft</div>
+                                     <div className="text-xs text-gray-400">Let the coach decide</div>
+                                 </div>
+                             </button>
+                         </div>
+                     </div>
+                 )}
+
+                 {/* 2. DRAFT EKRANI */}
+                 {(draftState === 'DRAFTING') && (
                      <>
-                        {/* --- YENİ FİLTRE VE ARAMA ÇUBUĞU --- */}
                         <div className="p-3 bg-dark-950 border-b border-dark-800 flex justify-between items-center gap-4">
-                            {/* Rol Filtreleri */}
                             <div className="flex gap-1">
-                                <button 
-                                    onClick={() => setRoleFilter('ALL')}
-                                    className={`px-3 py-1 rounded text-xs font-bold transition-all ${roleFilter === 'ALL' ? 'bg-hextech-600 text-white' : 'bg-dark-800 text-gray-400 hover:bg-dark-700'}`}
-                                >
-                                    ALL
-                                </button>
+                                <button onClick={() => setRoleFilter('ALL')} className={`px-3 py-1 rounded text-xs font-bold transition-all ${roleFilter === 'ALL' ? 'bg-hextech-600 text-white' : 'bg-dark-800 text-gray-400 hover:bg-dark-700'}`}>ALL</button>
                                 {Object.values(Role).filter(r => r !== Role.COACH).map(role => {
                                     const shortName = role === Role.JUNGLE ? 'JGL' : role === Role.ADC ? 'BOT' : role === Role.SUPPORT ? 'SUP' : role;
                                     const isFilled = isUserTurn && currentStep.type === 'PICK' && !!bluePicks[role];
-                                    
                                     return (
-                                        <button 
-                                            key={role}
-                                            onClick={() => !isFilled && setRoleFilter(role)}
-                                            disabled={isFilled}
-                                            className={`px-3 py-1 rounded text-xs font-bold transition-all 
-                                                ${roleFilter === role ? 'bg-hextech-600 text-white' : 'bg-dark-800 text-gray-400 hover:bg-dark-700'}
-                                                ${isFilled ? 'opacity-30 cursor-not-allowed decoration-line-through' : ''}
-                                            `}
-                                        >
+                                        <button key={role} onClick={() => !isFilled && setRoleFilter(role)} disabled={isFilled} className={`px-3 py-1 rounded text-xs font-bold transition-all ${roleFilter === role ? 'bg-hextech-600 text-white' : 'bg-dark-800 text-gray-400 hover:bg-dark-700'} ${isFilled ? 'opacity-30 cursor-not-allowed decoration-line-through' : ''}`}>
                                             {shortName}
                                         </button>
                                     );
                                 })}
                             </div>
-
-                            {/* Arama Kutusu */}
                             <div className="relative">
                                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500" size={14} />
-                                <input 
-                                    type="text" 
-                                    placeholder="Search..." 
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="w-40 bg-dark-800 border border-dark-700 text-white text-xs font-bold pl-8 pr-3 py-1.5 rounded-lg focus:outline-none focus:border-hextech-500 transition-colors"
-                                />
+                                <input type="text" placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-40 bg-dark-800 border border-dark-700 text-white text-xs font-bold pl-8 pr-3 py-1.5 rounded-lg focus:outline-none focus:border-hextech-500 transition-colors" />
                             </div>
                         </div>
 
-                        {/* Şampiyon Listesi */}
                         <div className="flex-1 overflow-y-auto p-4 custom-scrollbar bg-dark-900/50">
                             <div className="grid grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-3">
                                 {championsToDisplay.map(c => (
-                                    <div 
-                                        key={c.id} 
-                                        onClick={() => handleUserClick(c)}
-                                        className={`relative group aspect-square bg-dark-800 border border-dark-600 rounded cursor-pointer overflow-hidden ${!isUserTurn ? 'opacity-50 grayscale cursor-not-allowed' : 'hover:border-gold-400 hover:scale-105 transition-all'}`}
-                                    >
+                                    <div key={c.id} onClick={() => handleUserClick(c)} className={`relative group aspect-square bg-dark-800 border border-dark-600 rounded cursor-pointer overflow-hidden ${!isUserTurn ? 'opacity-50 grayscale cursor-not-allowed' : 'hover:border-gold-400 hover:scale-105 transition-all'}`}>
                                         <img src={c.imageUrl} className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-500" />
-                                        
                                         <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/80 to-transparent p-1.5 pt-4 text-center">
                                             <div className="text-[10px] text-white font-bold truncate leading-tight">{c.name}</div>
                                         </div>
-                                        
-                                        {/* Stil İkonu (Köşede küçük nokta) */}
                                         <div className={`absolute top-1 right-1 w-2.5 h-2.5 rounded-full border border-black/50 shadow-sm ${c.style === 'AGGRESSIVE' ? 'bg-red-500' : c.style === 'CONTROL' ? 'bg-blue-500' : 'bg-purple-500'}`} title={c.style}></div>
-
-                                        {/* Ban Overlay */}
                                         {currentStep.type === 'BAN' && isUserTurn && (
                                             <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-red-900/60 font-bold text-red-500 text-xl backdrop-blur-[1px] transition-opacity">BAN</div>
                                         )}
                                     </div>
                                 ))}
-                                {championsToDisplay.length === 0 && (
-                                    <div className="col-span-full flex flex-col items-center justify-center text-gray-500 py-10">
-                                        <p>No champions found.</p>
-                                    </div>
-                                )}
                             </div>
                         </div>
                      </>
-                 ) : (
+                 )}
+
+                 {/* 3. YÜKLENİYOR / SONUÇ */}
+                 {(draftState === 'ANALYZING' || draftState === 'RESULT') && (
                      <div className="flex items-center justify-center h-full text-white font-bold text-xl flex-col gap-4">
                          <div className="animate-spin w-10 h-10 border-4 border-hextech-500 border-t-transparent rounded-full"></div>
                          {draftState === 'ANALYZING' ? 'Analyzing Team Comps...' : 'Match Ready!'}
@@ -4184,7 +4244,7 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
                   <div className="flex justify-between items-start mb-4">
                       <div>
                           <h3 className="text-lg font-bold text-white">Finances & HQ</h3>
-                          <div className="text-xs text-gray-500">Weekly Income: <span className="text-green-400">+{currentSponsor ? currentSponsor.weeklyIncome : 0} G</span></div>
+                          <div className="text-xs text-gray-500">Weekly Income: <span className="text-green-400">+{gameState.currentSponsor ? gameState.currentSponsor.weeklyIncome : 0} G</span></div>
                       </div>
                       <button onClick={() => setTab('economy')} className="text-xs bg-dark-800 hover:bg-dark-700 px-3 py-1 rounded text-gray-300 transition-colors">
                           Sponsors
@@ -5126,11 +5186,11 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
       {tab === 'economy' && (
           <SponsorsView 
               // @ts-ignore
-              currentSponsor={currentSponsor}
+              currentSponsor={gameState.currentSponsor}
               // @ts-ignore
               onSignSponsor={handleSignSponsor}
               // @ts-ignore
-              userTeam={activeTeamData!} 
+              onTerminateSponsor={handleTerminateSponsor} // <-- YENİ EKLENEN
               coins={gameState.coins}
           />
       )}

@@ -350,60 +350,178 @@ export const REAL_LPL_PLAYERS: PlayerCard[] = [
   createPlayer('Lwx', 'FA', Role.ADC, 86, 26, 'CN'),
 ];
 
-export const REAL_LTA_PLAYERS: PlayerCard[] = [
-  // Cloud9 (C9)
-  createPlayer('Thanatos', 'C9', Role.TOP, 86, 20, 'KR', 'A'),
-  createPlayer('Blaber', 'C9', Role.JUNGLE, 89, 24, 'US', 'A', ['Lee Sin', 'Kindred', 'Olaf']),
-  createPlayer('Jojopyun', 'C9', Role.MID, 88, 20, 'CA', 'S', ['Sylas', 'Akali']),
-  createPlayer('Berserker', 'C9', Role.ADC, 91, 21, 'KR', 'S', ['Kalista', 'Ezreal']),
-  createPlayer('Vulcan', 'C9', Role.SUPPORT, 85, 25, 'CA'),
+export const REAL_LCP_PLAYERS: PlayerCard[] = [
+  // PSG Talon
+  createPlayer('Azhi', 'PSG', Role.TOP, 81, 23, 'TW'),
+  createPlayer('JunJia', 'PSG', Role.JUNGLE, 86, 22, 'TW'),
+  createPlayer('Maple', 'PSG', Role.MID, 88, 27, 'TW'),
+  createPlayer('Betty', 'PSG', Role.ADC, 83, 24, 'TW'),
+  createPlayer('Woody', 'PSG', Role.SUPPORT, 79, 21, 'TW'),
 
-  // Team Liquid (TL)
-  createPlayer('Impact', 'TL', Role.TOP, 88, 29, 'KR', 'B', ['Gnar', 'Sion']),
-  createPlayer('UmTi', 'TL', Role.JUNGLE, 85, 25, 'KR'),
-  createPlayer('APA', 'TL', Role.MID, 84, 22, 'US', 'B', ['Ziggs', 'Taliyah']),
-  createPlayer('Yeon', 'TL', Role.ADC, 86, 22, 'US'),
-  createPlayer('CoreJJ', 'TL', Role.SUPPORT, 89, 30, 'KR', 'A', ['Rell', 'Nautilus']),
+  // GAM Esports
+  createPlayer('Kiaya', 'GAM', Role.TOP, 85, 23, 'VN'),
+  createPlayer('Levi', 'GAM', Role.JUNGLE, 89, 27, 'VN'),
+  createPlayer('Emo', 'GAM', Role.MID, 78, 19, 'VN'),
+  createPlayer('EasyLove', 'GAM', Role.ADC, 79, 23, 'VN'),
+  createPlayer('Elio', 'GAM', Role.SUPPORT, 77, 22, 'VN'),
 
-  // FlyQuest (FLY)
-  createPlayer('Bwipo', 'FLY', Role.TOP, 87, 25, 'BE', 'B', ['Aatrox', 'Renekton']),
-  createPlayer('Inspired', 'FLY', Role.JUNGLE, 90, 22, 'PL', 'S', ['Viego', 'Sejuani']),
-  createPlayer('Quad', 'FLY', Role.MID, 85, 22, 'KR'),
-  createPlayer('Massu', 'FLY', Role.ADC, 83, 19, 'CA', 'A'),
-  createPlayer('Busio', 'FLY', Role.SUPPORT, 82, 21, 'US'),
+  // Vikings Esports (VKE)
+  createPlayer('Nanaue', 'VKE', Role.TOP, 76, 19, 'VN'),
+  createPlayer('Gury', 'VKE', Role.JUNGLE, 78, 21, 'VN'),
+  createPlayer('Kati', 'VKE', Role.MID, 82, 24, 'VN'),
+  createPlayer('Shogun', 'VKE', Role.ADC, 84, 20, 'VN'),
+  createPlayer('Bie', 'VKE', Role.SUPPORT, 80, 23, 'VN'),
 
-  // 100 Thieves (100T)
-  createPlayer('Sniper', '100T', Role.TOP, 82, 18, 'CA', 'S', ['Riven', 'K\'Sante']),
-  createPlayer('River', '100T', Role.JUNGLE, 85, 25, 'KR'),
-  createPlayer('Quid', '100T', Role.MID, 84, 20, 'KR'),
-  createPlayer('Tomo', '100T', Role.ADC, 80, 23, 'US'),
-  createPlayer('Eyla', '100T', Role.SUPPORT, 81, 24, 'AU'),
+  // Fukuoka SoftBank HAWKS (SHG)
+  createPlayer('Evi', 'SHG', Role.TOP, 83, 28, 'JP'),
+  createPlayer('Forest', 'SHG', Role.JUNGLE, 79, 22, 'KR'),
+  createPlayer('Dasher', 'SHG', Role.MID, 78, 23, 'KR'),
+  createPlayer('Marble', 'SHG', Role.ADC, 77, 20, 'JP'),
+  createPlayer('Vsta', 'SHG', Role.SUPPORT, 78, 23, 'KR'),
 
-  // Dignitas (DIG)
-  createPlayer('Licorice', 'DIG', Role.TOP, 83, 27, 'CA'),
-  createPlayer('Spica', 'DIG', Role.JUNGLE, 85, 23, 'CN'),
-  createPlayer('Jensen', 'DIG', Role.MID, 86, 29, 'DK'),
-  createPlayer('Zven', 'DIG', Role.ADC, 84, 27, 'DK'),
-  createPlayer('Isles', 'DIG', Role.SUPPORT, 80, 23, 'AU'),
+  // CTBC Flying Oyster (CFO)
+  createPlayer('Rest', 'CFO', Role.TOP, 80, 25, 'TW'),
+  createPlayer('Karsa', 'CFO', Role.JUNGLE, 84, 27, 'TW'),
+  createPlayer('Gori', 'CFO', Role.MID, 82, 23, 'KR'),
+  createPlayer('Shunn', 'CFO', Role.ADC, 78, 21, 'TW'),
+  createPlayer('SwordArt', 'CFO', Role.SUPPORT, 81, 27, 'TW'),
 
-  // Shopify Rebellion (SR)
-  createPlayer('FakeGod', 'SR', Role.TOP, 78, 24, 'US'),
-  createPlayer('Bugi', 'SR', Role.JUNGLE, 82, 26, 'KR'),
-  createPlayer('Insanity', 'SR', Role.MID, 81, 25, 'US'),
-  createPlayer('Bvoy', 'SR', Role.ADC, 83, 26, 'KR'),
-  createPlayer('Zeyzal', 'SR', Role.SUPPORT, 80, 25, 'US'),
+  // Frank Esports (FAK)
+  createPlayer('Solokill', 'FAK', Role.TOP, 77, 21, 'HK'),
+  createPlayer('Gemini', 'FAK', Role.JUNGLE, 79, 23, 'TW'),
+  createPlayer('JimieN', 'FAK', Role.MID, 80, 21, 'TW'),
+  createPlayer('MnM', 'FAK', Role.ADC, 78, 24, 'HK'),
+  createPlayer('Kaiwing', 'FAK', Role.SUPPORT, 79, 26, 'HK'),
 
-  // Lyon Gaming (LYN) - LLA Representative
-  createPlayer('Bong', 'LYN', Role.TOP, 79, 20, 'KR'),
-  createPlayer('Oddie', 'LYN', Role.JUNGLE, 80, 26, 'PE'),
-  createPlayer('Seiya', 'LYN', Role.MID, 82, 27, 'MX', 'C', ['Azir', 'Corki']),
-  createPlayer('Ceo', 'LYN', Role.ADC, 81, 20, 'AR'),
-  createPlayer('IgnaV1lus', 'LYN', Role.SUPPORT, 78, 22, 'AR'),
+  // Deep Cross Gaming (DCG)
+  createPlayer('Taco', 'DCG', Role.TOP, 76, 20, 'TW'),
+  createPlayer('665', 'DCG', Role.JUNGLE, 77, 21, 'TW'),
+  createPlayer('Cryscata', 'DCG', Role.MID, 79, 20, 'TW'),
+  createPlayer('Tide', 'DCG', Role.ADC, 75, 19, 'TW'),
+  createPlayer('Orca', 'DCG', Role.SUPPORT, 76, 20, 'TW'),
 
-  // Disguised (DSG) - Guest Team
-  createPlayer('Balls', 'DSG', Role.TOP, 76, 29, 'US'), // Placeholder/Guest roster
-  createPlayer('Meteos', 'DSG', Role.JUNGLE, 77, 30, 'US'),
-  createPlayer('Hai', 'DSG', Role.MID, 78, 31, 'US', 'C', ['Zed', 'Twisted Fate']),
-  createPlayer('Sneaky', 'DSG', Role.ADC, 80, 30, 'US'),
-  createPlayer('Aphromoo', 'DSG', Role.SUPPORT, 79, 31, 'US'),
+  // Chiefs Esports Club (CHF) - LCO Temsilcisi
+  createPlayer('BioPanther', 'CHF', Role.TOP, 78, 24, 'AU'),
+  createPlayer('Arthur', 'CHF', Role.JUNGLE, 80, 22, 'KR'),
+  createPlayer('Tally', 'CHF', Role.MID, 77, 26, 'AU'),
+  createPlayer('Raes', 'CHF', Role.ADC, 79, 25, 'NZ'),
+  createPlayer('Aladoric', 'CHF', Role.SUPPORT, 76, 23, 'AU')
+];
+
+// --- LTA NORTH PLAYERS (Latin Amerika) ---
+export const REAL_LTA_NORTH_PLAYERS: PlayerCard[] = [
+  // Movistar R7
+  createPlayer('Summit', 'R7', Role.TOP, 86, 26, 'KR'),
+  createPlayer('Oddie', 'R7', Role.JUNGLE, 82, 26, 'PE'),
+  createPlayer('Keine', 'R7', Role.MID, 83, 22, 'KR'),
+  createPlayer('Ceo', 'R7', Role.ADC, 84, 20, 'AR'),
+  createPlayer('Lyonz', 'R7', Role.SUPPORT, 80, 21, 'AR'),
+
+  // Estral Esports
+  createPlayer('Zothve', 'EST', Role.TOP, 78, 20, 'CL'),
+  createPlayer('Josedeodo', 'EST', Role.JUNGLE, 83, 24, 'AR'),
+  createPlayer('Cody', 'EST', Role.MID, 81, 25, 'CL'),
+  createPlayer('Snaker', 'EST', Role.ADC, 79, 22, 'AR'),
+  createPlayer('Ackerman', 'EST', Role.SUPPORT, 80, 23, 'AR'),
+
+  // Isurus
+  createPlayer('Pan', 'ISG', Role.TOP, 77, 21, 'AR'),
+  createPlayer('Kiny', 'ISG', Role.JUNGLE, 76, 20, 'MX'),
+  createPlayer('Seiya', 'ISG', Role.MID, 79, 27, 'MX'),
+  createPlayer('Gavotto', 'ISG', Role.ADC, 78, 23, 'MX'),
+  createPlayer('Jelly', 'ISG', Role.SUPPORT, 79, 24, 'KR'),
+
+  // Six Karma
+  createPlayer('Meaning', '6K', Role.TOP, 76, 20, 'KR'),
+  createPlayer('OnFleek', '6K', Role.JUNGLE, 80, 25, 'KR'),
+  createPlayer('Kz', '6K', Role.MID, 77, 21, 'CL'),
+  createPlayer('5kid', '6K', Role.ADC, 76, 22, 'KR'),
+  createPlayer('IgnaVilu', '6K', Role.SUPPORT, 75, 20, 'AR'),
+
+  // Infinity
+  createPlayer('Buggax', 'INF', Role.TOP, 78, 25, 'UY'),
+  createPlayer('Solid', 'INF', Role.JUNGLE, 76, 23, 'PE'),
+  createPlayer('TopLop', 'INF', Role.MID, 75, 21, 'CL'),
+  createPlayer('WhiteLotus', 'INF', Role.ADC, 80, 26, 'AR'),
+  createPlayer('Ackerman', 'INF', Role.SUPPORT, 77, 22, 'AR'), // Aynı isimli oyuncu olabilir
+
+  // All Knights
+  createPlayer('Hirit', 'AK', Role.TOP, 81, 24, 'KR'),
+  createPlayer('Grell', 'AK', Role.JUNGLE, 79, 22, 'MX'),
+  createPlayer('Leza', 'AK', Role.MID, 77, 23, 'MX'),
+  createPlayer('Trigo', 'AK', Role.ADC, 78, 21, 'BR'),
+  createPlayer('Gastruks', 'AK', Role.SUPPORT, 75, 23, 'AR'),
+
+  // 100 Thieves (LTA North'a geçtiği varsayımıyla veya partner olarak)
+  createPlayer('Sniper', '100T', Role.TOP, 80, 18, 'CA'),
+  createPlayer('River', '100T', Role.JUNGLE, 83, 24, 'KR'),
+  createPlayer('Quid', '100T', Role.MID, 81, 20, 'KR'),
+  createPlayer('Tomo', '100T', Role.ADC, 79, 23, 'US'),
+  createPlayer('Eyla', '100T', Role.SUPPORT, 80, 24, 'AU'),
+
+  // Disguised (DSG) - Konuk Takım
+  createPlayer('FakeGod', 'DSG', Role.TOP, 77, 23, 'US'),
+  createPlayer('Tomio', 'DSG', Role.JUNGLE, 76, 21, 'CA'),
+  createPlayer('Young', 'DSG', Role.MID, 75, 20, 'US'),
+  createPlayer('Meech', 'DSG', Role.ADC, 78, 22, 'US'),
+  createPlayer('Zeyzal', 'DSG', Role.SUPPORT, 79, 25, 'US'),
+];
+
+// --- LTA SOUTH PLAYERS (Brezilya) ---
+export const REAL_LTA_SOUTH_PLAYERS: PlayerCard[] = [
+  // paiN Gaming
+  createPlayer('Wizer', 'PNG', Role.TOP, 83, 25, 'KR'),
+  createPlayer('Cariok', 'PNG', Role.JUNGLE, 81, 24, 'BR'),
+  createPlayer('dyNquedo', 'PNG', Role.MID, 82, 26, 'BR'),
+  createPlayer('TitaN', 'PNG', Role.ADC, 84, 23, 'BR'),
+  createPlayer('Kuri', 'PNG', Role.SUPPORT, 80, 23, 'KR'),
+
+  // LOUD
+  createPlayer('Robo', 'LLL', Role.TOP, 82, 26, 'BR'),
+  createPlayer('Croc', 'LLL', Role.JUNGLE, 83, 25, 'KR'),
+  createPlayer('Tinowns', 'LLL', Role.MID, 84, 26, 'BR'),
+  createPlayer('Route', 'LLL', Role.ADC, 85, 24, 'KR'),
+  createPlayer('RedBert', 'LLL', Role.SUPPORT, 78, 25, 'BR'),
+
+  // FURIA
+  createPlayer('Zwyroo', 'FUR', Role.TOP, 77, 24, 'BR'),
+  createPlayer('Wiz', 'FUR', Role.JUNGLE, 79, 25, 'KR'),
+  createPlayer('Tutsz', 'FUR', Role.MID, 78, 21, 'BR'),
+  createPlayer('Ayu', 'FUR', Role.ADC, 76, 19, 'BR'),
+  createPlayer('Jojo', 'FUR', Role.SUPPORT, 77, 24, 'BR'),
+
+  // RED Canids
+  createPlayer('fNb', 'RED', Role.TOP, 81, 24, 'BR'),
+  createPlayer('Aegis', 'RED', Role.JUNGLE, 78, 20, 'BR'),
+  createPlayer('Grevthar', 'RED', Role.MID, 77, 25, 'BR'),
+  createPlayer('Brance', 'RED', Role.ADC, 82, 20, 'BR'),
+  createPlayer('Frosty', 'RED', Role.SUPPORT, 76, 19, 'BR'),
+
+  // Vivo Keyd Stars (VKS)
+  createPlayer('Guigo', 'VKS', Role.TOP, 78, 21, 'BR'),
+  createPlayer('Disamis', 'VKS', Role.JUNGLE, 79, 20, 'BR'),
+  createPlayer('Toucouille', 'VKS', Role.MID, 81, 22, 'FR'),
+  createPlayer('SMILEY', 'VKS', Role.ADC, 78, 24, 'SE'),
+  createPlayer('ProDelta', 'VKS', Role.SUPPORT, 76, 21, 'BR'),
+
+  // Fluxo (FX)
+  createPlayer('Kiari', 'FX', Role.TOP, 75, 21, 'BR'),
+  createPlayer('St1ng', 'FX', Role.JUNGLE, 76, 20, 'BR'),
+  createPlayer('Fuuuu', 'FX', Role.MID, 74, 19, 'BR'),
+  createPlayer('Trigo', 'FX', Role.ADC, 77, 22, 'BR'),
+  createPlayer('Scamber', 'FX', Role.SUPPORT, 75, 23, 'BR'),
+
+  // KaBuM! Esports (KBM)
+  createPlayer('Lonely', 'KBM', Role.TOP, 78, 24, 'KR'),
+  createPlayer('Malrang', 'KBM', Role.JUNGLE, 80, 23, 'KR'),
+  createPlayer('Hauz', 'KBM', Role.MID, 77, 22, 'BR'),
+  createPlayer('Netuno', 'KBM', Role.ADC, 79, 21, 'BR'),
+  createPlayer('Ceos', 'KBM', Role.SUPPORT, 78, 24, 'BR'),
+
+  // Liberty (LBR)
+  createPlayer('Makes', 'LBR', Role.TOP, 74, 20, 'BR'),
+  createPlayer('Drakehero', 'LBR', Role.JUNGLE, 73, 21, 'BR'),
+  createPlayer('Piloto', 'LBR', Role.MID, 75, 22, 'BR'),
+  createPlayer('Micao', 'LBR', Role.ADC, 76, 26, 'BR'),
+  createPlayer('Cavalo', 'LBR', Role.SUPPORT, 74, 20, 'BR'),
 ];
