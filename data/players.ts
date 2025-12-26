@@ -279,7 +279,7 @@ export const REAL_LPL_PLAYERS: PlayerCard[] = [
   createPlayer('Hang', 'LNG', Role.SUPPORT, 86, 21, 'CN'),
 
   // Weibo Gaming
-  createPlayer('TheShy', 'WBG', Role.TOP, 90, 25, 'KR'),
+  createPlayer('YSKM', 'WBG', Role.TOP, 84, 20, 'HK'),
   createPlayer('Xiaohao', 'WBG', Role.JUNGLE, 84, 21, 'CN'),
   createPlayer('Xiaohu', 'WBG', Role.MID, 91, 26, 'CN'),
   createPlayer('Light', 'WBG', Role.ADC, 89, 23, 'CN'),
@@ -307,7 +307,7 @@ export const REAL_LPL_PLAYERS: PlayerCard[] = [
   createPlayer('Life', 'FPX', Role.SUPPORT, 84, 22, 'KR'),
 
   // Invictus Gaming
-  createPlayer('YSKM', 'IG', Role.TOP, 84, 20, 'HK'),
+  createPlayer('TheShy', 'IG', Role.TOP, 93, 25, 'KR'),
   createPlayer('Leyan', 'IG', Role.JUNGLE, 81, 22, 'CN'),
   createPlayer('Cryin', 'IG', Role.MID, 84, 24, 'CN'),
   createPlayer('Ahn', 'IG', Role.ADC, 82, 21, 'CN'),

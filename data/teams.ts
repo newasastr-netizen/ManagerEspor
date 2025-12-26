@@ -2,7 +2,7 @@ import { TeamData } from '../src/types/types';
 
 export const ALL_TEAMS: TeamData[] = [
   // --- LCK (KOREA) ---
-  { id: 't1', name: 'T1', shortName: 'T1', primaryColor: '#E4002B', logoUrl: '/logos/lck/T1.png', tier: 'S', region: 'Korea', logo: '/logos/lck/T1.png', prestige: 100, fans: 50, budget: 20000 },
+  { id: 't1', name: 'T1', shortName: 'T1', primaryColor: '#e4002bff', logoUrl: '/logos/lck/T1.png', tier: 'S', region: 'Korea', logo: '/logos/lck/T1.png', prestige: 100, fans: 50, budget: 20000 },
   { id: 'gen', name: 'Gen.G', shortName: 'GEN', primaryColor: '#AA8A00', logoUrl: '/logos/lck/GEN.png', tier: 'S', region: 'Korea', logo: '/logos/lck/GEN.png', prestige: 95, fans: 30, budget: 18000 },
   { id: 'hle', name: 'Hanwha Life Esports', shortName: 'HLE', primaryColor: '#F47B20', logoUrl: '/logos/lck/HLE.png', tier: 'S', region: 'Korea', logo: '/logos/lck/HLE.png', prestige: 90, fans: 25, budget: 19000 },
   { id: 'dk', name: 'Dplus KIA', shortName: 'DK', primaryColor: '#00C4B3', logoUrl: '/logos/lck/DK.png', tier: 'A', region: 'Korea', logo: '/logos/lck/DK.png', prestige: 85, fans: 35, budget: 15000 },
