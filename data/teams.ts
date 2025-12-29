@@ -46,11 +46,12 @@ export const ALL_TEAMS: TeamData[] = [
   // --- LTA NORTH (AMERICAS NORTH) ---
   { id: 'c9', name: 'Cloud9', shortName: 'C9', logoUrl: '/logos/lta/C9.png', primaryColor: '#00AEEF', tier: 'A', region: 'LTA North', logo: '/logos/lta_north/C9.png', prestige: 88, fans: 40, budget: 17000 },
   { id: 'tl', name: 'Team Liquid', shortName: 'TL', logoUrl: '/logos/lta/TL.png', primaryColor: '#0C223F', tier: 'A', region: 'LTA North', logo: '/logos/lta_north/TL.png', prestige: 88, fans: 35, budget: 18000 },
-  { id: 'fly', name: 'FlyQuest', shortName: 'FLY', logoUrl: '/logos/lta/FLY.png', primaryColor: '#C3A857', tier: 'B', region: 'LTA North', logo: '/logos/lta_north/FLY.png', prestige: 80, fans: 15, budget: 14000 },
+  { id: 'fly', name: 'FlyQuest', shortName: 'FLY', logoUrl: '/logos/lta/FLY.png', primaryColor: '#3ba43fff', tier: 'B', region: 'LTA North', logo: '/logos/lta_north/FLY.png', prestige: 80, fans: 15, budget: 14000 },
   { id: '100t', name: '100 Thieves', shortName: '100T', logoUrl: '/logos/lta/100T.png', primaryColor:'#FF0000', tier: 'B', region: 'LTA North', logo: '/logos/lta_north/100T.png', prestige: 75, fans: 25, budget: 13000 },
   { id: 'dig', name: 'Dignitas', shortName: 'DIG', logoUrl:'/logos/lta/DIG.png' , primaryColor:'#FFD100' , tier:'C' , region:'LTA North' , logo:'/logos/lta_north/DIG.png' , prestige:65 , fans: 10 , budget: 9000},
   { id: 'dsg', name: 'Disguised', shortName: 'DSG', logoUrl: '/logos/lta/DSG.png', primaryColor: '#F6B93B', tier: 'C', region: 'LTA North', logo:'/logos/lta_north/DSG.png' , prestige : 55, fans : 30, budget : 8000 },
   { id: 'lyn', name: 'Lyon Gaming', shortName: 'LYN', logoUrl: '/logos/lta/LYN.png', primaryColor: '#D32F2F', tier: 'D', region: 'LTA North', logo: '/logos/lta_north/LYN.png', prestige: 50, fans: 12, budget: 6000 },
+  { id: 'shr', name: 'Shopify Rebellion', shortName: 'SHR', logoUrl: '/logos/lta/SHR.png', primaryColor: '#3a1a45ff', tier: 'D', region: 'LTA North', logo: '/logos/lta_north/SHR.png', prestige: 50, fans: 12, budget: 6000 },
 
   // --- LTA SOUTH (AMERICAS SOUTH - YENİ) ---
   { id: 'loud', name: 'LOUD', shortName: 'LLL', primaryColor: '#11FF00', logoUrl: '/logos/lta_south/LOUD.png', tier: 'B', region: 'LTA South', logo: '/logos/lta_south/LOUD.png', prestige: 75, fans: 60, budget: 12000 },
