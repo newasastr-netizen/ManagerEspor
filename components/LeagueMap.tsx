@@ -10,12 +10,12 @@ interface LeagueMapProps {
 
 // HARİTA KAYDIRMA AYARLARI (Shift)
 const MAP_CONFIG: Record<string, { top: string; left: string; shift: string }> = {
-    LTA_NORTH: { top: '30%', left: '18%', shift: 'translate-x-[20%]' },
+    LTA_NORTH: { top: '24%', left: '14%', shift: 'translate-x-[20%]' },
     LTA_SOUTH: { top: '65%', left: '28%', shift: 'translate-x-[15%]' },
-    LEC: { top: '32%', left: '52%', shift: 'translate-x-0' },
-    LPL: { top: '40%', left: '76%', shift: '-translate-x-[15%]' },
-    LCK: { top: '38%', left: '84%', shift: '-translate-x-[20%]' },
-    LCP: { top: '60%', left: '82%', shift: '-translate-x-[18%]' }
+    LEC: { top: '15%', left: '52%', shift: 'translate-x-0' },
+    LPL: { top: '27%', left: '86%', shift: '-translate-x-[15%]' },
+    LCK: { top: '18%', left: '95%', shift: '-translate-x-[20%]' },
+    LCP: { top: '50%', left: '90%', shift: '-translate-x-[18%]' }
 };
 
 const LEAGUE_ICONS: Record<string, React.ElementType> = {
