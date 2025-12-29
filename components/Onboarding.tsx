@@ -5,8 +5,10 @@ import { LeagueMap } from './LeagueMap';
 import { TeamLogo, getTeamTier } from './TeamLogo';
 import { ChevronRight, ChevronLeft, User, Shield, Sword, BarChart3, Users, CheckCircle2 } from 'lucide-react';
 
+// --- DÜZELTME 1: Interface Güncellemesi ---
 interface OnboardingProps {
-  onComplete: (name: string, team: TeamData, league: LeagueKey, difficulty: Difficulty) => void;
+  // Artık 4 ayrı parametre değil, tek bir obje bekliyoruz
+  onComplete: (data: { managerName: string; teamId: string; leagueId: LeagueKey; difficulty: Difficulty }) => void;
 }
 
 const getDeterministicFanbase = (teamId: string) => {
@@ -27,7 +29,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
 
   const activeLeagueData = selectedLeague ? LEAGUES[selectedLeague] : null;
 
-  // 1. Takım Sıralaması
+  // ... (useMemo kısımları aynı kalabilir, değiştirmeye gerek yok) ...
   const sortedTeams = useMemo(() => {
       if (!activeLeagueData) return [];
       return [...activeLeagueData.teams].sort((a, b) => {
@@ -37,10 +39,8 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
       });
   }, [activeLeagueData]);
 
-  // 2. Seçilen Takımın Oyuncuları
   const teamPlayers = useMemo(() => {
       if (!selectedTeam || !activeLeagueData) return [];
-      
       const targetId = selectedTeam.id.toLowerCase().trim();
       const targetName = selectedTeam.name.toLowerCase().trim();
       // @ts-ignore
@@ -58,7 +58,6 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
       });
   }, [selectedTeam, activeLeagueData]);
 
-  // 3. Takım Gücü (Overall)
   const teamOverall = useMemo(() => {
       if (teamPlayers.length === 0) return 0;
       const totalRating = teamPlayers.reduce((acc, p) => acc + p.overall, 0);
@@ -67,12 +66,19 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
 
   const fanbaseCount = selectedTeam ? getDeterministicFanbase(selectedTeam.id) : "0";
 
-  // --- Handlers ---
-
+  // --- DÜZELTME 2: handleNext Fonksiyonu ---
   const handleNext = () => {
     if (step === 1 && selectedLeague) setStep(2);
     else if (step === 2 && selectedTeam) setStep(3);
-    else if (step === 3 && managerName) onComplete(managerName, selectedTeam!, selectedLeague!, difficulty);
+    else if (step === 3 && managerName) {
+        // App.tsx'in beklediği formatta tek bir obje gönderiyoruz
+        onComplete({
+            managerName, 
+            teamId: selectedTeam!.id, 
+            leagueId: selectedLeague!, 
+            difficulty
+        });
+    }
   };
 
   const handleBack = () => {
@@ -84,7 +90,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
     }
   };
 
-  // --- Render ---
+  // ... (Geri kalan render kodları aynı kalabilir) ...
 
   const renderTeamSelection = () => {
       if (!activeLeagueData) return null;
@@ -147,8 +153,6 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
             <div className="w-1/3 bg-dark-950 border-l border-dark-800 flex flex-col relative shadow-2xl h-full">
                 {selectedTeam ? (
                     <div className="flex flex-col h-full animate-in slide-in-from-right duration-500">
-                        
-                        {/* Üst Kısım */}
                         <div className="p-8 pb-4 text-center border-b border-white/5 relative overflow-hidden shrink-0">
                             <div className="absolute inset-0 bg-gradient-to-b from-blue-900/20 to-transparent pointer-events-none"></div>
                             <div className="relative z-10 transform transition-transform duration-500 hover:scale-105">
@@ -158,9 +162,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
                             <p className="text-blue-400 font-bold tracking-widest text-sm mt-1">{activeLeagueData.name} • {activeLeagueData.region}</p>
                         </div>
 
-                        {/* Orta Kısım */}
                         <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
-                            
                             <div className="grid grid-cols-2 gap-3">
                                 <div className="bg-dark-900 p-3 rounded-lg border border-dark-700">
                                     <div className="text-gray-500 text-[10px] font-bold uppercase mb-1">Team Rating</div>
@@ -175,7 +177,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
                                     </div>
                                 </div>
                             </div>
-
+                            {/* ... Oyuncu listesi ... */}
                             <div>
                                 <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
                                     <Sword size={12}/> Current Roster
@@ -199,7 +201,6 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
                                                     </div>
                                                 </div>
                                                 
-                                                {/* Rating Bar */}
                                                 <div className="flex items-center gap-2 shrink-0">
                                                     <span className="text-xs font-mono font-bold text-gray-400 w-6 text-right">{playerRating > 0 ? playerRating : '-'}</span>
                                                     <div className="h-2 w-16 bg-black/50 rounded-full overflow-hidden border border-white/5">
@@ -220,7 +221,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
                                 </div>
                             </div>
                         </div>
-
+                        {/* ... Devam butonu ... */}
                         <div className="p-6 border-t border-white/10 bg-dark-900/50 backdrop-blur-sm mt-auto shrink-0">
                             <button
                                 onClick={handleNext}
@@ -244,6 +245,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
 
   const renderManagerDetails = () => (
     <div className="max-w-md w-full mx-auto animate-fade-in-up">
+        {/* ... (Buradaki kodlar aynı kalabilir) ... */}
         <div className="flex items-center gap-4 mb-8">
             <button onClick={handleBack} className="p-2 rounded-full bg-white/5 hover:bg-white/10 text-white transition-colors">
                 <ChevronLeft size={24} />

@@ -7,18 +7,126 @@ import { MatchSimulationView } from './components/MatchSimulationView';
 import { TrainingView } from './components/TrainingView';
 import { FacilitiesView } from './components/FacilitiesView';
 import { FacilityType } from './src/types/types';
+import  CalendarView  from './components/CalendarView';
 import { Onboarding } from './components/Onboarding';
 import { LEAGUES, LeagueKey, LeagueDefinition } from './data/leagues';
 import { HOUSING_OPTIONS } from './data/realestate';
 import { drawGroups, generateGroupStageSchedule, generateLPLSplit2Schedule } from './utils/scheduler';
 import { generateLeagueSchedule } from './utils/scheduleGenerator';
 import { CHAMPIONS, Champion, ChampionStyle } from './data/champions';
-import { Trophy, RotateCcw, AlertTriangle, Play, Handshake, Wand2, FastForward, SkipForward, XCircle, ArrowDownUp, Search, Mail, Newspaper, MessageSquare, Heart, HeartCrack, Swords, Skull, Crown, Ghost, TreeDeciduous, Axe, User, Crosshair, Sparkles, Flame, Shield, Circle, Hexagon, Home } from 'lucide-react';
-import { Role, PlayerCard, GameState, MatchResult, Rarity, TeamData, ScheduledMatch, PlayoffMatch, Standing, PlayerEvent, HistoryEntry, HistoryViewType } from './src/types/types';
+import { Trophy, RotateCcw, AlertTriangle, Play, Handshake, Wand2, FastForward, SkipForward, XCircle, ArrowDownUp, Search, Mail, Newspaper, MessageSquare, Heart, HeartCrack, Swords, Skull, Crown, Ghost, TreeDeciduous, Axe, User, Crosshair, Sparkles, Flame, Shield, Circle, Hexagon, Home, Calendar as CalendarIcon } from 'lucide-react';import { Role, PlayerCard, GameState, MatchResult, Rarity, TeamData, ScheduledMatch, PlayoffMatch, Standing, PlayerEvent, HistoryEntry, HistoryViewType } from './src/types/types';
 import { MainMenu } from './components/MainMenu';
 import { SponsorsView } from './components/SponsorsView'; 
 import { simulateMatchSeries, calculateTeamPower, processPlayerGrowth, calculateWeeklyExpenses } from './utils/engine';
 
+const formatDateToString = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
+type ActivityType = 'TRAINING' | 'SCRIM' | 'STREAMING' | 'TEAM_BUILDING' | 'REST';
+
+interface ActivityDef {
+    id: ActivityType;
+    label: string;
+    description: string;
+    color: string;
+    cost: number;
+    energyCost: number; // 0-100 arası yorgunluk
+    moraleImpact: number; // + veya - moral
+    statGain: number; // Gelişim puanı
+}
+
+const SCHEDULE_ACTIVITIES: Record<ActivityType, ActivityDef> = {
+    TRAINING: { 
+        id: 'TRAINING', label: 'Tactical Training', description: 'Standard practice. Good balance.', 
+        color: 'bg-blue-600', cost: 0, energyCost: 15, moraleImpact: -2, statGain: 2 
+    },
+    SCRIM: { 
+        id: 'SCRIM', label: 'Hard Scrims', description: 'High intensity practice against other teams.', 
+        color: 'bg-red-600', cost: 50, energyCost: 30, moraleImpact: -5, statGain: 5 
+    },
+    STREAMING: { 
+        id: 'STREAMING', label: 'Content / Stream', description: 'Players stream for fans. Earns money but tires players.', 
+        color: 'bg-purple-600', cost: 0, energyCost: 10, moraleImpact: 2, statGain: 0 
+    },
+    TEAM_BUILDING: { 
+        id: 'TEAM_BUILDING', label: 'Team Event', description: 'Dinner or fun activity. Boosts morale significantly.', 
+        color: 'bg-green-600', cost: 500, energyCost: -10, moraleImpact: 15, statGain: 0 
+    },
+    REST: { 
+        id: 'REST', label: 'Rest Day', description: 'Complete rest to recover energy and mental.', 
+        color: 'bg-gray-600', cost: 0, energyCost: -30, moraleImpact: 5, statGain: 0 
+    }
+};
+
+const SchedulePlanner: React.FC<{
+    schedule: ActivityType[];
+    onUpdateSchedule: (dayIndex: number, type: ActivityType) => void;
+    currentDayIndex: number; // 0=Mon, 6=Sun
+}> = ({ schedule, onUpdateSchedule, currentDayIndex }) => {
+    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+    return (
+        <div className="bg-dark-900 border border-dark-800 rounded-xl p-6 space-y-6">
+            <div className="flex justify-between items-center">
+                <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                    <CalendarIcon size={24} className="text-hextech-400" /> 
+                    Weekly Routine
+                </h3>
+                <span className="text-xs text-gray-500">Click on a day to change activity</span>
+            </div>
+
+            <div className="grid grid-cols-7 gap-2">
+                {days.map((dayName, index) => {
+                    const activityKey = schedule[index] || 'TRAINING';
+                    const activity = SCHEDULE_ACTIVITIES[activityKey];
+                    const isToday = index === currentDayIndex; // Basit eşleştirme
+
+                    return (
+                        <div key={dayName} className={`flex flex-col gap-2 ${isToday ? 'ring-2 ring-hextech-500 rounded-xl p-1' : ''}`}>
+                            <div className="text-center text-xs font-bold text-gray-500 uppercase">{dayName.slice(0, 3)}</div>
+                            
+                            <div className="relative group">
+                                <button 
+                                    onClick={() => {
+                                        // Döngüsel değişim: Training -> Scrim -> Stream -> Team -> Rest -> Training
+                                        const types = Object.keys(SCHEDULE_ACTIVITIES) as ActivityType[];
+                                        const currIdx = types.indexOf(activityKey);
+                                        const nextIdx = (currIdx + 1) % types.length;
+                                        onUpdateSchedule(index, types[nextIdx]);
+                                    }}
+                                    className={`w-full h-32 rounded-xl flex flex-col items-center justify-center gap-2 transition-all hover:brightness-110 ${activity.color} shadow-lg`}
+                                >
+                                    <div className="font-bold text-white text-sm text-center px-1">{activity.label}</div>
+                                    
+                                    {/* İkonlar / Bilgiler */}
+                                    <div className="flex flex-col gap-1 text-[10px] text-white/80">
+                                        {activity.statGain > 0 && <span>+{activity.statGain} XP</span>}
+                                        {activity.moraleImpact !== 0 && <span className={activity.moraleImpact > 0 ? 'text-green-300' : 'text-red-300'}>{activity.moraleImpact > 0 ? '+' : ''}{activity.moraleImpact} Morale</span>}
+                                        {activity.cost > 0 && <span className="text-gold-300">-{activity.cost} G</span>}
+                                    </div>
+                                </button>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+            
+            {/* Açıklama Alanı */}
+            <div className="flex flex-wrap gap-4 justify-center bg-dark-950 p-4 rounded-lg">
+                {Object.values(SCHEDULE_ACTIVITIES).map(act => (
+                    <div key={act.id} className="flex items-center gap-2">
+                        <div className={`w-3 h-3 rounded-full ${act.color}`}></div>
+                        <span className="text-xs text-gray-400">{act.label}</span>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
 
 const ACTIVITIES = [
   { id: 'scrim', name: 'Scrimmage', cost: 50, slots: 2, description: 'Play a practice match against a random team.', gains: { teamfight: 2, macro: 1 } },
@@ -522,7 +630,7 @@ const INITIAL_STATE: GameState = {
   managerName: '',
   teamId: '',
   leagueKey: 'LCK',
-  coins: 10000,
+  coins: 20000,
   year: 2025,
   currentSeason: 1,
   currentSplit: 'SPRING',
@@ -531,6 +639,7 @@ const INITIAL_STATE: GameState = {
   currentDay: 1,
   stage: 'PRE_SEASON',
   groups: { A: [], B: [] },
+  weeklySchedule: ['TRAINING', 'TRAINING', 'TRAINING', 'TRAINING', 'TRAINING', 'REST', 'REST'],
   winnersGroup: null,
   inventory: [],
   roster: { [Role.TOP]: null, [Role.JUNGLE]: null, [Role.MID]: null, [Role.ADC]: null, [Role.SUPPORT]: null, [Role.COACH]: null },
@@ -557,6 +666,7 @@ const INITIAL_STATE: GameState = {
 export default function App() {
   const [onboardingComplete, setOnboardingComplete] = useState(false);
   const [tab, setTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState('dashboard');
   const [activeLeague, setActiveLeague] = useState<LeagueDefinition>(LEAGUES.LCK);
   const [view, setView] = useState<'MENU' | 'ONBOARDING' | 'GAME'>('MENU');
   const [hasSaveFile, setHasSaveFile] = useState(false);
@@ -569,6 +679,13 @@ export default function App() {
     coins: DIFFICULTY_SETTINGS.Normal.initialCoins,
     currentSponsor: null,
     year: 2025,
+    gameDate: {
+      day: 1,
+      month: 1,
+      year: 2025,
+      dayOfWeek: "Wednesday",
+      dateString: "2025-01-01"
+    },
     currentSplit: 'SPRING',
     week: 0, 
     difficulty: 'Normal',
@@ -602,7 +719,7 @@ export default function App() {
   const [filterRole, setFilterRole] = useState<Role | 'ALL' | 'COACH'>('ALL');
   const [filterStatus, setFilterStatus] = useState<'ALL' | 'FA' | 'TRANSFER'>('ALL');
   const [sortOrder, setSortOrder] = useState<'RATING' | 'PRICE' | 'SALARY'>('RATING');
-  const [priceRange, setPriceRange] = useState({ min: 0, max: 20000 });
+  const [priceRange, setPriceRange] = useState({ min: 0, max: 5000000 });
   const [filterLeague, setFilterLeague] = useState<LeagueKey | 'ALL'>('ALL');
   const [marketPage, setMarketPage] = useState(1);
 
@@ -655,20 +772,33 @@ export default function App() {
   }, [filterRole, filterStatus, sortOrder, priceRange, filterLeague]);
 
   const handleNewGame = () => {
-  localStorage.removeItem('lck_manager_save_v1');
-  setGameState(INITIAL_STATE);
-  setOnboardingComplete(false);
-  setHasSaveFile(false); 
-  setView('ONBOARDING');
+    localStorage.removeItem('lck_manager_save_v1');
+    setHasSaveFile(false); 
+    setOnboardingComplete(false);
+    setView('ONBOARDING');
   };
 
   const handleContinueGame = () => {
     const savedData = localStorage.getItem('lck_manager_save_v1');
     if (savedData) {
       const parsed = JSON.parse(savedData);
-      setGameState(parsed);
-      if (parsed.leagueKey && LEAGUES[parsed.leagueKey as LeagueKey]) {
-          setActiveLeague(LEAGUES[parsed.leagueKey as LeagueKey]);
+      const safeState = {
+          ...parsed,
+          gameDate: parsed.gameDate || { day: 1, month: 1, year: 2025, dayOfWeek: "Wednesday", dateString: "2025-01-01" },
+          schedule: parsed.schedule || [],
+          weeklySchedule: parsed.weeklySchedule || ['TRAINING', 'TRAINING', 'TRAINING', 'TRAINING', 'TRAINING', 'REST', 'REST'],
+          playoffMatches: parsed.playoffMatches || [],
+          standings: parsed.standings || [],
+          newsFeed: parsed.newsFeed || [],
+          playerMessages: parsed.playerMessages || [],
+          matchHistory: parsed.matchHistory || []
+      };
+      setGameState(safeState);
+
+      if (safeState.leagueKey && LEAGUES[safeState.leagueKey as LeagueKey]) {
+          setActiveLeague(LEAGUES[safeState.leagueKey as LeagueKey]);
+      } else {
+          setActiveLeague(LEAGUES['LCK']); 
       }
       setOnboardingComplete(true);
       setView('GAME');
@@ -676,123 +806,124 @@ export default function App() {
   };
 
   // @ts-ignore
-  const handleOnboardingComplete = (arg1: any, arg2?: any, arg3?: any, arg4?: any) => {
+  const handleOnboardingComplete = (data: { managerName: string; teamId: string; leagueId: LeagueKey; difficulty: Difficulty }) => {
     
-    // 1. Veri Adaptasyonu
-    let data: any = {};
-    if (typeof arg1 === 'object' && arg1 !== null && ('leagueKey' in arg1 || 'league' in arg1)) {
-        data = arg1;
-        if (!data.leagueKey) data.leagueKey = data.league;
-        if (!data.teamId && data.team) data.teamId = data.team.id;
-    } else {
-        data = {
-            managerName: arg1,
-            teamId: (arg2 && typeof arg2 === 'object') ? arg2.id : arg2,
-            leagueKey: arg3,
-            difficulty: arg4
-        };
-    }
+    // 1. Seçilen Ligi ve Takımı Bul
+    const targetLeague = LEAGUES[data.leagueId];
+    if (!targetLeague) { console.error("Lig bulunamadı"); return; }
 
-    // 2. Lig ve Takım Bulma
-    // @ts-ignore
-    const selectedLeagueKey = (data.leagueKey || 'LCK') as LeagueKey;
-    // @ts-ignore
-    const selectedLeagueData = LEAGUES[selectedLeagueKey] || LEAGUES['LCK'];
-    // @ts-ignore
-    const activeTeam = selectedLeagueData.teams.find(t => t.id === data.teamId) || selectedLeagueData.teams[0];
+    const selectedTeam = targetLeague.teams.find(t => t.id === data.teamId);
+    if (!selectedTeam) { console.error("Takım bulunamadı"); return; }
+
+    // 2. Tarih Ayarları (Pre-Season)
+    const leagueSettings = targetLeague.settings;
+    const splitStartStr = leagueSettings.calendar?.split1Start || '2025-01-01';
+    const startDate = new Date(splitStartStr);
+    startDate.setDate(startDate.getDate() - 14); // 2 Hafta geri al
+    const startDayName = startDate.toLocaleDateString('en-US', { weekday: 'long' });
+
+    // 3. OYUNCULARI DAĞITMA MANTIĞI (Kritik Kısım)
     
-    // 3. Ayarlar
-    const finalDifficulty = data.difficulty || 'Normal';
-    const difficultySettings = DIFFICULTY_SETTINGS[finalDifficulty as Difficulty];
-    let startingCoins = difficultySettings.initialCoins;
+    // Boş Roster Şablonu
+    const initialRoster: Record<Role, PlayerCard | null> = {
+        [Role.TOP]: null, [Role.JUNGLE]: null, [Role.MID]: null, [Role.ADC]: null, [Role.SUPPORT]: null, [Role.COACH]: null
+    };
 
-    // Tier ve Ev Ayarları
-    const teamTier = getTeamTier(activeTeam.id);
-    let startingHouseId = 'starter';
-    let startingFacilityLevel = 1;
+    // AI Takımların Kadroları (Simülasyon için)
+    const initialAiRosters: Record<string, Record<Role, PlayerCard>> = {};
+    
+    // Market Havuzu (Transfer Listesi)
+    const marketPool: PlayerCard[] = [];
 
-    if (teamTier === 'S') { startingCoins += 10000; startingHouseId = 'campus'; startingFacilityLevel = 4; }
-    else if (teamTier === 'A') { startingCoins += 5000; startingHouseId = 'villa'; startingFacilityLevel = 3; }
-    else if (teamTier === 'B') { startingCoins += 2000; startingHouseId = 'apartment'; startingFacilityLevel = 2; }
-    else { startingCoins += 500; }
+    Object.values(LEAGUES).forEach(league => {
+        const playersInLeague = league.players;
 
-    const initialFacilities = { ...INITIAL_STATE.facilities };
-    // @ts-ignore
-    (Object.keys(initialFacilities) as FacilityType[]).forEach(key => {
-        // @ts-ignore
-        const maxLvl = initialFacilities[key].maxLevel;
-        // @ts-ignore
-        initialFacilities[key] = { ...initialFacilities[key], level: Math.min(startingFacilityLevel, maxLvl) };
-    });
+        playersInLeague.forEach(p => {
+            // A) EĞER OYUNCU SENİN TAKIMINDAYSA (Ve senin seçtiğin ligdeyse) -> ROSTER'A EKLE
+            if (league.id === data.leagueId && p.team === selectedTeam.shortName) {
+                initialRoster[p.role] = { ...p, team: selectedTeam.shortName, league: league.id as LeagueKey };
+            } 
+            // B) EĞER BAŞKA BİR TAKIMDAYSA -> MARKET HAVUZUNA VE AI ROSTER'A EKLE
+            else if (p.team !== 'FA' && p.team !== 'ACA') {
+                // Oyuncuya lig bilgisini ekle
+                const playerWithLeague = { ...p, league: league.id as LeagueKey };
+                
+                marketPool.push(playerWithLeague);
 
-    // 4. Oyuncu ve Market
-    const allPlayers = Object.entries(LEAGUES).flatMap(([key, leagueData]) => 
-        // @ts-ignore
-        (leagueData.players || []).map(p => ({ ...p, league: key as LeagueKey }))
-    );
-
-    let finalMarketPlayers: PlayerCard[] = [];
-    let initialRoster = INITIAL_STATE.roster;
-    let initialAiRosters = INITIAL_STATE.aiRosters;
-
-    if (allPlayers.length > 0) {
-        // @ts-ignore
-        const userTeamPlayers = allPlayers.filter(p => p.team === activeTeam.shortName || p.team === activeTeam.name);
-        const newRoster = { ...INITIAL_STATE.roster };
-        userTeamPlayers.forEach((p: any) => {
-            if (p.role) {
-                // @ts-ignore
-                newRoster[p.role] = { ...p, contractDuration: 2, price: 0 };
+                // AI Roster yapısını kur (Simülasyon doğru çalışsın diye)
+                const aiTeam = league.teams.find(t => t.shortName === p.team);
+                if (aiTeam) {
+                    if (!initialAiRosters[aiTeam.id]) {
+                        initialAiRosters[aiTeam.id] = {} as any;
+                    }
+                    initialAiRosters[aiTeam.id][p.role] = playerWithLeague;
+                }
+            }
+            // C) EĞER SERBEST OYUNCUYSA (FA)
+            else {
+                marketPool.push({ ...p, league: league.id as LeagueKey });
             }
         });
-        initialRoster = newRoster;
-        // @ts-ignore
-        finalMarketPlayers = allPlayers.filter(p => p.team !== activeTeam.shortName).sort(() => 0.5 - Math.random());
-    } else {
-        const generatedData = generateRandomPlayersForLeague(selectedLeagueData.teams);
-        // @ts-ignore
-        initialRoster = generatedData[activeTeam.id] || INITIAL_STATE.roster;
-        initialAiRosters = generatedData;
-    }
+    });
 
-    // 5. Fikstür
-    const newSchedule = generateLeagueSchedule(selectedLeagueKey, selectedLeagueData.teams);
+    // 4. GAME STATE OLUŞTUR
+    const initialGameState: GameState = {
+      managerName: data.managerName,
+      teamId: data.teamId,
+      team: selectedTeam,
+      leagueKey: data.leagueId,
+      coins: DIFFICULTY_SETTINGS[data.difficulty].initialCoins, 
+      
+      gameDate: {
+        day: startDate.getDate(),
+        month: startDate.getMonth() + 1,
+        year: startDate.getFullYear(),
+        dayOfWeek: startDayName,
+        dateString: startDate.toISOString().split('T')[0]
+      },
 
-    setActiveLeague(selectedLeagueData);
-
-    // 6. State Güncelleme (Tek seferde her şeyi set ediyoruz)
-    setGameState(prev => ({
-      ...prev,
-      managerName: data.managerName || 'Manager',
-      league: selectedLeagueKey,
-      leagueKey: selectedLeagueKey,
-      team: activeTeam,
-      teamId: activeTeam.id,
-      difficulty: finalDifficulty as Difficulty,
-      coins: startingCoins,
-      activeHousingId: startingHouseId,
-      facilities: initialFacilities,
-      roster: initialRoster,
-      aiRosters: initialAiRosters,
-      freeAgents: finalMarketPlayers,
-      schedule: [],
-      week: 0,
       currentDay: 1,
-      stage: 'PRE_SEASON',
-      standings: selectedLeagueData.teams.map((t: any) => ({
-        teamId: t.id,
-        name: t.name,
-        wins: 0,
-        losses: 0,
-        gameWins: 0,
-        gameLosses: 0,
-        streak: 0
-      }))
-    }));
+      week: 0,
+      year: 2025,
+      currentSeason: 1,
+      currentSplit: 'SPRING',
+      difficulty: data.difficulty,
+      stage: 'PRE_SEASON', 
+      schedule: [],       
+      
+      facilities: {
+        STREAM_ROOM: { id: 'STREAM_ROOM', name: 'Stream Room', level: 1, maxLevel: 5, upgradeCost: [300, 800, 2000, 5000], description: 'Passive income.', benefit: '+{lvl}00 G / Week' },
+        GYM: { id: 'GYM', name: 'Gym', level: 1, maxLevel: 3, upgradeCost: [1000, 3000], description: 'Stamina recovery.', benefit: '+{lvl}0 Stamina' },
+        MEDICAL_CENTER: { id: 'MEDICAL_CENTER', name: 'Medical Center', level: 1, maxLevel: 3, upgradeCost: [2000, 5000], description: 'Injury reduction.', benefit: '-{lvl}0% Time' }
+      },
+      
+      activeHousingId: 'starter',
+      
+      roster: initialRoster, // <--- ARTIK DOLU GELECEK
+      
+      standings: targetLeague.teams.map(t => ({
+        teamId: t.id, name: t.name, wins: 0, losses: 0, gameWins: 0, gameLosses: 0, streak: 0, group: 'A'
+      })),
+      
+      inventory: [],
+      aiRosters: initialAiRosters, // <--- AI TAKIMLAR DA HAZIR
+      freeAgents: marketPool,      // <--- MARKET LİSTESİ BURADAN BESLENİYOR
+      groups: { A: [], B: [] },
+      winnersGroup: null,
+      matchHistory: [],
+      newsFeed: [],
+      playerMessages: [],
+      trainingSlotsUsed: 0,
+      currentSponsor: null
+    };
 
-    setMarket(finalMarketPlayers);
+    setGameState(initialGameState);
+    localStorage.setItem('lck_manager_save_v1', JSON.stringify(initialGameState));
     setOnboardingComplete(true);
-    setView('dashboard');
+    setView('GAME');
+    
+    // Oyunu başlattığında direkt Roster ekranına git ki kadronu gör
+    setTab('roster'); 
   };
 
   const handleSignSponsor = (sponsor: any) => {
@@ -940,6 +1071,7 @@ export default function App() {
     let relationshipBonus = 0;
     
     players.forEach(p => {
+    const playerLeague = p.league || gameState.leagueKey;
       if (p.league) {
         leagueCounts[p.league] = (leagueCounts[p.league] || 0) + 1;
       }
@@ -1542,179 +1674,196 @@ export default function App() {
     return { groups, schedule, standings };
   };
 
-  const startSeason = () => {
-    // 1. Kadro Kontrolü
+    const startSeason = () => {
+    // 1. KADRO KONTROLÜ
     if (!isRosterComplete()) {
       setError("You must sign a player for every role to start the season!");
       setTimeout(() => setError(null), 3000);
       return;
     }
 
-    // Kullanılan tüm oyuncu ID'lerini topla (Çakışma olmaması için)
-    const allPlayerIdsInUse = new Set([
-        ...gameState.inventory.map(p => p.id),
-        ...(Object.values(gameState.roster) as (PlayerCard | null)[]).filter(p => p).map(p => p!.id)
-    ]);
-    Object.values(gameState.aiRosters).forEach(roster => {
-        Object.values(roster).filter(p => p).forEach(p => allPlayerIdsInUse.add(p!.id));
-    });
-
-    const roles = [Role.TOP, Role.JUNGLE, Role.MID, Role.ADC, Role.SUPPORT];
-    
     setGameState(prev => {
-        // --- 1. ADIM: AI TRANSFERLERİ VE KADRO DOLDURMA ---
-        const transferUpdates = handleAiTransfers(prev); // Sezon öncesi son transferler
-        const newAiRosters = { ...prev.aiRosters };
-        
-        // Tüm havuzu al
-        const allPlayers = Object.entries(LEAGUES).flatMap(([key, leagueData]) => 
-          leagueData.players.map(p => ({ ...p, league: key as LeagueKey }))
+        console.log("🌎 Küresel sezon başlatılıyor (LPL 4-Groups Fixed)...");
+
+        // --- 1. ADIM: KADRO KURULUMU (Aynen koruyoruz) ---
+        const transferUpdates = handleAiTransfers(prev); 
+        const newAiRosters = { ...prev.aiRosters }; 
+        const roles = [Role.TOP, Role.JUNGLE, Role.MID, Role.ADC, Role.SUPPORT];
+
+        const globalPlayerPool = Object.entries(LEAGUES).flatMap(([key, leagueData]) => 
+            leagueData.players.map(p => ({ ...p, league: key as LeagueKey }))
         );
 
-        // Kullanılmayan oyuncuları filtrele
-        const pool = [...allPlayers, ...prev.freeAgents].filter(p => !allPlayerIdsInUse.has(p.id));
-        
-        // Rakip takımları bul
-        const allAiTeams = Object.values(LEAGUES).flatMap(l => l.teams).filter(t => t.id !== prev.teamId);
+        const usedPlayerIds = new Set([
+            ...prev.inventory.map(p => p.id),
+            ...(Object.values(prev.roster) as (PlayerCard | null)[]).filter(p => p).map(p => p!.id),
+            ...Object.values(newAiRosters).flatMap(r => Object.values(r).filter(p => p).map(p => p.id))
+        ]);
 
-        // Her rakip takımın eksiklerini tamamla
-        allAiTeams.forEach(team => {
-            const teamLeagueKey = Object.keys(LEAGUES).find(key => 
-                (LEAGUES as any)[key].teams.some((t: TeamData) => t.id === team.id)
-            ) as LeagueKey | undefined;
+        const availablePool = [...globalPlayerPool, ...prev.freeAgents].filter(p => !usedPlayerIds.has(p.id));
 
-            if (!teamLeagueKey) return;
+        Object.values(LEAGUES).forEach(league => {
+            league.teams.forEach(team => {
+                if (team.id === prev.teamId) return;
+                if (!newAiRosters[team.id]) newAiRosters[team.id] = {} as any;
+                const roster = newAiRosters[team.id];
 
-            // Kadro zaten tamsa geç
-            if (newAiRosters[team.id] && Object.keys(newAiRosters[team.id]).length >= 5) return;
+                roles.forEach(role => {
+                    if (roster[role]) return;
+                    let candidateIndex = availablePool.findIndex(p => p.role === role && p.league === league.id);
+                    if (candidateIndex === -1) candidateIndex = availablePool.findIndex(p => p.role === role);
 
-            const newRoster: Record<Role, PlayerCard> = newAiRosters[team.id] ? {...newAiRosters[team.id]} as any : {} as any;
-
-            roles.forEach(role => {
-                if (newRoster[role]) return; // Rol doluysa geç
-
-                // Önce kendi liginden oyuncu ara
-                let playerIndex = pool.findIndex(p => p.role === role && p.league === teamLeagueKey);
-                
-                // Bulamazsa veya şans eseri yabancı oyuncu al
-                if (playerIndex === -1 || Math.random() < 0.2) {
-                    const foreignIndex = pool.findIndex(p => p.role === role && p.league !== teamLeagueKey);
-                    if (foreignIndex !== -1) playerIndex = foreignIndex;
-                }
-
-                if (playerIndex >= 0) {
-                    const player = pool[playerIndex];
-                    newRoster[role] = { ...player, team: team.shortName, contractDuration: 2 };
-                    pool.splice(playerIndex, 1); // Oyuncuyu havuzdan çıkar
-                } else {
-                    // Hiç oyuncu yoksa 'Rookie' oluştur
-                    newRoster[role] = { 
-                        ...activeLeague.players[0], 
-                        id: `gen-${team.id}-${role}-${Date.now()}`, 
-                        name: `Rookie ${role}`, 
-                        role, 
-                        overall: 70, 
-                        age: 18, 
-                        price: 0, 
-                        salary: 20, 
-                        contractDuration: 2, 
-                        rarity: Rarity.COMMON, 
-                        stats: {mechanics:70, macro:70, lane:70, teamfight:70}, 
-                        team: team.shortName, 
-                        country: 'kr', // Varsayılan ülke
-                        league: teamLeagueKey 
-                    };
-                }
+                    if (candidateIndex !== -1) {
+                        const player = availablePool[candidateIndex];
+                        roster[role] = { ...player, team: team.shortName, contractDuration: 2 };
+                        availablePool.splice(candidateIndex, 1); 
+                        usedPlayerIds.add(player.id);
+                    } else {
+                        roster[role] = { 
+                            ...league.players[0], 
+                            id: `gen-${team.id}-${role}-${Date.now()}-${Math.random()}`, 
+                            name: `Rookie ${role}`, role, overall: 70, age: 17, price: 0, salary: 20, 
+                            contractDuration: 2, rarity: Rarity.COMMON, 
+                            stats: { mechanics: 70, macro: 70, lane: 70, teamfight: 70 }, 
+                            team: team.shortName, league: league.id as LeagueKey, country: 'kr' 
+                        };
+                    }
+                });
             });
-            newAiRosters[team.id] = newRoster;
         });
 
-        // --- 2. ADIM: LİG FORMATINA GÖRE FİKSTÜR OLUŞTURMA ---
-        let groups: any;
-        let schedule: ScheduledMatch[] = [];
-        let newStandings: Standing[] = [];
-        const format = activeLeague.settings.format;
-        const currentSplit = prev.currentSplit;
+        // --- 2. ADIM: FİKSTÜR VE AKILLI TARİH ATAMA ---
+        let masterSchedule: ScheduledMatch[] = [];
+        let masterStandings: Standing[] = [];
+        let activeLeagueGroups: any = { A: [], B: [] }; 
 
-        // === SENARYO A: LPL (4 GRUP veya ÖZEL SPLITLER) ===
-        if (format === 'LPL') {
-             if (currentSplit === 'SPLIT_2') {
-                // Split 2 Başlangıcı (Placement Aşaması)
-                const lplState = startLPLSplit2Placements(prev);
-                groups = lplState.groups;
-                schedule = lplState.schedule;
-                newStandings = lplState.standings;
-                // Stage adını placement olarak güncelleyeceğiz
-             } else if (currentSplit === 'SPLIT_3') {
-                // Split 3 Başlangıcı (Ascend/Nirvana Rumble)
-                const lplState = startLPLSplit3(prev);
-                groups = lplState.groups;
-                schedule = lplState.schedule;
-                newStandings = lplState.standings;
-             } else {
-                // SPLIT 1: 4 Grup, Bo5 Formatı, Fearless Draft
-                 const teams = activeLeague.teams;
-                 // Güç dengesine göre veya rastgele dağıtılabilir, şimdilik rastgele:
-                 const shuffled = [...teams].sort(() => 0.5 - Math.random());
-                 groups = {
-                    A: shuffled.slice(0, 4).map(t => t.id),
-                    B: shuffled.slice(4, 8).map(t => t.id),
-                    C: shuffled.slice(8, 12).map(t => t.id),
-                    D: shuffled.slice(12, 16).map(t => t.id),
-                 };
-
-                 schedule = [];
-                 let matchIdCounter = 0;
-                 // Her grup kendi içinde TEK maç (Single Round Robin) yapar ama maçlar Bo5'tir.
-                 Object.values(groups).forEach((group: any) => {
-                    for (let i = 0; i < group.length; i++) {
-                        for (let j = i + 1; j < group.length; j++) {
-                            schedule.push({
-                                id: `lpl-s1-${matchIdCounter++}`,
-                                round: Math.floor(matchIdCounter / 2) + 1,
-                                week: Math.ceil((matchIdCounter / 2 + 1) / 4), // Bo5 olduğu için haftada az maç olur
-                                teamAId: group[i],
-                                teamBId: group[j],
-                                played: false,
-                                isBo5: true, // LPL Split 1 maçları Bo5!
-                            });
-                        }
-                    }
-                 });
-
-                 newStandings = teams.map(t => ({
-                    teamId: t.id,
-                    name: t.shortName,
-                    wins: 0, losses: 0, gameWins: 0, gameLosses: 0, streak: 0,
-                    group: Object.keys(groups).find(key => (groups as any)[key].includes(t.id)) as any
-                 }));
-            }
-        }
-
-        else if (format === 'LCK' || currentSplit === 'LCK_CUP') {
-            groups = drawGroups(activeLeague.teams);
-            schedule = generateGroupStageSchedule(groups, activeLeague.settings);
+        // --- TARİH ATAYICI (GÜNCELLENDİ) ---
+        const assignSmartDates = (matches: ScheduledMatch[], startDateStr: string, leagueKey: string): ScheduledMatch[] => {
+            let currentDate = new Date(startDateStr);
+            let matchesScheduledToday = 0;
             
-            newStandings = activeLeague.teams.map(t => ({
-                teamId: t.id,
-                name: t.shortName,
-                wins: 0, losses: 0, gameWins: 0, gameLosses: 0, streak: 0,
-                group: groups.A.includes(t.id) ? 'A' : 'B'
-            } as Standing));
-        }
-        else {
-            groups = { 
-                A: activeLeague.teams.map(t => t.id), 
-                B: []
+            const isLCK = leagueKey.toUpperCase() === 'LCK'; 
+            const isLPL = leagueKey.toUpperCase() === 'LPL';
+            
+            // LCK: Günde 2 maç (Bo3)
+            // LPL: Günde 2 maç (Bo5 olmasına rağmen genellikle günde 1-2 seri oynanır)
+            // Diğerleri: Günde 3 maç
+            const matchesPerDay = (isLCK || isLPL) ? 2 : 3; 
+
+            // Tatil Günlerini Atla (Sadece LCK için Pazartesi/Salı tatil)
+            const skipOffDays = (date: Date) => {
+                if (isLCK) {
+                    while (date.getDay() === 1 || date.getDay() === 2) {
+                        date.setDate(date.getDate() + 1);
+                    }
+                }
             };
-            schedule = generateLeagueSchedule(prev.leagueKey as LeagueKey, activeLeague.teams);
-            newStandings = activeLeague.teams.map(t => ({
-                teamId: t.id,
-                name: t.shortName,
+
+            skipOffDays(currentDate);
+
+            return matches.map((m) => {
+                if (matchesScheduledToday >= matchesPerDay) {
+                    currentDate.setDate(currentDate.getDate() + 1);
+                    skipOffDays(currentDate);
+                    matchesScheduledToday = 0;
+                }
+
+                // Haftayı hesapla (Başlangıçtan itibaren geçen gün / 7)
+                const start = new Date(startDateStr);
+                const diffTime = Math.abs(currentDate.getTime() - start.getTime());
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+                const weekNum = Math.floor(diffDays / 7) + 1;
+
+                matchesScheduledToday++;
+                
+                return {
+                    ...m,
+                    date: formatDateToString(currentDate),
+                    round: diffDays + 1, // Round artık gün sayısını temsil eder
+                    week: weekNum
+                };
+            });
+        };
+
+        // --- TÜM LİGLERİ DÖN ---
+        Object.values(LEAGUES).forEach(league => {
+            const format = league.settings.format;
+            const teams = league.teams;
+            let leagueSchedule: ScheduledMatch[] = [];
+            let leagueGroups: any = { A: teams.map(t => t.id), B: [] };
+
+            const splitStart = league.settings.calendar?.split1Start || '2025-01-15';
+
+            // === LPL ÖZEL FORMATI (4 GRUP) ===
+            if (format === 'LPL') {
+                if (prev.currentSplit === 'SPLIT_2') {
+                    // Split 2 Logic (Varsa)
+                    leagueSchedule = generateLeagueSchedule(league.id as LeagueKey, teams);
+                } else {
+                    // LPL SPLIT 1: 4 GRUP, TEK DEVRE, BO5
+                    // 1. Takımları Karıştır
+                    const shuffled = [...teams].sort(() => 0.5 - Math.random());
+                    
+                    // 2. Gruplara Dağıt
+                    leagueGroups = {
+                        A: shuffled.slice(0, 4).map(t => t.id),
+                        B: shuffled.slice(4, 8).map(t => t.id),
+                        C: shuffled.slice(8, 12).map(t => t.id),
+                        D: shuffled.slice(12, 16).map(t => t.id),
+                    };
+
+                    // 3. Grup İçi Maçları Oluştur
+                    let matchIdCounter = 0;
+                    Object.values(leagueGroups).forEach((groupTeams: any) => {
+                        for (let i = 0; i < groupTeams.length; i++) {
+                            for (let j = i + 1; j < groupTeams.length; j++) {
+                                leagueSchedule.push({
+                                    id: `lpl-s1-${league.id}-${matchIdCounter++}`,
+                                    round: 0, // Tarih fonksiyonu atayacak
+                                    week: 0,
+                                    teamAId: groupTeams[i],
+                                    teamBId: groupTeams[j],
+                                    played: false,
+                                    isBo5: true, // LPL Split 1 Grupları Bo5'tir!
+                                });
+                            }
+                        }
+                    });
+                    // Karıştır ki her gün hep aynı grubun maçı olmasın
+                    leagueSchedule.sort(() => 0.5 - Math.random());
+                }
+            } 
+            // === LCK ÖZEL FORMATI ===
+            else if (format === 'LCK') {
+                leagueGroups = drawGroups(teams);
+                leagueSchedule = generateGroupStageSchedule(leagueGroups, league.settings);
+            }
+            // === DİĞERLERİ ===
+            else {
+                leagueSchedule = generateLeagueSchedule(league.id as LeagueKey, teams);
+            }
+
+            // Aktif ligin gruplarını kaydet (Görüntüleme için)
+            if (league.id === prev.leagueKey) {
+                activeLeagueGroups = leagueGroups;
+            }
+
+            // Tarih Ata
+            const datedSchedule = assignSmartDates(leagueSchedule, splitStart, league.id);
+            masterSchedule = [...masterSchedule, ...datedSchedule];
+
+            // Puan Durumunu Başlat
+            const initialStandings = teams.map(t => ({
+                teamId: t.id, 
+                name: t.shortName, 
                 wins: 0, losses: 0, gameWins: 0, gameLosses: 0, streak: 0,
-                group: 'A'
-            } as Standing));
-        }
+                // Grubunu bul
+                group: Object.keys(leagueGroups).find(key => leagueGroups[key].includes(t.id)) || 'A'
+            }));
+            masterStandings = [...masterStandings, ...initialStandings];
+        });
+
+        console.log(`✅ Sezon Başladı! Toplam Maç: ${masterSchedule.length}`);
 
         return { 
             ...prev, 
@@ -1722,14 +1871,15 @@ export default function App() {
             stage: 'GROUP_STAGE',
             week: 1, 
             currentDay: 1,
-            schedule,
-            groups,
-            standings: newStandings,
-            aiRosters: newAiRosters,
+            schedule: masterSchedule,   
+            groups: activeLeagueGroups, 
+            standings: masterStandings, 
+            aiRosters: newAiRosters,    
             playoffMatches: [], 
             winnersGroup: null
         };
     });
+    
     setTab('schedule');
   };
 
@@ -3160,44 +3310,317 @@ const startLPLSplit3 = (prev: GameState): GameState => {
     }, 100);
   };
 
-  const handleDraftComplete = (draftBonus: number, userPicks: Champion[], enemyPicks: Champion[]) => {
-      setIsDrafting(false); 
-      setIsPlayingMatch(true); 
-      setDraftPicks({ user: userPicks, enemy: enemyPicks });
+    // YENİ: Tek Maç Simülasyonu
+    const simulateSingleGame = (
+      userTeamId: string, 
+      opponentId: string, 
+      userRoster: any, 
+      enemyRoster: any, 
+      draftBonus: number
+    ) => {
+      // Takım güçlerini hesapla
+      const userPower = getTeamPower(userTeamId) + draftBonus; // Draft bonusunu ekle
+      const enemyPower = getTeamPower(opponentId); // Rakip gücü
 
-      if (!draftMatchInfo) return;
+      // Kazanma ihtimali (Basit formül: Güç farkı %2.5 etki eder)
+      const powerDiff = userPower - enemyPower;
+      let winProb = 0.50 + (powerDiff * 0.025);
+      winProb = Math.max(0.1, Math.min(0.9, winProb)); // %10 - %90 arası sınırla
 
-      const { matchId, opponentId, isBo5 } = draftMatchInfo;
-      const enemyRoster = gameState.aiRosters[opponentId] || {};
+      const isVictory = Math.random() < winProb;
 
-      const result = simulateMatchSeries(
-           gameState.teamId,
-           opponentId,
-           gameState.roster, 
-           enemyRoster,
-           isBo5,
-           draftBonus
-       );
+      // Maç istatistikleri (Dummy data - İleride geliştirilebilir)
+      const killUser = isVictory ? 15 + Math.floor(Math.random() * 10) : 5 + Math.floor(Math.random() * 10);
+      const killEnemy = isVictory ? 5 + Math.floor(Math.random() * 10) : 15 + Math.floor(Math.random() * 10);
 
-       result.enemyTeam = allTeams.find(t => t.id === opponentId)?.shortName || 'Enemy';
+      return {
+          victory: isVictory,
+          scoreUser: 1, // Bu maçın skoru (Seri skoru değil)
+          scoreEnemy: 0,
+          gameDuration: 1800 + Math.random() * 900, // Saniye cinsinden
+          kills: { user: killUser, enemy: killEnemy },
+          towers: { user: isVictory ? 9 : 3, enemy: isVictory ? 3 : 9 },
+          dragons: { user: isVictory ? 3 : 1, enemy: isVictory ? 1 : 3 },
+          barons: { user: isVictory ? 1 : 0, enemy: isVictory ? 0 : 1 },
+          playerStats: [] // Oyuncu statları buraya eklenebilir
+      };
+    };
 
-       setPendingSimResult({ userResult: result, matchId, opponentId });
-       setIsSimulating(true);
-  };
+    const handleDraftComplete = (draftBonus: number, userPicks: Champion[], enemyPicks: Champion[]) => {
+        setIsDrafting(false); 
+        setIsPlayingMatch(true); 
+        setDraftPicks({ user: userPicks, enemy: enemyPicks });
 
-  const initiateMatch = () => {
-     let validMatch: any;
+        if (!draftMatchInfo) return;
+
+        const { matchId, opponentId } = draftMatchInfo;
+        const enemyRoster = gameState.aiRosters[opponentId] || {};
+
+        // --- DEĞİŞİKLİK: Sadece tek bir maç simüle et ---
+        const gameResult = simulateSingleGame(
+            gameState.teamId,
+            opponentId,
+            gameState.roster,
+            enemyRoster,
+            draftBonus
+        );
+
+        // Sonucu formatla
+        const result: MatchResult = {
+            victory: gameResult.victory,
+            scoreUser: gameResult.victory ? 1 : 0,   // Bu sadece o anki maçın sonucu
+            scoreEnemy: gameResult.victory ? 0 : 1,
+            playerStats: [], // Detaylı istatistikler eklenebilir
+            gameScores: [{ user: gameResult.kills.user, enemy: gameResult.kills.enemy }],
+            enemyTeam: allTeams.find(t => t.id === opponentId)?.shortName || 'Enemy',
+            isBo5: draftMatchInfo.isBo5 // Bilgi amaçlı taşıyoruz
+        };
+
+        setPendingSimResult({ userResult: result, matchId, opponentId });
+        setIsSimulating(true);
+    };
+
+    // Günlük aktiviteyi işleyen fonksiyon
+    const processDayActivity = (currentState: GameState) => {
+        // Bugün haftanın hangi günü? (0=Pazar, 1=Pzt... JS Date standardı)
+        const todayIndex = new Date(currentState.gameDate.dateString).getDay();
+        // Bizim schedule arrayimiz 0=Pazartesi olduğu için dönüşüm yapalım:
+        const scheduleIndex = (todayIndex + 6) % 7;
+
+        // --- GÜVENLİK KONTROLÜ BURADA ---
+        // Eğer weeklySchedule yoksa veya o günün indeksi boşsa 'TRAINING' kullan
+        const activityType = currentState.weeklySchedule?.[scheduleIndex] || 'TRAINING';
+        
+        // Eğer activityType geçerli değilse yine 'TRAINING' verisini kullan
+        const activity = SCHEDULE_ACTIVITIES[activityType] || SCHEDULE_ACTIVITIES['TRAINING'];
+        // -------------------------------
+
+        // Eğer bugün MAÇ varsa, program iptal olur, maç hazırlığı yapılır.
+        const hasMatchToday = currentState.schedule.some(m => m.date === currentState.gameDate.dateString && (m.teamAId === currentState.teamId || m.teamBId === currentState.teamId));
+        
+        if (hasMatchToday) {
+            // Maç günü sadece hafif moral artışı
+            return { roster: currentState.roster, coins: currentState.coins, log: "Match Day: Routine cancelled for match preparation." };
+        }
+
+        // Etkileri Uygula
+        let newCoins = currentState.coins;
+        // Artık activity.label güvenli, çünkü yukarıda fallback yaptık
+        let activityLog = `${activity.label}: `; 
+
+        // Para maliyeti veya kazancı (Streaming)
+        if (activity.id === 'STREAMING') {
+            const income = 200; // Yayın geliri
+            newCoins += income;
+            activityLog += `Earned ${income}G. `;
+        } else {
+            if (currentState.coins >= activity.cost) {
+                newCoins -= activity.cost;
+            } else {
+                // Para yetmezse otomatik REST'e dön
+                return { roster: currentState.roster, coins: currentState.coins, log: "Not enough funds for activity. Switched to Rest." };
+            }
+        }
+
+        // Oyuncuları Güncelle
+        const newRoster = { ...currentState.roster };
+        
+        (Object.keys(newRoster) as Role[]).forEach(role => {
+            const player = newRoster[role];
+            if (player) {
+                const updatedPlayer = { ...player, stats: { ...player.stats } };
+                
+                // 1. İstatistik Gelişimi
+                if (activity.statGain > 0) {
+                    const stats = ['mechanics', 'macro', 'lane', 'teamfight'] as const;
+                    const randomStat = stats[Math.floor(Math.random() * stats.length)];
+                    updatedPlayer.stats[randomStat] = Math.min(99, updatedPlayer.stats[randomStat] + (activity.statGain * 0.1));
+                    updatedPlayer.overall = Math.round((updatedPlayer.stats.mechanics + updatedPlayer.stats.macro + updatedPlayer.stats.lane + updatedPlayer.stats.teamfight) / 4);
+                }
+
+                // 2. Moral Etkisi
+                let newMorale = (updatedPlayer.morale || 50) + activity.moraleImpact;
+                newMorale = Math.max(0, Math.min(100, newMorale));
+                updatedPlayer.morale = newMorale;
+
+                newRoster[role] = updatedPlayer;
+            }
+        });
+
+        return { roster: newRoster, coins: newCoins, log: activityLog };
+    };
+
+    const handleNextDay = () => {
+        setGameState(prev => {
+            // 1. Önce Günlük Aktiviteyi İşle
+            const activityResult = processDayActivity(prev);
+            
+            if (activityResult.log && !activityResult.log.includes("Match Day")) {
+               console.log(activityResult.log);
+            }
+
+            // 2. Tarih İlerletme (Mevcut Kodun)
+            const currentDateStr = prev.gameDate?.dateString || '2025-01-01';
+            const currentObj = new Date(currentDateStr);
+            currentObj.setDate(currentObj.getDate() + 1);
+            const nextDateString = formatDateToString(currentObj);
+            
+            const nextDay = currentObj.getDate();
+            const nextMonth = currentObj.getMonth() + 1;
+            const nextYear = currentObj.getFullYear();
+            const nextDayName = currentObj.toLocaleDateString('en-US', { weekday: 'long' });
+
+            const newCurrentDay = (prev.currentDay || 1) + 1;
+            
+            const matchOnNextDay = prev.schedule.find(m => m.date === nextDateString);
+            let newWeek = prev.week;
+            if (matchOnNextDay && matchOnNextDay.week) {
+                newWeek = matchOnNextDay.week;
+            } else {
+                newWeek = Math.ceil(newCurrentDay / 7);
+            }
+
+            const newState = {
+                ...prev,
+                roster: activityResult.roster,
+                coins: activityResult.coins,
+                gameDate: {
+                    day: nextDay,
+                    month: nextMonth,
+                    year: nextYear,
+                    dayOfWeek: nextDayName,
+                    dateString: nextDateString
+                },
+                currentDay: newCurrentDay,
+                week: newWeek
+            };
+            
+            localStorage.setItem('lck_manager_save_v1', JSON.stringify(newState));
+            return newState;
+        });
+    };
+
+    const simulateToNextMatch = (targetDateStr: string) => {
+        setIsSimulating(true); // Yükleniyor efekti için (opsiyonel UI yönetimi eklenebilir)
+
+        // State güncellemesini setTimeout içine alıyoruz ki UI render olabilsin
+        setTimeout(() => {
+            setGameState(prev => {
+                // State'in derin kopyasını alalım (Mutable işlem yapacağız)
+                let newState = JSON.parse(JSON.stringify(prev));
+                
+                const targetDate = new Date(targetDateStr);
+                let currentDate = new Date(newState.gameDate.dateString);
+                
+                // HEDEF TARİHE KADAR GÜN GÜN İLERLE
+                while (currentDate.getTime() < targetDate.getTime()) {
+                    // 1. Tarihi bir gün ileri al
+                    currentDate.setDate(currentDate.getDate() + 1);
+                    const dateString = formatDateToString(currentDate);
+
+                    // 2. O güne ait oynanmamış maçları bul (Kullanıcı maçı hariç)
+                    // Not: Kullanıcı maçı varsa döngü zaten targetDate'de duracağı için sorun olmaz.
+                    const matchesToday = newState.schedule.filter((m: ScheduledMatch) => 
+                        m.date === dateString && !m.played
+                    );
+
+                    // 3. Bulunan maçları simüle et
+                    matchesToday.forEach((m: ScheduledMatch) => {
+                        // Kullanıcı takımının maçıysa oynatma (Onu kullanıcı oynayacak)
+                        if (m.teamAId === newState.teamId || m.teamBId === newState.teamId) return;
+
+                        const league = Object.values(LEAGUES).find(l => l.teams.some(t => t.id === m.teamAId));
+                        const isBo3 = league ? league.settings.isBo3 : false;
+                        const isBo5 = !!m.isBo5;
+
+                        // simulateSeries fonksiyonunu burada çağırıyoruz
+                        const sim = simulateSeries(m.teamAId, m.teamBId, isBo5 || isBo3);
+
+                        // Skoru ve Kazananı işle
+                        m.played = true;
+                        m.winnerId = sim.winnerId;
+                        m.seriesScoreA = sim.scoreA;
+                        m.seriesScoreB = sim.scoreB;
+
+                        // Puan durumunu güncelle
+                        const winnerStat = newState.standings.find((s: Standing) => s.teamId === sim.winnerId);
+                        const loserStat = newState.standings.find((s: Standing) => s.teamId === (sim.winnerId === m.teamAId ? m.teamBId : m.teamAId));
+
+                        if (winnerStat) {
+                            winnerStat.wins += 1;
+                            winnerStat.gameWins += Math.max(sim.scoreA, sim.scoreB);
+                            winnerStat.gameLosses += Math.min(sim.scoreA, sim.scoreB);
+                        }
+                        if (loserStat) {
+                            loserStat.losses += 1;
+                            loserStat.gameWins += Math.min(sim.scoreA, sim.scoreB);
+                            loserStat.gameLosses += Math.max(sim.scoreA, sim.scoreB);
+                        }
+                    });
+
+                    // 4. Günlük Aktiviteleri İşle (Para düşmesi, moral değişimi vb.)
+                    // processDayActivity fonksiyonu roster ve coin döndürüyor, onları güncelle
+                    // (Mevcut kodunda processDayActivity, state almıyor, o yüzden manuel activity mantığı ekliyoruz)
+                    
+                    // Basitçe o günün aktivitesini bul ve uygula (Logic App.tsx'den alındı)
+                    const dayIndex = (currentDate.getDay() + 6) % 7;
+                    const activityType = newState.weeklySchedule ? newState.weeklySchedule[dayIndex] : 'TRAINING';
+                    const activity = SCHEDULE_ACTIVITIES[activityType];
+                    
+                    if (activity && newState.coins >= activity.cost) {
+                        newState.coins -= activity.cost;
+                        // Basit stat gelişimi (Detaylı fonksiyonu çağırmak yerine basitleştirilmiş hali)
+                        Object.keys(newState.roster).forEach((role) => {
+                            const player = newState.roster[role as Role];
+                            if (player) {
+                                if(activity.moraleImpact) player.morale = Math.min(100, Math.max(0, (player.morale || 50) + activity.moraleImpact));
+                            }
+                        });
+                    }
+                }
+
+                // Döngü bitti, son tarih bilgilerini güncelle
+                const nextDayName = currentDate.toLocaleDateString('en-US', { weekday: 'long' });
+                
+                // Haftayı bul
+                const matchOnTarget = newState.schedule.find((m: ScheduledMatch) => m.date === formatDateToString(currentDate));
+                const newWeek = matchOnTarget?.week || Math.ceil((newState.currentDay + (targetDate.getDate() - new Date(prev.gameDate.dateString).getDate())) / 7);
+
+                newState.gameDate = {
+                    day: currentDate.getDate(),
+                    month: currentDate.getMonth() + 1,
+                    year: currentDate.getFullYear(),
+                    dayOfWeek: nextDayName,
+                    dateString: formatDateToString(currentDate)
+                };
+                // Gün sayısını fark kadar artır
+                const dayDiff = Math.ceil((targetDate.getTime() - new Date(prev.gameDate.dateString).getTime()) / (1000 * 60 * 60 * 24));
+                newState.currentDay += dayDiff;
+                newState.week = newWeek;
+
+                localStorage.setItem('lck_manager_save_v1', JSON.stringify(newState));
+                return newState;
+            });
+            
+            setIsSimulating(false);
+        }, 100);
+    };
+
+    const initiateMatch = () => {
+     let validMatch: ScheduledMatch | PlayoffMatch | undefined;
+     const todayStr = gameState.gameDate.dateString; // Bugünün tarihi
      
+     // 1. LIG / GRUP AŞAMASI İÇİN KONTROL
+     // Eğer normal sezondaysak schedule içinden bugünün maçını arıyoruz
      if (gameState.stage.includes('GROUP') || gameState.stage.includes('SPLIT') || gameState.stage.includes('PLACEMENTS')) {
         validMatch = gameState.schedule.find(m => 
+            m.date === todayStr && // Tarih eşleşmesi ZORUNLU
             !m.played && 
             (m.teamAId === gameState.teamId || m.teamBId === gameState.teamId)
         );
-
-        if (validMatch && validMatch.round > gameState.currentDay) {
-            validMatch = null;
-        }
      } 
+     // 2. PLAYOFF / TURNUVA İÇİN KONTROL
+     // Eğer playofftaysak tarih önemli değil, sıradaki oynanmamış maçımız önemlidir
      else {
         validMatch = gameState.playoffMatches.find(m => 
             !m.winnerId && 
@@ -3207,6 +3630,7 @@ const startLPLSplit3 = (prev: GameState): GameState => {
      }
 
      if (validMatch) {
+        // Rakip takımı belirle
         const oppId = validMatch.teamAId === gameState.teamId ? validMatch.teamBId : validMatch.teamAId;
         
         if (!oppId) {
@@ -3214,26 +3638,22 @@ const startLPLSplit3 = (prev: GameState): GameState => {
              return;
         }
 
+        // Draft Modunu Başlatmak için State'i güncelle
         setDraftMatchInfo({
             matchId: validMatch.id,
             opponentId: oppId,
             isBo5: !!validMatch.isBo5
         });
         
-        setIsDrafting(true); 
+        setIsDrafting(true); // Bu satır Draft ekranını açar
      } else {
-        // Hata durumunda konsola detay basalım ki sebebi görelim
-        console.log("Debug Match:", { 
-            stage: gameState.stage, 
-            day: gameState.currentDay, 
-            teamId: gameState.teamId 
-        });
-        showNotification('error', "No playable match found. Try clicking 'Simulate Day' first.");
+        console.warn("Maç Başlatılamadı. Aranan Tarih:", todayStr);
+        showNotification('error', "No match found for today's date.");
      }
-  };
+    };
 
-  // --- LEC PLAYOFF GEÇİŞİ (BU FONKSİYONU EKLE) ---
-  const startLECPlayoffs = (state: GameState): GameState => {
+    // --- LEC PLAYOFF GEÇİŞİ (BU FONKSİYONU EKLE) ---
+     const startLECPlayoffs = (state: GameState): GameState => {
       // 1. Puan Durumuna Göre Sırala
       const sortedStandings = [...state.standings].sort((a, b) => {
           if (b.wins !== a.wins) return b.wins - a.wins;
@@ -3302,9 +3722,63 @@ const startLPLSplit3 = (prev: GameState): GameState => {
       };
   };
 
-  // --- GÜNÜN SİMÜLASYONUNU BİTİRME (HAFTA SENKRONİZASYONLU FİNAL) ---
+  // --- GÜNÜN SİMÜLASYONUNU BİTİRME (SERİ VE TARİH SENKRONİZASYONLU FİNAL) ---
   const finalizeDaySimulation = (userResult: MatchResult | null) => {
-    // 1. FİNANSAL İŞLEMLER
+    setIsSimulating(false);
+    const playedMatchId = userResult && pendingSimResult ? pendingSimResult.matchId : null;
+    setPendingSimResult(null);
+    let isSeriesContinuing = false;
+    let seriesUpdateData: { scoreA: number, scoreB: number, matchId: string, isPlayoff: boolean } | null = null;
+
+    if (playedMatchId && userResult) {
+        const matchInSchedule = gameState.schedule.find(m => m.id === playedMatchId);
+        const matchInPlayoff = gameState.playoffMatches.find(m => m.id === playedMatchId);
+        const match = matchInSchedule || matchInPlayoff;
+
+        if (match) {
+            const winsNeeded = match.isBo5 ? 3 : 2;
+            const isUserTeamA = match.teamAId === gameState.teamId;
+            
+            let scoreA = match.seriesScoreA || 0;
+            let scoreB = match.seriesScoreB || 0;
+
+            if (userResult.victory) {
+                if (isUserTeamA) scoreA++; else scoreB++;
+            } else {
+                if (isUserTeamA) scoreB++; else scoreA++;
+            }
+
+            if (scoreA < winsNeeded && scoreB < winsNeeded) {
+                isSeriesContinuing = true;
+                seriesUpdateData = { scoreA, scoreB, matchId: match.id, isPlayoff: !!matchInPlayoff };
+            }
+        }
+    }
+
+    // --- DURUM 1: SERİ DEVAM EDİYOR ---
+    if (isSeriesContinuing && seriesUpdateData) {
+        setGameState(prev => {
+            if (seriesUpdateData!.isPlayoff) {
+                const newPlayoffs = [...prev.playoffMatches];
+                const idx = newPlayoffs.findIndex(m => m.id === seriesUpdateData!.matchId);
+                if (idx !== -1) {
+                    newPlayoffs[idx] = { ...newPlayoffs[idx], seriesScoreA: seriesUpdateData!.scoreA, seriesScoreB: seriesUpdateData!.scoreB };
+                }
+                return { ...prev, playoffMatches: newPlayoffs };
+            } else {
+                const newSchedule = [...prev.schedule];
+                const idx = newSchedule.findIndex(m => m.id === seriesUpdateData!.matchId);
+                if (idx !== -1) {
+                    newSchedule[idx] = { ...newSchedule[idx], seriesScoreA: seriesUpdateData!.scoreA, seriesScoreB: seriesUpdateData!.scoreB };
+                }
+                return { ...prev, schedule: newSchedule };
+            }
+        });
+        showNotification('success', `Game Finished! Series Score: ${seriesUpdateData!.scoreA} - ${seriesUpdateData!.scoreB}`);
+        setIsPlayingMatch(false);
+        return;
+    }
+
     let income = 0;
     let expenses = 0;
     const financialLogs: string[] = [];
@@ -3339,268 +3813,219 @@ const startLPLSplit3 = (prev: GameState): GameState => {
     financialLogs.push(`Daily Operations: -${dailyUpkeep}G`);
 
     const netChange = (income || 0) - (expenses || 0);
-    
+
+    // 2.2 RANDOM EVENT VE GELİŞİM
+    const randomEvt = generateRandomEvent(gameState.roster);
+    if (randomEvt) setActiveEventModal(randomEvt);
+
     setGameState(prev => {
         const currentCoins = prev.coins || 0;
         const newCoins = currentCoins + netChange;
-        return { ...prev, coins: isNaN(newCoins) ? currentCoins : newCoins };
-    });
 
-    // 2. MODU KAPAT
-    setIsSimulating(false);
-    const playedMatchId = userResult && pendingSimResult ? pendingSimResult.matchId : null;
-    setPendingSimResult(null);
+        let newRoster = { ...prev.roster };
+        let newInventory = [...prev.inventory];
 
-    // Gelişim ve Eventler
-    if (userResult && userResult.playerStats.length > 0) {
-      const { newRoster, newInventory } = processMatchPlayerStats(
-        gameState.roster,
-        gameState.inventory,
-        userResult.playerStats
-      );
-      setGameState(prev => ({ ...prev, roster: newRoster, inventory: newInventory }));
-    }
+        if (userResult && userResult.playerStats.length > 0) {
+            const processed = processMatchPlayerStats(prev.roster, prev.inventory, userResult.playerStats);
+            newRoster = processed.newRoster;
+            newInventory = processed.newInventory;
+        }
 
-    const randomEvt = generateRandomEvent(gameState.roster);
-    if (randomEvt) {
-        setActiveEventModal(randomEvt);
-        setGameState(prev => {
-            const roster = { ...prev.roster };
-            const player = roster[randomEvt.player.role];
+        if (randomEvt) {
+            const player = newRoster[randomEvt.player.role];
             if (player && player.id === randomEvt.player.id) {
                 const currentEvents = player.events || [];
                 const newStats = { ...player.stats };
                 if (randomEvt.event.penalty.mechanics) newStats.mechanics -= randomEvt.event.penalty.mechanics;
                 if (randomEvt.event.penalty.macro) newStats.macro -= randomEvt.event.penalty.macro;
                 const newOverall = Math.round((newStats.mechanics + newStats.macro + newStats.lane + newStats.teamfight) / 4);
-                roster[randomEvt.player.role] = { ...player, stats: newStats, overall: newOverall, events: [...currentEvents, randomEvt.event] };
-                return { ...prev, roster };
+                newRoster[randomEvt.player.role] = { ...player, stats: newStats, overall: newOverall, events: [...currentEvents, randomEvt.event] };
             }
-            return prev;
-        });
-    }
+        }
+        const eventResult = processEvents({ ...prev, roster: newRoster });
+        newRoster = eventResult.roster;
 
-    // 3. MAÇ SONUÇLARI VE GÜN İLERLETME
-    setGameState(prev => {
-      const eventResult = processEvents(prev);
-      let updatedStandings = [...prev.standings];
-      const updatedRoster = eventResult.roster;
-      let nextState = { ...prev, roster: updatedRoster };
-      let newRosterForMorale = { ...updatedRoster };
+        let updatedStandings = [...prev.standings];
+        let nextState = { ...prev, roster: newRoster, inventory: newInventory, coins: newCoins };
+        let newRosterForMorale = { ...newRoster };
 
-      // --- A. LİG AŞAMASI ---
-      if (nextState.stage.includes('GROUP') || nextState.stage.includes('SPLIT') || nextState.stage.includes('PLACEMENTS')) {
-          const newSchedule = [...nextState.schedule];
-          
-          // 3.1 REFERANS TURU BUL
-          let currentPlayedRound = -1;
-          if (playedMatchId) {
-              const pm = newSchedule.find(m => m.id === playedMatchId);
-              if (pm && typeof pm.round === 'number') currentPlayedRound = pm.round;
-          }
-          if (currentPlayedRound === -1) currentPlayedRound = nextState.currentDay;
+        if (nextState.stage.includes('GROUP') || nextState.stage.includes('SPLIT') || nextState.stage.includes('PLACEMENTS')) {
+            const newSchedule = [...nextState.schedule];
+            let currentPlayedRound = -1;
+            
+            if (playedMatchId) {
+                const pm = newSchedule.find(m => m.id === playedMatchId);
+                if (pm && typeof pm.round === 'number') currentPlayedRound = pm.round;
+            }
+            if (currentPlayedRound === -1) currentPlayedRound = nextState.currentDay;
 
-          // 3.2 KULLANICI MAÇINI GÜNCELLE
-          if (userResult && playedMatchId) {
-              const userMatchIdx = newSchedule.findIndex(m => m.id === playedMatchId);
-              if (userMatchIdx !== -1) {
-                  const m = newSchedule[userMatchIdx];
-                  if (!m.played) {
-                      const winnerId = userResult.victory ? nextState.teamId : (m.teamAId === nextState.teamId ? m.teamBId : m.teamAId);
-                      const scoreA = m.teamAId === nextState.teamId ? userResult.scoreUser : userResult.scoreEnemy;
-                      const scoreB = m.teamAId === nextState.teamId ? userResult.scoreEnemy : userResult.scoreUser;
+            if (userResult && playedMatchId) {
+                const userMatchIdx = newSchedule.findIndex(m => m.id === playedMatchId);
+                if (userMatchIdx !== -1) {
+                    const m = newSchedule[userMatchIdx];
+                    if (!m.played) {
+                        const isUserA = m.teamAId === nextState.teamId;
+                        let finalScoreA = m.seriesScoreA || 0;
+                        let finalScoreB = m.seriesScoreB || 0;
+                        if (userResult.victory) { isUserA ? finalScoreA++ : finalScoreB++; }
+                        else { isUserA ? finalScoreB++ : finalScoreA++; }
 
-                      newSchedule[userMatchIdx] = { ...m, played: true, winnerId, seriesScoreA: scoreA, seriesScoreB: scoreB };
+                        const winnerId = finalScoreA > finalScoreB ? m.teamAId : m.teamBId;
 
-                      const winnerStat = updatedStandings.find(s => s.teamId === winnerId);
-                      const loserStat = updatedStandings.find(s => s.teamId === (winnerId === m.teamAId ? m.teamBId : m.teamAId));
+                        newSchedule[userMatchIdx] = { ...m, played: true, winnerId, seriesScoreA: finalScoreA, seriesScoreB: finalScoreB };
 
-                      if (winnerStat) {
-                          winnerStat.wins += 1; 
-                          winnerStat.gameWins += Math.max(scoreA, scoreB);
-                          winnerStat.gameLosses += Math.min(scoreA, scoreB);
-                          if (winnerId === nextState.teamId) winnerStat.streak = Math.max(1, (winnerStat.streak || 0) + 1);
-                      }
-                      if (loserStat) {
-                          loserStat.losses += 1;
-                          loserStat.gameWins += Math.min(scoreA, scoreB);
-                          loserStat.gameLosses += Math.max(scoreA, scoreB);
-                          if (loserStat.teamId === nextState.teamId) loserStat.streak = Math.min(-1, (loserStat.streak || 0) - 1);
-                      }
-                      newRosterForMorale = updateTeamMorale(newRosterForMorale, userResult.victory, updatedStandings.find(s => s.teamId === nextState.teamId)?.streak || 0);
-                  }
-              }
-          }
+                        const winnerStat = updatedStandings.find(s => s.teamId === winnerId);
+                        const loserStat = updatedStandings.find(s => s.teamId === (winnerId === m.teamAId ? m.teamBId : m.teamAId));
 
-          // 3.3 AI MAÇLARINI SİMÜLE ET (Sadece Referans Turu)
-          const matchesToSimulate = newSchedule.filter(m => 
-              m.round <= currentPlayedRound && 
-              !m.played && 
-              m.id !== playedMatchId
-          );
+                        if (winnerStat) {
+                            winnerStat.wins += 1;
+                            winnerStat.gameWins += Math.max(finalScoreA, finalScoreB);
+                            winnerStat.gameLosses += Math.min(finalScoreA, finalScoreB);
+                            if (winnerId === nextState.teamId) winnerStat.streak = Math.max(1, (winnerStat.streak || 0) + 1);
+                        }
+                        if (loserStat) {
+                            loserStat.losses += 1;
+                            loserStat.gameWins += Math.min(finalScoreA, finalScoreB);
+                            loserStat.gameLosses += Math.max(finalScoreA, finalScoreB);
+                            if (loserStat.teamId === nextState.teamId) loserStat.streak = Math.min(-1, (loserStat.streak || 0) - 1);
+                        }
+                        
+                        newRosterForMorale = updateTeamMorale(newRosterForMorale, userResult.victory, updatedStandings.find(s => s.teamId === nextState.teamId)?.streak || 0);
+                    }
+                }
+            }
 
-          matchesToSimulate.forEach(m => {
-              if (m.teamAId === nextState.teamId || m.teamBId === nextState.teamId) return;
-              if (!m.teamAId || !m.teamBId) return;
+            // AI Maçlarını Simüle Et
+            const matchesToSimulate = newSchedule.filter(m => m.round <= currentPlayedRound && !m.played && m.id !== playedMatchId);
+            matchesToSimulate.forEach(m => {
+                if (m.teamAId === nextState.teamId || m.teamBId === nextState.teamId) return;
+                if (!m.teamAId || !m.teamBId) return;
 
-              const league = Object.values(LEAGUES).find(l => l.teams.some(t => t.id === m.teamAId));
-              const isBo3 = league ? league.settings.isBo3 : false;
-              const isMatchBo5 = !!m.isBo5;
+                const league = Object.values(LEAGUES).find(l => l.teams.some(t => t.id === m.teamAId));
+                const isBo3 = league ? league.settings.isBo3 : false;
+                const sim = simulateSeries(m.teamAId, m.teamBId, !!m.isBo5 || isBo3);
+                
+                const idx = newSchedule.findIndex(s => s.id === m.id);
+                newSchedule[idx] = { ...m, played: true, winnerId: sim.winnerId, seriesScoreA: sim.scoreA, seriesScoreB: sim.scoreB };
 
-              const sim = simulateSeries(m.teamAId, m.teamBId, isMatchBo5 || isBo3);
-              
-              const idx = newSchedule.findIndex(s => s.id === m.id);
-              newSchedule[idx] = { ...m, played: true, winnerId: sim.winnerId, seriesScoreA: sim.scoreA, seriesScoreB: sim.scoreB };
+                const winnerStat = updatedStandings.find(s => s.teamId === sim.winnerId);
+                const loserStat = updatedStandings.find(s => s.teamId === (sim.winnerId === m.teamAId ? m.teamBId : m.teamAId));
 
-              const winnerStat = updatedStandings.find(s => s.teamId === sim.winnerId);
-              const loserStat = updatedStandings.find(s => s.teamId === (sim.winnerId === m.teamAId ? m.teamBId : m.teamAId));
+                if (winnerStat) {
+                    winnerStat.wins += 1;
+                    winnerStat.gameWins += Math.max(sim.scoreA, sim.scoreB);
+                    winnerStat.gameLosses += Math.min(sim.scoreA, sim.scoreB);
+                }
+                if (loserStat) {
+                    loserStat.losses += 1;
+                    loserStat.gameWins += Math.min(sim.scoreA, sim.scoreB);
+                    loserStat.gameLosses += Math.max(sim.scoreA, sim.scoreB);
+                }
+            });
 
-              if (winnerStat) {
-                  winnerStat.wins += 1; 
-                  winnerStat.gameWins += Math.max(sim.scoreA, sim.scoreB);
-                  winnerStat.gameLosses += Math.min(sim.scoreA, sim.scoreB);
-              }
-              if (loserStat) {
-                  loserStat.losses += 1;
-                  loserStat.gameWins += Math.min(sim.scoreA, sim.scoreB);
-                  loserStat.gameLosses += Math.max(sim.scoreA, sim.scoreB);
-              }
-          });
+            // Gün İlerletme
+            let nextDay = nextState.currentDay;
+            let isSeasonFinished = false;
+            const sortedSchedule = [...newSchedule].sort((a, b) => a.round - b.round);
+            const firstUnplayed = sortedSchedule.find(m => !m.played);
 
-          // 3.4 YENİ GÜN VE HAFTA BELİRLE (FİKSTÜRDEN OKUMA)
-          let nextDay = nextState.currentDay;
-          let isSeasonFinished = false;
+            if (firstUnplayed) {
+                nextDay = firstUnplayed.round;
+            } else {
+                isSeasonFinished = true;
+                const maxRound = Math.max(...newSchedule.map(m => m.round), 0);
+                nextDay = maxRound + 1;
+            }
 
-          const sortedSchedule = [...newSchedule].sort((a, b) => a.round - b.round);
-          // Oynanmamış ilk maçı bul
-          const firstUnplayed = sortedSchedule.find(m => !m.played);
+            let newWeek = nextState.week;
+            if (firstUnplayed && firstUnplayed.week) newWeek = firstUnplayed.week;
+            else if (isSeasonFinished) {
+                const lastMatch = sortedSchedule[sortedSchedule.length - 1];
+                if (lastMatch && lastMatch.week) newWeek = lastMatch.week;
+            }
+            if (!newWeek || isNaN(newWeek)) newWeek = 1;
 
-          if (firstUnplayed) {
-              nextDay = firstUnplayed.round;
-          } else {
-              isSeasonFinished = true;
-              const maxRound = Math.max(...newSchedule.map(m => m.round), 0);
-              nextDay = maxRound + 1; 
-          }
-
-          // --- DÜZELTME: HAFTA HESABI ---
-          // Artık formül yok. Oynanacak ilk maçın haftası neyse odur.
-          let newWeek = nextState.week;
-          if (firstUnplayed && firstUnplayed.week) {
-              newWeek = firstUnplayed.week;
-          } else if (isSeasonFinished) {
-              // Sezon bittiyse son haftayı koru veya artır
-              const lastMatch = sortedSchedule[sortedSchedule.length - 1];
-              if (lastMatch && lastMatch.week) newWeek = lastMatch.week;
-          }
-          // Güvenlik: Eğer bir şekilde week yoksa en az 1 olsun
-          if (!newWeek || isNaN(newWeek)) newWeek = 1;
-          // -----------------------------
-
-          if (isSeasonFinished) {
-               let finalState = { ...nextState, schedule: newSchedule, standings: updatedStandings, roster: newRosterForMorale };
+            if (isSeasonFinished) {
+                // Sezon sonu işlemleri (Aynen kalsın)
+                let finalState = { ...nextState, schedule: newSchedule, standings: updatedStandings, roster: newRosterForMorale };
                 if (activeLeague.settings.format === 'LPL') {
-                    if (finalState.currentSplit === 'SPLIT_1' || finalState.currentSplit === 'SPRING') {
-                        return startLPLSplit1Playoffs(finalState);
-                    }
-                    if (finalState.stage === 'LPL_SPLIT_2_PLACEMENTS') {
-                         return endLPLPlacementStage(finalState);
-                    }
-                    if (finalState.stage === 'LPL_SPLIT_2_GROUPS' || finalState.stage === 'LPL_SPLIT_3_GROUPS') {
-                        return finalState;
-                    }
-                }
-                else if (activeLeague.settings.format === 'LEC') {
-                    finalState = startLECPlayoffs(finalState);
-                }
-                else if (activeLeague.settings.format === 'LCK') {
-                  finalState = endGroupStage(finalState);
-                } 
-                else {
-                  finalState = initializeSimplePlayoffs(finalState);
-                }
+                    if (finalState.currentSplit === 'SPLIT_1' || finalState.currentSplit === 'SPRING') return startLPLSplit1Playoffs(finalState);
+                    if (finalState.stage === 'LPL_SPLIT_2_PLACEMENTS') return endLPLPlacementStage(finalState);
+                    if (finalState.stage === 'LPL_SPLIT_2_GROUPS' || finalState.stage === 'LPL_SPLIT_3_GROUPS') return finalState;
+                } else if (activeLeague.settings.format === 'LEC') return startLECPlayoffs(finalState);
+                else if (activeLeague.settings.format === 'LCK') return endGroupStage(finalState);
+                else return initializeSimplePlayoffs(finalState);
                 return finalState;
-          }
+            }
 
-          return { 
-              ...nextState,
-              roster: newRosterForMorale,
-              schedule: newSchedule, 
-              standings: updatedStandings, 
-              currentDay: nextDay, 
-              week: newWeek,
-              trainingSlotsUsed: newWeek > nextState.week ? 0 : nextState.trainingSlotsUsed
-          };
-      }
-      
-      // --- B. PLAYOFF / BRACKET ---
-      else if (['PLAY_IN', 'PLAYOFFS', 'MSI_PLAY_IN', 'MSI_BRACKET', 'LPL_SPLIT_2_LCQ', 'LPL_SPLIT_3_PLAYIN'].includes(nextState.stage)) {
-          const newMatches = [...nextState.playoffMatches];
-          const matchIdToProcess = userResult && playedMatchId ? playedMatchId : newMatches.find(m => !m.winnerId && m.teamAId && m.teamBId)?.id;
-          let activeMatch = matchIdToProcess ? newMatches.find(m => m.id === matchIdToProcess) : undefined;
+            return { 
+                ...nextState,
+                roster: newRosterForMorale,
+                schedule: newSchedule, 
+                standings: updatedStandings, 
+                currentDay: nextDay, 
+                week: newWeek,
+                trainingSlotsUsed: newWeek > nextState.week ? 0 : nextState.trainingSlotsUsed
+            };
+        } 
+        
+        // --- Playoff Aşaması ---
+        else if (['PLAY_IN', 'PLAYOFFS', 'MSI_PLAY_IN', 'MSI_BRACKET', 'LPL_SPLIT_2_LCQ', 'LPL_SPLIT_3_PLAYIN'].includes(nextState.stage)) {
+            const newMatches = [...nextState.playoffMatches];
+            const matchIdToProcess = userResult && playedMatchId ? playedMatchId : newMatches.find(m => !m.winnerId && m.teamAId && m.teamBId)?.id;
+            let activeMatch = matchIdToProcess ? newMatches.find(m => m.id === matchIdToProcess) : undefined;
 
-          if (!activeMatch && userResult === null) {
-              activeMatch = newMatches.find(m => !m.winnerId && m.teamAId && m.teamBId);
-          }
-          
-          if (activeMatch) {
-              let winnerId;
-              if (activeMatch.teamAId === nextState.teamId || activeMatch.teamBId === nextState.teamId) {
-                  winnerId = userResult?.victory ? nextState.teamId : (activeMatch.teamAId === nextState.teamId ? activeMatch.teamBId : activeMatch.teamAId);
-              } else if (userResult === null) {
-                  const sim = simulateSeries(activeMatch.teamAId!, activeMatch.teamBId!, !!activeMatch.isBo5);
-                  winnerId = sim.winnerId;
-                  setLastMatch({
-                      victory: false,
-                      scoreUser: sim.scoreA,
-                      scoreEnemy: sim.scoreB,
-                      playerStats: [],
-                      gameScores: [],
-                      enemyTeam: allTeams.find(t => t.id === activeMatch!.teamBId)?.shortName || '',
-                      isBo5: !!activeMatch.isBo5
-                  });
-              } else {
-                  return nextState; 
-              }
-              
-              const idx = newMatches.findIndex(m => m.id === activeMatch!.id);
-              newMatches[idx].winnerId = winnerId!;
-              
-              const isUserA = activeMatch.teamAId === nextState.teamId;
-              const isUserB = activeMatch.teamBId === nextState.teamId;
-              
-              if (userResult) {
-                 newMatches[idx].seriesScoreA = isUserA ? userResult.scoreUser : userResult.scoreEnemy;
-                 newMatches[idx].seriesScoreB = isUserB ? userResult.scoreUser : userResult.scoreEnemy;
-              } else {
-                 const loserScore = Math.floor(Math.random() * (activeMatch.isBo5 ? 3 : 2));
-                 newMatches[idx].seriesScoreA = winnerId === activeMatch.teamAId ? (activeMatch.isBo5 ? 3 : 2) : loserScore;
-                 newMatches[idx].seriesScoreB = winnerId === activeMatch.teamBId ? (activeMatch.isBo5 ? 3 : 2) : loserScore;
-              }
+            if (activeMatch) {
+                let winnerId;
+                let finalScoreA = activeMatch.seriesScoreA || 0;
+                let finalScoreB = activeMatch.seriesScoreB || 0;
 
-              if (newMatches[idx].nextMatchId) {
-                  const nextIdx = newMatches.findIndex(m => m.id === newMatches[idx].nextMatchId);
-                  if (nextIdx >= 0) {
-                      if (newMatches[idx].nextMatchSlot === 'A') newMatches[nextIdx].teamAId = winnerId!;
-                      else newMatches[nextIdx].teamBId = winnerId!;
-                  }
-              }
+                // Kullanıcı kazandıysa skorları tamamla (Çünkü buraya düştüysek seri bitmiştir)
+                if (userResult && playedMatchId) {
+                    const isUserA = activeMatch.teamAId === nextState.teamId;
+                    if (userResult.victory) { isUserA ? finalScoreA++ : finalScoreB++; }
+                    else { isUserA ? finalScoreB++ : finalScoreA++; }
+                    winnerId = finalScoreA > finalScoreB ? activeMatch.teamAId : activeMatch.teamBId;
+                } 
+                // AI simülasyonuysa
+                else {
+                    const sim = simulateSeries(activeMatch.teamAId!, activeMatch.teamBId!, !!activeMatch.isBo5);
+                    winnerId = sim.winnerId;
+                    finalScoreA = sim.scoreA;
+                    finalScoreB = sim.scoreB;
+                }
 
-              if (newMatches[idx].loserMatchId) {
-                  const loserId = winnerId === activeMatch.teamAId ? activeMatch.teamBId : activeMatch.teamAId;
-                  const loserIdx = newMatches.findIndex(m => m.id === newMatches[idx].loserMatchId);
-                  if (loserIdx >= 0) {
-                      if (newMatches[idx].loserMatchSlot === 'A') newMatches[loserIdx].teamAId = loserId;
-                      else newMatches[loserIdx].teamBId = loserId;
-                  }
-              }
-          }
+                const idx = newMatches.findIndex(m => m.id === activeMatch!.id);
+                newMatches[idx] = { 
+                    ...activeMatch, 
+                    winnerId: winnerId!, 
+                    seriesScoreA: finalScoreA, 
+                    seriesScoreB: finalScoreB,
+                    played: true
+                };
 
-          return { ...nextState, playoffMatches: newMatches };
-      }
-      return nextState;
+                // İlerletme (Next Match)
+                if (newMatches[idx].nextMatchId) {
+                    const nextIdx = newMatches.findIndex(m => m.id === newMatches[idx].nextMatchId);
+                    if (nextIdx >= 0) {
+                        if (newMatches[idx].nextMatchSlot === 'A') newMatches[nextIdx].teamAId = winnerId!;
+                        else newMatches[nextIdx].teamBId = winnerId!;
+                    }
+                }
+                if (newMatches[idx].loserMatchId) {
+                    const loserId = winnerId === activeMatch.teamAId ? activeMatch.teamBId : activeMatch.teamAId;
+                    const loserIdx = newMatches.findIndex(m => m.id === newMatches[idx].loserMatchId);
+                    if (loserIdx >= 0) {
+                        if (newMatches[idx].loserMatchSlot === 'A') newMatches[loserIdx].teamAId = loserId;
+                        else newMatches[loserIdx].teamBId = loserId;
+                    }
+                }
+            }
+            return { ...nextState, playoffMatches: newMatches };
+        }
+
+        return nextState;
     });
-    
     setIsPlayingMatch(false);
   };
 
@@ -3608,7 +4033,7 @@ const startLPLSplit3 = (prev: GameState): GameState => {
     setFilterRole('ALL');
     setFilterStatus('ALL');
     setSortOrder('RATING');
-    setPriceRange({ min: 0, max: 20000 });
+    setPriceRange({ min: 0, max: 5000000 });
     setFilterLeague('ALL');
     setMarketPage(1);
   };
@@ -4888,63 +5313,116 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
   };
 
   const StandingsView = () => {
-    let groupsToShow: string[] = ['A', 'B'];
-    
-    if (activeLeague.settings.format === 'LPL') {
-        if (gameState.stage === 'LPL_SPLIT_2_GROUPS') {
-            groupsToShow = ['Ascend', 'Nirvana'];
-        } else if (gameState.stage === 'LPL_SPLIT_3_GROUPS') {
-             groupsToShow = ['Ascend', 'Nirvana'];
-        } else if (gameState.stage.includes('SPLIT_1') || gameState.currentSplit === 'SPLIT_1' || gameState.currentSplit === 'SPRING') {
-            groupsToShow = ['A', 'B', 'C', 'D'];
-        }
-    } else if (activeLeague.settings.format === 'STANDARD') {
-        groupsToShow = ['A'];
+    // 1. Filtreleme için State (Varsayılan olarak kendi ligin seçili gelir)
+    const [selectedLeagueKey, setSelectedLeagueKey] = useState<LeagueKey>(gameState.leagueKey);
+
+    // 2. Seçilen ligin takımlarını bul
+    // LEAGUES nesnesinden o ligin tanımını ve takımlarını alıyoruz
+    const targetLeague = LEAGUES[selectedLeagueKey];
+    const teamIdsInLeague = targetLeague.teams.map(t => t.id);
+
+    // 3. Standings verisini filtrele
+    // Sadece seçili ligin takım ID'lerine sahip olan satırları al
+    const leagueStandings = gameState.standings.filter(s => teamIdsInLeague.includes(s.teamId));
+
+    // 4. Gösterilecek grupları dinamik olarak belirle
+    // Filtrelenmiş listedeki grup isimlerini (A, B, Ascend, Nirvana vb.) topla ve tekilleştir
+    let groupsToShow = Array.from(new Set(leagueStandings.map(s => s.group))).sort();
+
+    // Özel Sıralama Kuralları (Opsiyonel: LPL Ascend önce gelsin vb.)
+    if (groupsToShow.includes('Ascend') && groupsToShow.includes('Nirvana')) {
+        groupsToShow = ['Ascend', 'Nirvana'];
     }
 
     return (
-      <div className="space-y-6">
-        <h2 className="text-2xl font-bold font-display text-white">Standings</h2>
+      <div className="space-y-6 animate-fade-in">
+        
+        {/* HEADER & FILTER */}
+        <div className="flex flex-col md:flex-row justify-between items-end md:items-center gap-4">
+            <div>
+                <h2 className="text-3xl font-bold font-display text-white">Standings</h2>
+                <p className="text-gray-400">Current season rankings and statistics.</p>
+            </div>
+
+            {/* LİG SEÇİCİ DROPDOWN */}
+            <div className="relative">
+                <select 
+                    className="bg-dark-800 border border-dark-600 text-white font-bold py-2 px-4 rounded-xl focus:outline-none focus:border-hextech-500 appearance-none cursor-pointer pr-10 shadow-lg"
+                    onChange={(e) => setSelectedLeagueKey(e.target.value as LeagueKey)}
+                    value={selectedLeagueKey}
+                >
+                    {Object.values(LEAGUES).map(league => (
+                        <option key={league.id} value={league.id}>{league.name}</option>
+                    ))}
+                </select>
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                    ▼
+                </div>
+            </div>
+        </div>
+
+        {/* GRUP TABLOLARI */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {groupsToShow.map(group => (
-            <div key={group} className="bg-dark-900 border border-dark-800 rounded-xl overflow-hidden">
-              <div className="p-4 bg-dark-950 border-b border-dark-800 font-bold text-white flex justify-between">
-                <span>Group {group}</span>
-                {gameState.winnersGroup === group && <span className="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded">Winners Group</span>}
+          {groupsToShow.length === 0 && (
+              <div className="col-span-full text-center py-12 bg-dark-900 rounded-xl border border-dark-800 text-gray-500">
+                  No standings available for {targetLeague.name} yet.
               </div>
+          )}
+
+          {groupsToShow.map(group => (
+            <div key={group} className="bg-dark-900 border border-dark-800 rounded-xl overflow-hidden shadow-xl">
+              {/* Grup Başlığı */}
+              <div className="p-4 bg-dark-950 border-b border-dark-800 font-bold text-white flex justify-between items-center">
+                <span className="text-lg text-hextech-100">Group {group}</span>
+                {gameState.winnersGroup === group && selectedLeagueKey === gameState.leagueKey && (
+                    <span className="text-xs bg-green-500/20 text-green-400 px-2 py-1 rounded border border-green-500/30">
+                        Winners Group
+                    </span>
+                )}
+              </div>
+
+              {/* Tablo */}
               <table className="w-full text-sm text-left">
-                {/* --- BAŞLIKLAR (DÜZELTİLDİ) --- */}
-                <thead className="bg-dark-950 text-gray-500 font-bold uppercase text-xs">
+                <thead className="bg-dark-950/50 text-gray-500 font-bold uppercase text-xs">
                   <tr>
-                    <th className="px-4 py-3">Team</th>
+                    <th className="px-4 py-3"># Team</th>
                     <th className="px-4 py-3 text-center">Series</th>
                     <th className="px-4 py-3 text-center">Games (+/-)</th>
                   </tr>
                 </thead>
-                {/* --- İÇERİK (DÜZELTİLDİ) --- */}
                 <tbody className="divide-y divide-dark-800">
-                  {gameState.standings
+                  {leagueStandings
                     .filter(s => s.group === group)
                     .sort((a, b) => b.wins - a.wins || (b.gameWins - b.gameLosses) - (a.gameWins - a.gameLosses))
-                    .map((s, i) => (
-                      <tr key={s.teamId} className={s.teamId === gameState.teamId ? 'bg-blue-900/10' : ''}>
-                        <td className="px-4 py-3 font-bold text-white flex items-center gap-3">
-                          <span className="text-gray-500 font-mono w-4">{i + 1}</span>
-                          <TeamLogo
-                            team={activeLeague.teams.find(t => t.id === s.teamId)}
-                            streak={s.streak} />
-                          {s.name}
-                          {s.isEliminated && <span className="text-xs text-red-500 font-normal ml-auto">(E)</span>}
-                        </td>
-                        {/* SERİ SKORU (örn: 6 - 0) */}
-                        <td className="px-4 py-3 text-center font-bold text-white font-mono">{s.wins} - {s.losses}</td>
-                        
-                        {/* OYUN DETAYI (örn: 12-2 (+10)) */}
-                        <td className="px-4 py-3 text-center text-gray-400 text-xs font-mono">
-                           {s.gameWins} - {s.gameLosses} <span className={(s.gameWins - s.gameLosses) >= 0 ? 'text-green-500' : 'text-red-500'}>({(s.gameWins - s.gameLosses) > 0 ? '+' : ''}{s.gameWins - s.gameLosses})</span>
-                        </td>
-                      </tr>
-                    ))}
+                    .map((s, i) => {
+                        // Takım verisini bul (Logosu vb. için)
+                        const teamData = targetLeague.teams.find(t => t.id === s.teamId);
+                        const isMyTeam = s.teamId === gameState.teamId;
+
+                        return (
+                          <tr key={s.teamId} className={`transition-colors ${isMyTeam ? 'bg-blue-900/20 hover:bg-blue-900/30' : 'hover:bg-dark-800'}`}>
+                            <td className="px-4 py-3 font-bold text-white flex items-center gap-3">
+                              <span className={`font-mono w-4 ${i < 3 ? 'text-gold-400' : 'text-gray-600'}`}>{i + 1}</span>
+                              <TeamLogo team={teamData} size="w-6 h-6" />
+                              <span className={isMyTeam ? 'text-blue-300' : ''}>{s.name}</span>
+                              {s.isEliminated && <span className="text-xs text-red-500 font-normal ml-auto">(E)</span>}
+                            </td>
+                            
+                            {/* Seri Skoru */}
+                            <td className="px-4 py-3 text-center font-bold text-white font-mono">
+                                {s.wins} - {s.losses}
+                            </td>
+                            
+                            {/* Oyun Averajı */}
+                            <td className="px-4 py-3 text-center text-gray-400 text-xs font-mono">
+                               <span className="text-white">{s.gameWins} - {s.gameLosses}</span>
+                               <span className={`ml-2 ${(s.gameWins - s.gameLosses) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                   ({(s.gameWins - s.gameLosses) > 0 ? '+' : ''}{s.gameWins - s.gameLosses})
+                               </span>
+                            </td>
+                          </tr>
+                        );
+                    })}
                 </tbody>
               </table>
             </div>
@@ -5101,165 +5579,224 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
     );
   };
   
-  const PlayView = () => (
-    <div className="flex flex-col items-center justify-center min-h-[400px] space-y-8 animate-fade-in w-full">
-       
-       {/* 1. PRE-SEASON */}
-       {gameState.stage === 'PRE_SEASON' ? (
-          <div className="text-center space-y-6 max-w-md bg-dark-900/50 p-8 rounded-2xl border border-dark-700">
-             <Trophy size={64} className="mx-auto text-hextech-500 mb-4 animate-pulse" />
-             <div>
-                <h2 className="text-3xl font-display font-bold text-white">Pre-Season</h2>
-                <p className="text-gray-400 mt-2">Complete your roster training and market activities before starting the split.</p>
-             </div>
-             <button onClick={startSeason} className="btn-hextech w-full rounded-xl shadow-xl flex items-center justify-center gap-3 text-lg py-4">
-                <Play fill="currentColor" size={24} /> Start Season
-             </button>
+    const PlayView = () => {
+    // 1. PRE-SEASON (SEZON ÖNCESİ)
+    if (gameState.stage === 'PRE_SEASON') {
+      return (
+        <div className="flex flex-col items-center justify-center min-h-[400px] w-full animate-fade-in">
+            <div className="text-center space-y-6 max-w-md bg-dark-900/50 p-8 rounded-2xl border border-dark-700">
+                <Trophy size={64} className="mx-auto text-hextech-500 mb-4 animate-pulse" />
+                <div>
+                    <h2 className="text-3xl font-display font-bold text-white">Pre-Season</h2>
+                    <p className="text-gray-400 mt-2">Complete your roster training and market activities before starting the split.</p>
+                </div>
+                <button 
+                    onClick={isRosterComplete() ? startSeason : () => setTab('market')} 
+                    className={`w-full py-4 rounded-xl shadow-xl flex items-center justify-center gap-3 text-lg font-bold transition-all ${isRosterComplete() ? 'btn-hextech' : 'bg-blue-600 hover:bg-blue-500 text-white'}`}
+                >
+                    {isRosterComplete() ? (
+                        <><Play fill="currentColor" size={24} /> Start Season</>
+                    ) : (
+                        <><Search size={24} /> Go to Market</>
+                    )}
+                </button>
+            </div>
+        </div>
+      );
+    }
+
+    // 2. OFF-SEASON (SEZON SONU)
+    if (gameState.stage === 'OFF_SEASON') {
+        return (
+          <div className="flex flex-col items-center justify-center min-h-[400px] w-full animate-fade-in">
+              <div className="text-center space-y-6 max-w-md bg-dark-900/50 p-8 rounded-2xl border border-dark-700">
+                <RotateCcw size={64} className="mx-auto text-hextech-500 mb-4" />
+                <h2 className="text-3xl font-display font-bold text-white">Off-Season</h2>
+                <p className="text-gray-400">The season has concluded.</p>
+                <button onClick={startSeason} className="btn-hextech w-full py-4 text-lg font-bold rounded-xl">
+                    Start Season {gameState.currentSeason! + 1}
+                </button>
+              </div>
           </div>
-       ) : gameState.stage === 'OFF_SEASON' ? (
-           <div className="text-center space-y-6 max-w-md bg-dark-900/50 p-8 rounded-2xl border border-dark-700">
-             <RotateCcw size={64} className="mx-auto text-hextech-500 mb-4" />
-             <h2 className="text-3xl font-display font-bold text-white">Off-Season</h2>
-             <p className="text-gray-400">The season has concluded.</p>
-             <button onClick={startSeason} className="btn-hextech w-full py-4 text-lg">Start Season {gameState.currentSeason! + 1}</button>
+        );
+    }
+
+    // 3. AKTİF SEZON MANTIĞI
+    
+    // a) Tarih ve Fikstür Hesaplamaları
+    const currentDateObj = new Date(gameState.gameDate?.dateString || '2025-01-01');
+    const todayStr = formatDateToString(currentDateObj);
+    const safeSchedule = gameState.schedule || [];
+    const myTeamId = gameState.teamId;
+
+    // b) Bugünün Maçını Bul
+    const todaysMatch = safeSchedule.find(m => 
+        m.date === todayStr && 
+        !m.played && 
+        (m.teamAId === myTeamId || m.teamBId === myTeamId)
+    );
+
+    // c) Gelecekteki İlk Maçı Bul (Bugün maç yoksa kullanılır)
+    const nextFutureMatch = !todaysMatch ? safeSchedule
+        .filter(m => !m.played && (m.teamAId === myTeamId || m.teamBId === myTeamId))
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+        .find(m => new Date(m.date) > currentDateObj) : null;
+
+    return (
+      <div className="w-full max-w-4xl bg-dark-900 border border-dark-800 rounded-2xl p-8 text-center space-y-8 relative overflow-hidden shadow-2xl mx-auto mt-6 animate-fade-in">
+          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-hextech-500 to-transparent shadow-[0_0_15px_rgba(6,182,212,0.8)]"></div>
+          
+          {/* Üst Bilgi Çubuğu */}
+          <div className="flex justify-between items-center border-b border-white/5 pb-4">
+              <span className="text-xs font-bold text-hextech-400 uppercase tracking-widest">
+                  {gameState.stage.replace(/_/g, ' ')}
+              </span>
+              <div className="text-right">
+                  <div className="text-white font-mono text-xl font-bold">
+                      {gameState.gameDate?.dateString || '2025-01-01'}
+                  </div>
+                  <div className="text-xs text-gray-500 font-mono mt-1">
+                      Week {gameState.week} • Day {gameState.currentDay}
+                  </div>
+              </div>
           </div>
-       ) : (
-          <div className="w-full max-w-4xl bg-dark-900 border border-dark-800 rounded-2xl p-8 text-center space-y-8 relative overflow-hidden shadow-2xl">
-             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-hextech-500 to-transparent shadow-[0_0_15px_rgba(6,182,212,0.8)]"></div>
-             
-             <div className="flex justify-between items-center text-xs font-bold text-hextech-400 uppercase tracking-widest border-b border-white/5 pb-4">
-                <span>{gameState.stage.replace(/_/g, ' ')}</span>
-                <span>Week {gameState.week} • Day {gameState.currentDay}</span>
-             </div>
-             
-             {(() => {
 
-                 let nextUserMatch: any;
-                 let isFuture = false;
-                 let isTBD = false;
+          {/* --- DURUM A: BUGÜN MAÇ VAR! (VS EKRANI) --- */}
+          {todaysMatch ? (
+              <div className="animate-in zoom-in duration-500">
+                  <div className="bg-blue-900/20 border border-blue-500/30 p-4 rounded-xl mb-6 animate-pulse">
+                      <span className="text-blue-300 font-bold tracking-wider">IT'S MATCH DAY!</span>
+                  </div>
 
-                 if (gameState.stage.includes('GROUP') || gameState.stage.includes('SPLIT')) {
-                    nextUserMatch = gameState.schedule.find(m => !m.played && (m.teamAId === gameState.teamId || m.teamBId === gameState.teamId));
-                    
-                    if (nextUserMatch && nextUserMatch.round > gameState.currentDay) {
-                        isFuture = true;
-                    }
-                 } 
-                 else {
-                    nextUserMatch = gameState.playoffMatches.find(m => !m.winnerId && (m.teamAId === gameState.teamId || m.teamBId === gameState.teamId));
-                    
-                    if (nextUserMatch && (!nextUserMatch.teamAId || !nextUserMatch.teamBId)) {
-                        isTBD = true;
-                    }
-                 }
+                  <div className="flex flex-col md:flex-row items-center justify-center gap-8 md:gap-16 py-8">
+                      {/* MY TEAM */}
+                      {(() => {
+                          const myTeam = activeTeamData || LEAGUES[gameState.leagueKey]?.teams.find(t => t.id === myTeamId);
+                          return (
+                              <div className="text-center group">
+                                  <div className="relative">
+                                      <div className="absolute -inset-4 bg-blue-500/20 rounded-full blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                                      <TeamLogo team={myTeam} size="w-32 h-32" className="mx-auto mb-4 relative z-10 shadow-2xl rounded-full" />
+                                  </div>
+                                  <h3 className="text-3xl font-display font-bold text-white tracking-wider">{myTeam?.shortName}</h3>
+                              </div>
+                          );
+                      })()}
 
-                 const anyMatchToday = gameState.schedule.some(m => m.round === gameState.currentDay && !m.played) || 
-                                       gameState.playoffMatches.some(m => !m.winnerId && m.teamAId && m.teamBId);
-                 
-                 const isSeasonOver = !anyMatchToday && !nextUserMatch && 
-                                      ((gameState.playoffMatches.length > 0 && gameState.playoffMatches.every(m => m.winnerId)) ||
-                                       (gameState.stage.includes('GROUP') && gameState.schedule.every(m => m.played)) ||
-                                       (gameState.stage.includes('PLACEMENTS') && gameState.schedule.every(m => m.played)));
+                      {/* VS BADGE & SCORE */}
+                      <div className="flex flex-col items-center gap-2">
+                          {/* SKOR GÖSTERİMİ */}
+                          {(todaysMatch.seriesScoreA || 0) + (todaysMatch.seriesScoreB || 0) > 0 ? (
+                              <div className="flex items-center gap-4 text-6xl font-black font-mono text-white mb-2">
+                                  <span className={todaysMatch.teamAId === myTeamId ? "text-blue-400" : "text-red-500"}>
+                                      {todaysMatch.seriesScoreA || 0}
+                                  </span>
+                                  <span className="text-gray-600 text-4xl">-</span>
+                                  <span className={todaysMatch.teamBId === myTeamId ? "text-blue-400" : "text-red-500"}>
+                                      {todaysMatch.seriesScoreB || 0}
+                                  </span>
+                              </div>
+                          ) : (
+                              <div className="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white to-slate-500 font-display italic">VS</div>
+                          )}
+                          
+                          <div className="text-sm font-bold text-hextech-400 bg-hextech-900/50 px-4 py-1 rounded-full border border-hextech-500/30">
+                              {todaysMatch.isBo5 ? 'BO5 SERIES' : 'BO3 SERIES'}
+                          </div>
+                      </div>
 
-                 if (!nextUserMatch || isFuture || isTBD) {
-                     let message = "No match scheduled for your team today.";
-                     let btnText = "Simulate Day";
-                     let btnAction = () => skipToNextMatch();
+                      {/* OPPONENT */}
+                      {(() => {
+                          const opponentId = todaysMatch.teamAId === myTeamId ? todaysMatch.teamBId : todaysMatch.teamAId;
+                          const opponent = LEAGUES[gameState.leagueKey]?.teams.find(t => t.id === opponentId) || allTeams.find(t => t.id === opponentId);
+                          return (
+                              <div className="text-center group">
+                                  <div className="relative">
+                                      <div className="absolute -inset-4 bg-red-500/20 rounded-full blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                                      <TeamLogo team={opponent} size="w-32 h-32" className="mx-auto mb-4 relative z-10 shadow-2xl rounded-full grayscale-[0.3] group-hover:grayscale-0 transition-all" />
+                                  </div>
+                                  <h3 className="text-3xl font-display font-bold text-white tracking-wider">{opponent?.shortName}</h3>
+                              </div>
+                          );
+                      })()}
+                  </div>
 
-                     if (isSeasonOver) {
-                         message = "Season concluded. Ready to advance?";
-                         btnText = "Finish Season";
-                         btnAction = () => advanceToNextStage();
-                     } else if (isTBD) {
-                         message = "Waiting for opponent to be determined...";
-                         btnText = "Simulate Other Matches";
-                     } else if (isFuture) {
-                         message = `Your next match is in Round ${nextUserMatch.round}. (Current: ${gameState.currentDay})`;
-                         btnText = "Simulate to Match Day";
-                     }
-
-                     return (
-                        <div className="py-12 animate-in fade-in">
-                            <div className="text-2xl text-gray-400 mb-8 font-light">{message}</div>
-                            
-                            {/* Eğer bugün oynanacak başka maçlar varsa Simüle etme butonu göster */}
-                            {(anyMatchToday || isSeasonOver) && (
-                                <button 
-                                onClick={btnAction}
-                                disabled={isPlayingMatch}
-                                className="px-10 py-4 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-3 mx-auto shadow-lg hover:shadow-xl"
-                                >
-                                {isPlayingMatch ? 'Processing...' : <><FastForward size={24} /> {btnText}</>}
-                                </button>
-                            )}
-                            
-                            {/* Eğer bugün hiç maç yoksa ve kullanıcı maçı da gelecekteyse, otomatik gün atla */}
-                            {!anyMatchToday && !isSeasonOver && isFuture && (
-                                <div className="text-yellow-500">Wait... Automatically advancing day... (Click Simulate if stuck)</div>
-                            )}
-                        </div>
-                     );
-                 }
-                 
-                 const opponentId = nextUserMatch.teamAId === gameState.teamId ? nextUserMatch.teamBId : nextUserMatch.teamAId;
-                 const opponent = allTeams.find(t => t.id === opponentId);
-                 const myTeam = activeTeamData;
-
-                 return (
-                    <div className="animate-in zoom-in duration-500">
-                        <div className="flex items-center justify-center gap-12 py-6 mb-8">
-                            {/* MY TEAM */}
-                            <div className="text-center group">
-                                <div className="relative">
-                                    <div className="absolute -inset-4 bg-blue-500/20 rounded-full blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-                                    <TeamLogo team={myTeam} size="w-32 h-32" className="mx-auto mb-4 relative z-10 shadow-2xl rounded-full" />
-                                </div>
-                                <h3 className="text-2xl font-display font-bold text-white tracking-wider">{myTeam?.shortName}</h3>
-                            </div>
-
-                            {/* VS */}
-                            <div className="flex flex-col items-center">
-                                <div className="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white to-slate-600 font-display italic">VS</div>
-                                <div className="text-xs font-bold text-hextech-500 bg-hextech-900/30 px-3 py-1 rounded-full mt-2 border border-hextech-500/30">
-                                    {nextUserMatch.isBo5 ? 'BO5 SERIES' : 'BO3 SERIES'}
-                                </div>
-                            </div>
-
-                            {/* OPPONENT */}
-                            <div className="text-center group">
-                                <div className="relative">
-                                    <div className="absolute -inset-4 bg-red-500/20 rounded-full blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-                                    <TeamLogo team={opponent} size="w-32 h-32" className="mx-auto mb-4 relative z-10 shadow-2xl rounded-full grayscale-[0.3] group-hover:grayscale-0 transition-all" />
-                                </div>
-                                <h3 className="text-2xl font-display font-bold text-white tracking-wider">{opponent?.shortName}</h3>
-                            </div>
-                        </div>
-
-                        {/* ACTIONS */}
-                        <div className="flex flex-col gap-4 items-center">
-                            <button 
-                                onClick={initiateMatch}
-                                disabled={isPlayingMatch}
-                                className="btn-hextech w-full max-w-md text-2xl py-5 shadow-[0_0_40px_rgba(6,182,212,0.3)] hover:shadow-[0_0_60px_rgba(6,182,212,0.5)] scale-100 hover:scale-105 transition-transform"
-                            >
-                                {isPlayingMatch ? 'Loading...' : <span className="flex items-center justify-center gap-3"><Play fill="currentColor" /> ENTER DRAFT</span>}
-                            </button>
-                            
-                            <button 
-                                onClick={skipToNextMatch}
-                                disabled={isPlayingMatch}
-                                className="text-sm text-slate-500 hover:text-white transition-colors flex items-center gap-2"
-                            >
-                                <SkipForward size={14} /> Quick Simulate (Skip Draft)
-                            </button>
-                        </div>
+                {/* MAÇI BAŞLAT BUTONU */}
+                <button 
+                      onClick={initiateMatch} 
+                      disabled={isPlayingMatch} 
+                      className="w-full max-w-md mx-auto py-5 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white font-black text-2xl rounded-2xl shadow-xl hover:shadow-2xl hover:scale-105 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                      {isPlayingMatch ? 'LOADING...' : (
+                          <>
+                              <Swords size={32} />
+                              <span>
+                                  {/* Buton Metni: Game 1, Game 2 vb. */}
+                                  {(todaysMatch.seriesScoreA || 0) + (todaysMatch.seriesScoreB || 0) === 0 
+                                      ? 'START MATCH' 
+                                      : `PLAY GAME ${(todaysMatch.seriesScoreA || 0) + (todaysMatch.seriesScoreB || 0) + 1}`
+                                  }
+                              </span>
+                          </>
+                      )}
+                </button>
+                  
+                    <div className="mt-4">
+                        <button 
+                            onClick={() => { setIsDrafting(false); skipToNextMatch(); }}
+                            className="text-sm text-gray-500 hover:text-white underline"
+                        >
+                            Quick Simulate (Skip Draft)
+                        </button>
                     </div>
-                 )
-             })()}
-          </div>
-       )}
-    </div>
-  );
+                </div>
+            ) : (
+              // --- DURUM B: BUGÜN MAÇ YOK (SİMÜLASYON EKRANI) ---
+              <div className="py-12 flex flex-col items-center gap-6 animate-fade-in">
+                  <div className="w-24 h-24 bg-dark-800 rounded-full flex items-center justify-center border-4 border-dark-700">
+                      <RotateCcw size={40} className="text-gray-500" />
+                  </div>
+                  
+                  <div className="space-y-2">
+                      <h3 className="text-2xl font-bold text-gray-300">No Match Today</h3>
+                      <p className="text-gray-500 max-w-md mx-auto">
+                          {nextFutureMatch 
+                              ? `Next scheduled match: ${nextFutureMatch.date}`
+                              : "No upcoming matches found in the current schedule."}
+                      </p>
+                      {nextFutureMatch && (
+                          <p className="text-sm text-hextech-400 font-bold bg-dark-950/50 py-1 px-3 rounded inline-block border border-hextech-900">
+                              vs {nextFutureMatch.teamAId === myTeamId 
+                                  ? (LEAGUES[gameState.leagueKey]?.teams.find(t=>t.id===nextFutureMatch.teamBId)?.shortName) 
+                                  : (LEAGUES[gameState.leagueKey]?.teams.find(t=>t.id===nextFutureMatch.teamAId)?.shortName)}
+                          </p>
+                      )}
+                  </div>
+
+                  <div className="flex gap-4 mt-4">
+                      {/* 1. SEÇENEK: Sadece 1 Gün İlerle */}
+                      <button 
+                          onClick={handleNextDay} 
+                          className="px-6 py-3 bg-dark-800 border border-dark-700 hover:border-gray-500 text-gray-300 rounded-xl font-bold transition-all flex items-center gap-2 hover:bg-dark-700"
+                      >
+                          <SkipForward size={20} /> Next Day
+                      </button>
+
+                      {/* 2. SEÇENEK: Maç Gününe Işınlan (Varsa) */}
+                      {nextFutureMatch && (
+                          <button 
+                              onClick={() => simulateToNextMatch(nextFutureMatch.date)} 
+                              className="px-8 py-3 bg-hextech-900 border border-hextech-500/30 hover:border-hextech-500 text-hextech-400 hover:text-white rounded-xl font-bold transition-all flex items-center gap-2 shadow-lg hover:shadow-hextech-500/20"
+                          >
+                              <FastForward size={20} /> Simulate to Match Day
+                          </button>
+                      )}
+                  </div>
+              </div>
+          )}
+      </div>
+    );
+  };
 
   if (view === 'MENU') {
     return <MainMenu onNewGame={handleNewGame} onContinue={handleContinueGame} hasSave={hasSaveFile} />;
@@ -5291,8 +5828,6 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
       
       {tab === 'market' && <MarketView />}
       
-      {tab === 'schedule' && <ScheduleView />}
-      
       {tab === 'standings' && <StandingsView />}
       
       {tab === 'stats' && <TeamStatsView 
@@ -5322,16 +5857,75 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
           />
       )}
 
-      {/* Facilities */}
-      {tab === 'facilities' && (
-          <FacilitiesView 
-              facilities={gameState.facilities} 
-              activeHousingId={gameState.activeHousingId || 'starter'}
-              coins={gameState.coins} 
-              onUpgrade={handleUpgradeFacility} 
-              onMoveHouse={handleMoveHouse}
-          />
-      )}
+        {/* Facilities */}
+        {tab === 'facilities' && (
+            <FacilitiesView 
+                facilities={gameState.facilities} 
+                activeHousingId={gameState.activeHousingId || 'starter'}
+                coins={gameState.coins} 
+                onUpgrade={handleUpgradeFacility} 
+                onMoveHouse={handleMoveHouse}
+            />
+        )}
+
+        {/* --- TAKVİM / FİKSTÜR EKRANI --- */}
+        {(tab === 'schedule') && (
+        <div className="p-6 max-w-7xl mx-auto space-y-6 h-screen flex flex-col">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shrink-0">
+                <div>
+                    <h1 className="text-3xl font-bold text-white">Fixture & Calendar</h1>
+                    <p className="text-slate-400 mt-1">Manage weekly routines and check upcoming matches.</p>
+                </div>
+
+                <div className="flex gap-4">
+                    {/* LİG SEÇİCİ DROPDOWN */}
+                    <div className="relative">
+                        <select 
+                            className="bg-dark-800 border border-dark-600 text-white font-bold py-2 px-4 rounded-xl focus:outline-none focus:border-hextech-500 appearance-none cursor-pointer pr-10"
+                            onChange={(e) => {
+                                const leagueKey = e.target.value as LeagueKey;
+                                setActiveLeague(LEAGUES[leagueKey]);
+                            }}
+                            value={activeLeague.id}
+                        >
+                            {Object.values(LEAGUES).map(league => (
+                                <option key={league.id} value={league.id}>{league.name}</option>
+                            ))}
+                        </select>
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">▼</div>
+                    </div>
+
+                    <div className="bg-slate-800 px-4 py-2 rounded-lg border border-slate-700 flex items-center space-x-2">
+                        <span className="text-slate-400 text-sm">Date:</span>
+                        <span className="text-white font-mono font-bold text-lg text-blue-400">
+                            {gameState.gameDate?.dateString || '2025-01-01'}
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            {/* CalendarView'a Yeni Propsları Geçiyoruz */}
+            <div className="flex-1 min-h-0">
+                <CalendarView 
+                    schedule={gameState.schedule.filter(m => {
+                        const teamA = allTeams.find(t => t.id === m.teamAId);
+                        const activeLeagueTeamIds = activeLeague.teams.map(t => t.id);
+                        return activeLeagueTeamIds.includes(m.teamAId) || activeLeagueTeamIds.includes(m.teamBId);
+                    })} 
+                    currentDate={gameState.gameDate} 
+                    teams={allTeams}
+                    userTeamId={gameState.teamId} // Takım ID'sini geçiyoruz (Maç kontrolü için)
+                    weeklySchedule={gameState.weeklySchedule || ['TRAINING', 'TRAINING', 'TRAINING', 'TRAINING', 'TRAINING', 'REST', 'REST']}
+                    onUpdateSchedule={(dayIndex, type) => {
+                        const newSchedule = [...(gameState.weeklySchedule || [])];
+                        newSchedule[dayIndex] = type;
+                        setGameState(prev => ({ ...prev, weeklySchedule: newSchedule }));
+                    }}
+                />
+            </div>
+        </div>
+        )}
+        
 
       {/* --- MODALLAR (Layout içinde kalabilir) --- */}
       {isSimulating && pendingSimResult && activeTeamData && (

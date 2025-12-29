@@ -1,15 +1,20 @@
 import { TeamData, ScheduledMatch, LeagueKey } from '../src/types/types';
+import { LEAGUES } from '../data/leagues';
 
-/**
- * Round Robin (Lig Usulü) Fikstür Algoritması
- * @param teams Takım listesi
- * @param rounds Devre sayısı (1: Tek Devre, 2: Çift Devre)
- */
-const generateRoundRobin = (teams: TeamData[], rounds: number = 1): ScheduledMatch[] => {
-  const schedule: ScheduledMatch[] = [];
+const formatDate = (date: Date): string => {
+  return date.toISOString().split('T')[0];
+};
+
+const addDays = (date: Date, days: number): Date => {
+  const result = new Date(date);
+  result.setDate(result.getDate() + days);
+  return result;
+};
+
+const generateRoundRobinPairings = (teams: TeamData[], rounds: number = 1): Partial<ScheduledMatch>[] => {
+  const schedule: Partial<ScheduledMatch>[] = [];
   const teamIds = teams.map(t => t.id);
   
-  // Takım sayısı tek ise 'BAY' (BYE) ekle
   if (teamIds.length % 2 !== 0) {
     teamIds.push('BYE');
   }
@@ -17,7 +22,6 @@ const generateRoundRobin = (teams: TeamData[], rounds: number = 1): ScheduledMat
   const n = teamIds.length;
   const matchPerRound = n / 2;
   const totalRounds = (n - 1) * rounds;
-
   let currentRoundIds = [...teamIds];
 
   for (let round = 0; round < totalRounds; round++) {
@@ -29,11 +33,8 @@ const generateRoundRobin = (teams: TeamData[], rounds: number = 1): ScheduledMat
 
       if (home !== 'BYE' && away !== 'BYE') {
         schedule.push({
-          id: `match-${round}-${i}-${home}-${away}-${Date.now()}`, // ID çakışmasını önlemek için Date.now() eklendi
-          // --- KRİTİK DÜZELTME: ROUND ÖZELLİĞİ EKLENDİ ---
+          id: `match-${round}-${i}-${home}-${away}-${Date.now()}`,
           round: round + 1, 
-          // ------------------------------------------------
-          week: Math.floor(round / 2) + 1, // Varsayılan hafta hesabı (Haftada 2 maç gibi)
           teamAId: isSecondHalf ? away : home,
           teamBId: isSecondHalf ? home : away,
           played: false,
@@ -42,7 +43,6 @@ const generateRoundRobin = (teams: TeamData[], rounds: number = 1): ScheduledMat
       }
     }
 
-    // Takımları döndür (1. sabit kalır, diğerleri döner - Circle Method)
     const fixed = currentRoundIds[0];
     const rest = currentRoundIds.slice(1);
     const last = rest.pop();
@@ -50,56 +50,68 @@ const generateRoundRobin = (teams: TeamData[], rounds: number = 1): ScheduledMat
     currentRoundIds = [fixed, ...rest];
   }
 
-  return schedule;
+  return schedule.sort((a, b) => (a.round || 0) - (b.round || 0));
 };
 
-/**
- * Seçilen lige göre özel fikstür üretir
- */
+const applyCalendarToMatches = (
+    matches: Partial<ScheduledMatch>[], 
+    leagueKey: LeagueKey
+): ScheduledMatch[] => {
+    const settings = LEAGUES[leagueKey].settings;
+    const calendar = settings.calendar;
+    
+    let currentDate = new Date(calendar.split1Start);
+    let matchIndex = 0;
+    
+    for (let dayCounter = 0; dayCounter < 365; dayCounter++) {
+        if (matchIndex >= matches.length) break;
+
+        const dateString = formatDate(currentDate);
+        const dayOfWeek = currentDate.getDay();
+
+        if (settings.matchDays.includes(dayOfWeek)) {
+            for (let i = 0; i < settings.matchesPerDay; i++) {
+                if (matchIndex >= matches.length) break;
+
+                const match = matches[matchIndex];
+                
+                // @ts-ignore
+                matches[matchIndex] = {
+                    ...match,
+                    date: dateString,
+                    timestamp: currentDate.getTime(),
+                    dayOfWeek: currentDate.toLocaleDateString('en-US', { weekday: 'long' }),
+                    week: Math.floor(dayCounter / 7) + 1
+                };
+
+                matchIndex++;
+            }
+        }
+        
+        currentDate = addDays(currentDate, 1);
+        const split1End = new Date(calendar.split1End);
+        const split2Start = new Date(calendar.split2Start);
+
+        if (currentDate > split1End && currentDate < split2Start) {
+            currentDate = new Date(split2Start);
+        }
+    }
+
+    return matches as ScheduledMatch[];
+};
+
 export const generateLeagueSchedule = (leagueKey: LeagueKey, teams: TeamData[]): ScheduledMatch[] => {
-  let schedule: ScheduledMatch[] = [];
+  if (!teams || teams.length < 2) return [];
 
-  // LCP ve benzeri ligler için güvenlik: Yeterli takım yoksa boş dönme
-  if (!teams || teams.length < 2) {
-      console.warn("Yetersiz takım sayısı, fikstür oluşturulamadı.");
-      return [];
+  let rawMatches: Partial<ScheduledMatch>[] = [];
+
+  const settings = LEAGUES[leagueKey].settings;
+  
+  if (settings.scheduleType === 'DOUBLE_ROBIN' || settings.scheduleType === 'HYBRID_LCK') {
+      rawMatches = generateRoundRobinPairings(teams, 2);
+  } else {
+      rawMatches = generateRoundRobinPairings(teams, 1);
   }
 
-  switch (leagueKey) {
-    case 'LCP':
-    case 'LEC':
-    case 'LPL':
-      // BU LİGLER TEK DEVRE (Single Round Robin) OYNAR
-      schedule = generateRoundRobin(teams, 1);
-      break;
-
-    case 'LCK':
-    case 'LTA_NORTH':
-    case 'LTA_SOUTH':
-      // BU LİGLER ÇİFT DEVRE (Double Round Robin) OYNAR
-      schedule = generateRoundRobin(teams, 2);
-      break;
-
-    default:
-      // Bilinmeyen durumlar için varsayılan Çift Devre
-      schedule = generateRoundRobin(teams, 2);
-      break;
-  }
-
-  // LEC ve LPL gibi yoğun ligler için hafta düzenlemesi
-  // Örn: LEC 3 haftada biter, LPL haftada 3 gün maç oynatır.
-  if (leagueKey === 'LEC') {
-      schedule.forEach(match => {
-          // LEC Süper Hafta mantığı: Her hafta 3 maç günü
-          match.week = Math.ceil(match.round / 3);
-      });
-  } else if (leagueKey === 'LCP') {
-      schedule.forEach(match => {
-          // LCP haftada 2 maç günü
-          match.week = Math.ceil(match.round / 2);
-      });
-  }
-
-  // Maçları haftalara ve turlara göre sırala
-  return schedule.sort((a, b) => a.round - b.round);
+  return applyCalendarToMatches(rawMatches, leagueKey);
 };

@@ -1,4 +1,24 @@
-﻿export enum Role {
+﻿
+export interface GameDate {
+  day: number;
+  month: number;
+  year: number;
+  dayOfWeek: string;
+  dateString: string;
+}
+
+export type CalendarEventType = 'MATCH' | 'TOURNAMENT_START' | 'TRANSFER_WINDOW' | 'HOLIDAY' | 'OTHER';
+
+export interface CalendarEvent {
+  id: string;
+  date: string;
+  title: string;
+  type: CalendarEventType;
+  description?: string;
+  relatedLeagueId?: string;
+}
+
+export enum Role {
   TOP = 'TOP',
   JUNGLE = 'JUNGLE',
   MID = 'MID',
@@ -16,6 +36,7 @@ export enum Rarity {
 
 export type LeagueKey = 'LCK' | 'LPL' | 'LEC' | 'LTA_NORTH' | 'LTA_SOUTH' | 'LCP';
 export type Difficulty = 'Easy' | 'Normal' | 'Hard';
+
 export interface PlayerStats {
   mechanics: number;
   macro: number;
@@ -89,6 +110,9 @@ export interface TeamData {
 
 export interface ScheduledMatch {
   id: string;
+  date: string;
+  timestamp: number;
+  dayOfWeek?: string;
   week: number;
   round?: number;
   teamAId?: string;
@@ -119,6 +143,7 @@ export interface PlayoffMatch {
     loserMatchId?: string;
     loserMatchSlot?: 'A' | 'B';
     isBo5?: boolean;
+    date?: string;
 }
 
 export interface MatchResult {
@@ -206,12 +231,14 @@ export interface GameState {
   leagueKey: LeagueKey;
   league?: LeagueKey;
   coins: number;
+  gameDate: GameDate;
+  currentDay: number;
+  week: number;
   year: number;
   currentSeason?: number;
   currentSplit: string;
-  week: number;
+  weeklySchedule?: ActivityType[];
   difficulty: Difficulty;
-  currentDay: number;
   stage: GameStage;
   facilities: Record<FacilityType | string, Facility>;
   roster: Record<Role, PlayerCard | null>;
@@ -222,13 +249,13 @@ export interface GameState {
   groups: { A: string[], B: string[], C?: string[], D?: string[] };
   winnersGroup: 'A' | 'B' | null;
   schedule: ScheduledMatch[];
+  globalCalendar?: CalendarEvent[];
   standings: Standing[];
   playoffs?: PlayoffMatch[]; 
   playoffMatches?: PlayoffMatch[];
   msiBracketContenders?: string[];
   fanbase: number;
   popularity: number;
-  
   matchHistory: any[];
   newsFeed: NewsArticle[];
   playerMessages: PlayerMessage[];
