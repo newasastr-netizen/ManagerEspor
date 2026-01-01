@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { TeamData } from '../src/types/types';
+import { ALL_TEAMS } from '../data/teams'; // <-- BU SATIR EKSİK OLDUĞU İÇİN HATA ALIYORSUN
 
 interface TeamLogoProps {
   team: TeamData | null | undefined;
@@ -39,29 +40,6 @@ export const TeamLogo: React.FC<TeamLogoProps> = ({ team, size = "w-8 h-8", clas
 };
 
 export const getTeamTier = (teamId: string): 'S' | 'A' | 'B' | 'C' => {
-  const sTiers = [
-    't1', 'geng', 
-    'blg', 'jdg'
-  ];
-  const aTiers = [
-    'hle', 'dk', 'kt',
-    'g2', 'fnc', 'bds', 'mad',
-    'tes', 'lng', 'wbg'
-  ];
-  const bTiers = [
-    'kdf', 'drx', 'fox',
-    'th', 'sk', 'kc',
-    'rng', 'ig', 'fpx', 'omg', 'sup'
-  ];
-  
-  if (sTiers.includes(teamId)) {
-    return 'S';
-  }
-  if (aTiers.includes(teamId)) {
-    return 'A';
-  }
-  if (bTiers.includes(teamId)) {
-    return 'B';
-  }
-  return 'C';
+  const foundTeam = ALL_TEAMS.find(t => t.id === teamId);
+  return (foundTeam?.tier as 'S' | 'A' | 'B' | 'C') || 'C';
 };

@@ -124,7 +124,7 @@ export const LEAGUES: Record<LeagueKey, LeagueDefinition> = {
     id: 'LTA_NORTH',
     name: 'LTA North',
     region: 'Americas',
-    teams: ALL_TEAMS.filter(t => ['c9','tl','fly','100t','dig','sr','dsg','lyn'].includes(t.id)),
+    teams: ALL_TEAMS.filter(t => ['c9','tl','fly','100t','dig','shr','dsg','lyn'].includes(t.id)),
     players: REAL_LTA_NORTH_PLAYERS,
     settings: { 
         teamCount: 8,
