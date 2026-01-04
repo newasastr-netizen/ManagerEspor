@@ -101,6 +101,22 @@ const applyCalendarToMatches = (
 };
 
 export const generateLeagueSchedule = (leagueKey: LeagueKey, teams: TeamData[]): ScheduledMatch[] => {
+  if (leagueKey === 'LTA North' || leagueKey === 'LTA South') {
+     const conferenceTeams = teams.filter(t => t.league === leagueKey);
+     return generateRoundRobinPairings(conferenceTeams, 2).map((m, index) => {
+        const date = new Date('2025-01-25');
+        date.setDate(date.getDate() + index);
+        return {
+            ...m,
+            date: date.toISOString(),
+            timestamp: date.getTime(),
+            league: leagueKey,
+            week: Math.floor(index / 2) + 1,
+            dayOfWeek: 'Saturday'
+        } as ScheduledMatch;
+     });
+  }
+
   if (!teams || teams.length < 2) return [];
 
   let rawMatches: Partial<ScheduledMatch>[] = [];

@@ -45,6 +45,48 @@ export const TeamStatsView: React.FC<TeamStatsViewProps> = ({ teams, userTeamId,
     return stats.sort((a, b) => b.power - a.power);
   }, [teams, userRoster, aiRosters, getTeamPower, getActiveSynergies, userTeamId]);
 
+  const isLTA = teams.some(t => t.league === 'LTA North' || t.league === 'LTA South');
+
+  if (isLTA) {
+    const northTeams = sortedTeamStats.filter(t => t.league === 'LTA North');
+    const southTeams = sortedTeamStats.filter(t => t.league === 'LTA South');
+
+    const renderTable = (groupTeams: any[], title: string) => (
+      <div className="mb-6">
+        <h3 className="text-xl font-bold text-white mb-2 pl-4 border-l-4 border-blue-500">{title}</h3>
+        <div className="bg-dark-900 border border-dark-800 rounded-xl overflow-hidden">
+          <table className="w-full text-left">
+            <thead className="bg-dark-800 text-gray-400 uppercase text-xs">
+              <tr>
+                <th className="px-4 py-3">#</th>
+                <th className="px-4 py-3">Team</th>
+                <th className="px-4 py-3 text-center">W</th>
+                <th className="px-4 py-3 text-center">L</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-dark-800">
+              {groupTeams.map((team, idx) => (
+                <tr key={team.id} className="hover:bg-dark-800/50">
+                  <td className="px-4 py-3 text-gray-500">{idx + 1}</td>
+                  <td className="px-4 py-3 text-white font-medium">{team.name}</td>
+                  <td className="px-4 py-3 text-center text-green-400">{team.wins}</td>
+                  <td className="px-4 py-3 text-center text-red-400">{team.losses}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+
+    return (
+      <div className="space-y-6">
+        {renderTable(northTeams, 'LTA North Conference')}
+        {renderTable(southTeams, 'LTA South Conference')}
+      </div>
+    );
+  }
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
       <div className="lg:col-span-2 bg-dark-900 border border-dark-800 rounded-xl p-6">

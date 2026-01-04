@@ -3608,19 +3608,17 @@ const startLPLSplit3 = (prev: GameState): GameState => {
 
     const initiateMatch = () => {
      let validMatch: ScheduledMatch | PlayoffMatch | undefined;
-     const todayStr = gameState.gameDate.dateString; // Bugünün tarihi
+     const todayStr = gameState.gameDate.dateString;
      
      // 1. LIG / GRUP AŞAMASI İÇİN KONTROL
-     // Eğer normal sezondaysak schedule içinden bugünün maçını arıyoruz
      if (gameState.stage.includes('GROUP') || gameState.stage.includes('SPLIT') || gameState.stage.includes('PLACEMENTS')) {
         validMatch = gameState.schedule.find(m => 
-            m.date === todayStr && // Tarih eşleşmesi ZORUNLU
-            !m.played && 
-            (m.teamAId === gameState.teamId || m.teamBId === gameState.teamId)
-        );
+        (m.date === todayStr || m.round === gameState.currentDay) && 
+        !m.played && 
+        (m.teamAId === gameState.teamId || m.teamBId === gameState.teamId)
+      );
      } 
      // 2. PLAYOFF / TURNUVA İÇİN KONTROL
-     // Eğer playofftaysak tarih önemli değil, sıradaki oynanmamış maçımız önemlidir
      else {
         validMatch = gameState.playoffMatches.find(m => 
             !m.winnerId && 
@@ -3630,7 +3628,6 @@ const startLPLSplit3 = (prev: GameState): GameState => {
      }
 
      if (validMatch) {
-        // Rakip takımı belirle
         const oppId = validMatch.teamAId === gameState.teamId ? validMatch.teamBId : validMatch.teamAId;
         
         if (!oppId) {
@@ -3638,46 +3635,40 @@ const startLPLSplit3 = (prev: GameState): GameState => {
              return;
         }
 
-        // Draft Modunu Başlatmak için State'i güncelle
         setDraftMatchInfo({
             matchId: validMatch.id,
             opponentId: oppId,
             isBo5: !!validMatch.isBo5
         });
         
-        setIsDrafting(true); // Bu satır Draft ekranını açar
+        setIsDrafting(true);
      } else {
         console.warn("Maç Başlatılamadı. Aranan Tarih:", todayStr);
         showNotification('error', "No match found for today's date.");
      }
     };
 
-    // --- LEC PLAYOFF GEÇİŞİ (BU FONKSİYONU EKLE) ---
+    // --- LEC PLAYOFF GEÇİŞİ ---
      const startLECPlayoffs = (state: GameState): GameState => {
-      // 1. Puan Durumuna Göre Sırala
       const sortedStandings = [...state.standings].sort((a, b) => {
           if (b.wins !== a.wins) return b.wins - a.wins;
           return (b.gameWins - b.gameLosses) - (a.gameWins - a.gameLosses);
       });
 
-      // 2. İlk 8 Takımı Al (LEC Formatı: Top 8 Playoff)
       const top8Ids = sortedStandings.slice(0, 8).map(s => s.teamId);
       
-      // Eğer yeterli takım yoksa (Hata koruması)
       if (top8Ids.length < 8) {
           console.warn("Playoff için yeterli takım yok!");
           return state;
       }
-
-      // 3. Eşleşmeleri Oluştur (1vs8, 2vs7, 3vs6, 4vs5)
       const playoffMatches: PlayoffMatch[] = [];
 
       // Çeyrek Finaller (Round 1)
       const matchups = [
-          { a: 0, b: 7 }, // 1. vs 8.
-          { a: 1, b: 6 }, // 2. vs 7.
-          { a: 2, b: 5 }, // 3. vs 6.
-          { a: 3, b: 4 }  // 4. vs 5.
+          { a: 0, b: 7 }, 
+          { a: 1, b: 6 }, 
+          { a: 2, b: 5 }, 
+          { a: 3, b: 4 }  
       ];
 
       matchups.forEach((pair, index) => {
@@ -3686,7 +3677,6 @@ const startLPLSplit3 = (prev: GameState): GameState => {
               roundName: 'Quarter Finals',
               teamAId: top8Ids[pair.a],
               teamBId: top8Ids[pair.b],
-              // 1. ve 2. maçın galibi Yarı Final 1'e, 3. ve 4. maçın galibi Yarı Final 2'ye
               nextMatchId: index < 2 ? `lec-sf-1` : `lec-sf-2`, 
               nextMatchSlot: index % 2 === 0 ? 'A' : 'B',
               isBo5: true, 
@@ -5371,9 +5361,15 @@ const DraftPhase: React.FC<DraftPhaseProps> = ({ userTeam, enemyTeam, onDraftCom
 
           {groupsToShow.map(group => (
             <div key={group} className="bg-dark-900 border border-dark-800 rounded-xl overflow-hidden shadow-xl">
-              {/* Grup Başlığı */}
+              {/* Grup Başlığı - GÜNCELLENDİ */}
               <div className="p-4 bg-dark-950 border-b border-dark-800 font-bold text-white flex justify-between items-center">
-                <span className="text-lg text-hextech-100">Group {group}</span>
+                <span className="text-lg text-hextech-100 flex items-center gap-2">
+                  {/* Eğer grup adı sadece tek harfse (A, B gibi) ve tek grup varsa, Lig Adını göster */}
+                  {groupsToShow.length === 1 && group.length === 1 
+                    ? targetLeague.name + ' Standings' 
+                    : (group === 'A' || group === 'B' ? `Group ${group}` : group)}
+                </span>
+                
                 {gameState.winnersGroup === group && selectedLeagueKey === gameState.leagueKey && (
                     <span className="text-xs bg-green-500/20 text-green-400 px-2 py-1 rounded border border-green-500/30">
                         Winners Group
